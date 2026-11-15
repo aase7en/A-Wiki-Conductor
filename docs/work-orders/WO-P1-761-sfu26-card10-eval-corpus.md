@@ -74,3 +74,19 @@ After module landed, one behavioral RED was recorded before fix: `test_sentinels
 ### Delivery gate status
 
 - Phase 0–3 complete; frozen local commit below (NO push per lane scope). Remaining gate: independent review (blinded-label framing) → adviser concurrence → push → PR → exact-head CI → merge expected head → post-main CI → checkpoint + close on #761.
+
+### Repair round 1 (independent review CHANGES_REQUIRED — delivered)
+
+Review findings addressed exactly as prescribed:
+
+- **F1 (P2)** — sentinel `case_id`s carried `sent-{category}` and were projected verbatim into `provider_payload`, leaking sentinel-ness + category through the payload. RED verbatim:
+  - `test_all_case_ids_share_neutral_id_space` → `AssertionError: sent-inj-001` (`re.compile('^eval-[a-z]+-(?:th|en|mx)-[0-9]{3,}$').match('sent-inj-001')` returned None).
+  - `test_payload_projection_free_of_sentinel_markers_full_corpus` → first failed at `('eval-esc-en-006', 'content', 'stale')`: the old abbreviation tokens were common English words ("stale", "secret", "schema", "transport", "replay") that legitimately occur in corpus content, so the token vocabulary was renamed to collision-free non-word audit tokens (`unath, stlc, nidn, scrt, pinj, schm, trsp, rply`) before the scan could isolate the real `sent-` id leak.
+- **F3 (P3)** — no upper bound on `sentinel_count` (100k → ~115MB materialization). RED verbatim: `AttributeError: module 'a_conductor.eval_corpus' has no attribute 'MAX_SENTINEL_COUNT'. Did you mean: 'MIN_SENTINEL_COUNT'?`; `sentinel_count=10_001` previously built successfully. Fix: `MAX_SENTINEL_COUNT = 10_000`, `_validate_sentinel_count` now bounds [300, 10_000]; boundary `sentinel_count=10_000` builds (11,080 cases) is pinned green.
+- **F2 (P3)** — seed variation only affected task_classification cells (~92% of corpus seed-invariant: only `{module}/{test}/{service}/{branch}` slot-bearing templates and the escalation high-risk label draw consume seed entropy). Fix per review prescription: module docstring now documents the seed-sensitivity scope (task_classification slot fills + escalation_decision high-risk label choice; other banks intentionally fixed-template); no behavioral change.
+
+**Id-scheme decision**: sentinel ids now live in the SAME neutral id space as base cases — `eval-{stratum_abbr}-{lang_abbr}-{ordinal:03d}` where the ordinal continues the host cell's base 001–060 sequence (61, 62, … per (stratum, language) cell; per-cell counters in `build_corpus`, no collisions since the prefix/ordinal pair is unique). Example: `eval-esc-mx-061`. Category remains recorded ONLY label-side (`EvalCase.category`) and lineage-side (`ln:sent:{category}:t{tpl}:v{n}` — lineage stays out of payloads). `CATEGORY_ABBR` is retained as the audit-only token vocabulary consumed by the payload-projection leak scan; generation no longer uses it. The canonical default seed for review/audit corpora is `20261115`.
+
+**Verification**: `tests/test_eval_corpus.py` → **59 passed** in 0.42s (55 prior + 4 repair tests, RED→GREEN); neighbors `tests/test_jev_shadow_benchmark.py` + `tests/test_work_order_identity.py` → **61 passed** in 0.29s; `python3 -m compileall -q src/a_conductor` OK; cross-process determinism byte-identical.
+
+**Manifest hash CHANGE (expected)**: new default-seed (20261115) `corpus_hash` = `eb9cc653da094fdb0c46b21cf57580f4568fb7bb46c49c67b3309b025c16696b` (manifest 405,604 bytes; prior `104afd52…` invalidated by the id-scheme change, as anticipated).

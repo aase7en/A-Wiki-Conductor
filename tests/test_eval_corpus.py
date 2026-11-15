@@ -221,6 +221,51 @@ def test_base_cases_have_no_category(base_cases):
 
 
 # ---------------------------------------------------------------------------
+# Repair round 1 (WO-P1-761 review): F1 neutral sentinel ids, F3 upper bound
+# ---------------------------------------------------------------------------
+
+NEUTRAL_ID_RE = re.compile(r"^eval-[a-z]+-(?:th|en|mx)-[0-9]{3,}$")
+CANONICAL_DEFAULT_SEED = 20261115
+
+
+def test_payload_projection_free_of_sentinel_markers_full_corpus():
+    corpus = ec.build_corpus(seed=CANONICAL_DEFAULT_SEED)
+    forbidden = ("sent-",) + tuple(ec.CATEGORY_ABBR.values())
+    for case in corpus.cases:
+        payload = ec.provider_payload(case)
+        for key, value in payload.items():
+            lowered = value.lower()
+            for marker in forbidden:
+                assert marker.lower() not in lowered, (
+                    case.case_id,
+                    key,
+                    marker,
+                )
+
+
+def test_all_case_ids_share_neutral_id_space():
+    corpus = ec.build_corpus(seed=CANONICAL_DEFAULT_SEED)
+    ids = [case.case_id for case in corpus.cases]
+    assert len(ids) == len(set(ids))
+    for case in corpus.cases:
+        assert NEUTRAL_ID_RE.match(case.case_id), case.case_id
+        if case.category is not None:
+            ordinal = int(case.case_id.rsplit("-", 1)[1])
+            assert ordinal > 60, case.case_id
+
+
+def test_sentinel_count_upper_bound_typed_error():
+    assert ec.MAX_SENTINEL_COUNT == 10_000
+    with pytest.raises(ec.InvalidSentinelCountError):
+        ec.build_corpus(seed=3, sentinel_count=10_001)
+
+
+def test_sentinel_count_at_upper_bound_builds():
+    corpus = ec.build_corpus(seed=3, sentinel_count=10_000)
+    assert len(corpus.cases) == 1080 + 10_000
+
+
+# ---------------------------------------------------------------------------
 # Determinism
 # ---------------------------------------------------------------------------
 

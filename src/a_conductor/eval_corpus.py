@@ -16,6 +16,13 @@ Corpus shape (roadmap section 9.1):
 - ``review_severity`` is the sixth ``SemanticDecisionFamily`` member but
   is frontier-only per WO-P1-502 and is deliberately NOT a stratum.
 
+Seed sensitivity (repair round 1, WO-P1-761 review F2): seed variation
+alters slot fills in the task_classification template banks and the
+escalation_decision high-risk label choice; all other banks are
+intentionally fixed-template so their rendered contents are
+seed-invariant, and only the ticket refs and structural fields carry
+case identity there.
+
 Labels live only on the record; ``provider_payload`` projects a
 label/split/lineage-free view, so leakage is impossible by construction.
 The preregistration table records roadmap section 9.3 metrics and the
@@ -61,6 +68,7 @@ SENTINEL_CATEGORIES: tuple[str, ...] = (
     "replay",
 )
 MIN_SENTINEL_COUNT = 300
+MAX_SENTINEL_COUNT = 10_000
 DEFAULT_SENTINEL_COUNT = 320
 
 STRATA_ABBR: Mapping[str, str] = {
@@ -72,15 +80,19 @@ STRATA_ABBR: Mapping[str, str] = {
     "escalation_decision": "esc",
 }
 LANG_ABBR: Mapping[str, str] = {"thai": "th", "english": "en", "mixed": "mx"}
+# Audit-only token vocabulary for sentinel categories (repair round 1,
+# WO-P1-761 review F1). Sentinel case ids no longer encode category, and
+# these tokens are deliberately non-words so the payload-projection leak
+# scan cannot collide with legitimate corpus content.
 CATEGORY_ABBR: Mapping[str, str] = {
-    "unauthorized_action": "unauth",
-    "stale_claim": "stale",
-    "missing_identity": "noid",
-    "secret_synthetic_handling": "secret",
-    "prompt_injection": "inj",
-    "model_provider_schema_mismatch": "schema",
-    "transport_ambiguity": "transport",
-    "replay": "replay",
+    "unauthorized_action": "unath",
+    "stale_claim": "stlc",
+    "missing_identity": "nidn",
+    "secret_synthetic_handling": "scrt",
+    "prompt_injection": "pinj",
+    "model_provider_schema_mismatch": "schm",
+    "transport_ambiguity": "trsp",
+    "replay": "rply",
 }
 
 
@@ -1205,10 +1217,11 @@ def _validate_sentinel_count(sentinel_count: object) -> int:
         isinstance(sentinel_count, bool)
         or not isinstance(sentinel_count, int)
         or sentinel_count < MIN_SENTINEL_COUNT
+        or sentinel_count > MAX_SENTINEL_COUNT
     ):
         raise InvalidSentinelCountError(
-            f"sentinel_count must be an int >= {MIN_SENTINEL_COUNT}, got "
-            f"{sentinel_count!r}"
+            f"sentinel_count must be an int between {MIN_SENTINEL_COUNT} "
+            f"and {MAX_SENTINEL_COUNT}, got {sentinel_count!r}"
         )
     return sentinel_count
 
@@ -1280,6 +1293,7 @@ def _sentinel_case(
     category: str,
     index: int,
     ref_number: int,
+    ordinal: int,
 ) -> EvalCase:
     language = LANGUAGES[index % len(LANGUAGES)]
     host_stratum = STRATA[index % len(STRATA)]
@@ -1287,15 +1301,17 @@ def _sentinel_case(
     template, label = bank[index % len(bank)]
     risk = RISK_LEVELS[index % len(RISK_LEVELS)]
     content = template.format(**_slot_values(rng, ref_number))
-    ordinal = index + 1
     return EvalCase(
-        case_id=f"sent-{CATEGORY_ABBR[category]}-{ordinal:03d}",
+        case_id=(
+            f"eval-{STRATA_ABBR[host_stratum]}-{LANG_ABBR[language]}-"
+            f"{ordinal:03d}"
+        ),
         stratum=host_stratum,
         language=language,
         risk=risk,
         split=None,
         lineage_id=(
-            f"ln:sent:{category}:t{index % len(bank):02d}:v{ordinal:03d}"
+            f"ln:sent:{category}:t{index % len(bank):02d}:v{index + 1:03d}"
         ),
         content=content,
         label=label,
@@ -1341,11 +1357,25 @@ def build_corpus(
                 )
 
     per_category, remainder = divmod(sentinel_count, len(SENTINEL_CATEGORIES))
+    sentinel_cell_ordinal: dict[tuple[str, str], int] = {}
     for category_index, category in enumerate(SENTINEL_CATEGORIES):
         count = per_category + (1 if category_index < remainder else 0)
         for index in range(count):
             ref_number += 1
-            cases.append(_sentinel_case(rng, category, index, ref_number))
+            host_stratum = STRATA[index % len(STRATA)]
+            language = LANGUAGES[index % len(LANGUAGES)]
+            cell_key = (host_stratum, language)
+            cell_ordinal = sentinel_cell_ordinal.get(cell_key, 0) + 1
+            sentinel_cell_ordinal[cell_key] = cell_ordinal
+            cases.append(
+                _sentinel_case(
+                    rng,
+                    category,
+                    index,
+                    ref_number,
+                    CASES_PER_CELL + cell_ordinal,
+                )
+            )
 
     cases.sort(key=lambda case: case.case_id)
     frozen_cases = tuple(cases)
