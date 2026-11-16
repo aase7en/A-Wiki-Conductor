@@ -536,12 +536,6 @@ def _check_sha(value: object) -> str | None:
     return _checked_sha(value)[0]
 
 
-def _check_int(value: object) -> str | None:
-    if isinstance(value, bool) or not isinstance(value, int):
-        return "FIELD_TYPE_INVALID"
-    return None
-
-
 def _coerce_int(value: object) -> int | None:
     """Plain-int emission view; None when not a plain coercible int.
 
@@ -579,8 +573,29 @@ def _check_stamp(value: object) -> tuple[str | None, str | None]:
     if isinstance(value, datetime):
         if not _tz_aware(value):
             return None, "TIMESTAMP_NAIVE"
+        # ADJ-1 (WO-P1-767 round 2): a datetime subclass can override
+        # ``isoformat()`` (or its component reads) to launder attacker
+        # text. Every component is read wrapped, must be a plain int, and
+        # the emission is rebuilt from a REAL datetime so the subclass's
+        # ``isoformat`` (and any lying attribute) is never invoked.
+        parts: list[int] = []
+        for name in ("year", "month", "day", "hour", "minute", "second", "microsecond"):
+            try:
+                component = getattr(value, name, _MISSING)
+            except Exception:
+                return None, "TIMESTAMP_INVALID"
+            if component is _MISSING or type(component) is not int:
+                return None, "TIMESTAMP_INVALID"
+            parts.append(component)
         try:
-            return value.isoformat(), None
+            tzinfo = getattr(value, "tzinfo", _MISSING)
+        except Exception:
+            return None, "TIMESTAMP_INVALID"
+        if tzinfo is _MISSING:
+            return None, "TIMESTAMP_INVALID"
+        try:
+            rebuilt = datetime(*parts, tzinfo=tzinfo)
+            return rebuilt.isoformat(), None
         except Exception:
             return None, "TIMESTAMP_INVALID"
     if not isinstance(value, str):

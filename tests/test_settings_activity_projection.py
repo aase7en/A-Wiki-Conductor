@@ -1533,3 +1533,84 @@ class TestWholeViewRenderPin:
             for forbidden in (*ALL_FORBIDDEN, LEAK_ATTACK, EVIL_REPR):
                 assert forbidden not in rendered, forbidden
         assert_forbidden_absent(view)
+
+
+# ---------------------------------------------------------------------------
+# Security repair round 2 (adjudication ADJ-1, WO-P1-767): a datetime
+# subclass with benign tzinfo/utcoffset but an attacker-controlled
+# ``isoformat()`` must never launder its text into emitted stamps.
+# ---------------------------------------------------------------------------
+
+
+class LyingStamp(datetime):
+    """Benign tz-aware datetime view; attacker-controlled ``isoformat()``."""
+
+    def isoformat(self, sep: str = "T", timespec: str = "auto") -> str:
+        return LEAK_ATTACK
+
+
+class RaisingComponentStamp(datetime):
+    """Two-faced stamp whose ``year`` attribute read raises."""
+
+    @property
+    def year(self):
+        raise RuntimeError("raising year probe")
+
+
+class TestStampIsoformatLaundering:
+    def test_lying_isoformat_occurred_at_emits_real_iso_string(self) -> None:
+        lying = LyingStamp(2026, 11, 16, 11, 59, 0, tzinfo=timezone.utc)
+        assert lying.isoformat() == LEAK_ATTACK
+        group = project_settings_activity_view(
+            hook_records=(make_hook_envelope(occurred_at=lying),)
+        ).hook_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        expected = datetime(
+            2026, 11, 16, 11, 59, 0, tzinfo=timezone.utc
+        ).isoformat()
+        assert record.occurred_at == expected
+        assert record.occurred_at != LEAK_ATTACK
+        assert LEAK_ATTACK not in _project_strings(record)
+        assert LEAK_ATTACK not in repr(group)
+
+    def test_lying_isoformat_admission_stamp_emits_real_iso_string(self) -> None:
+        lying = LyingStamp(2026, 11, 16, 10, 0, 0, tzinfo=timezone.utc)
+        input_record = make_provider_input(
+            admission=SimpleNamespace(
+                admission_id="adm-1",
+                status="ACTIVE",
+                acquired_at=lying,
+                expires_at="2026-11-16T15:00:00+00:00",
+                released_at=None,
+                reconciled_at=None,
+                configuration_generation=7,
+            )
+        )
+        group = project_settings_activity_view(providers=(input_record,)).providers
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.admission is not None
+        expected = datetime(
+            2026, 11, 16, 10, 0, 0, tzinfo=timezone.utc
+        ).isoformat()
+        assert record.admission.acquired_at == expected
+        assert record.admission.acquired_at != LEAK_ATTACK
+        assert LEAK_ATTACK not in _project_strings(record)
+
+    def test_raising_stamp_component_is_typed_rejection(self) -> None:
+        lying = RaisingComponentStamp(2026, 11, 16, tzinfo=timezone.utc)
+        group = project_settings_activity_view(
+            hook_records=(make_hook_envelope(occurred_at=lying),)
+        ).hook_activity
+        assert group.records == ()
+        (rejection,) = group.rejections
+        assert rejection.code == "TIMESTAMP_INVALID"
+        assert rejection.field == "occurred_at"
+
+    def test_lying_component_values_never_project(self) -> None:
+        lying = RaisingComponentStamp(2026, 11, 16, tzinfo=timezone.utc)
+        group = project_settings_activity_view(
+            hook_records=(make_hook_envelope(occurred_at=lying),)
+        ).hook_activity
+        assert LEAK_ATTACK not in _project_strings(group)
