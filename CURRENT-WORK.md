@@ -1,4 +1,13 @@
 # A-Sunday Conductor — Current Work
+## 2026-11-16 - SFU26 card 05 settings read models - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `b260a12` -> PR 768 candidate `4887124` (feat `8242b37` + 2 security rounds; 3 files +3375/-0) -> exact-head CI 43948464060 SUCCESS -> merge `de9826820ce750d86b6c66074ee5bc5337a32b3c` -> post-main CI 43950911879 SUCCESS -> [#767 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/767#issuecomment-6928954448).
+Delivered: NEW pure `settings_activity_projection.py` — deny-by-default metadata-only allowlist across 11 surfaces (provider/hook/control/execution/audit/brain-settings/runtime-config/binding/local-refs/registry/network-policy); DENY fields never read; counts+derived booleans replace entries; drift typed; validator parity mutation-check-proven; laundering classes (str/int/datetime two-faced subclasses) closed across rounds 1-2; iterable containment. Framing GLM-5.3 substitute approve 0.8 (operator directive: Terra usage-limited -> GLM-5.3 interim); Jev allowlist 0.80; merge concurrence Jev 0.94 + GLM wait-for-CI 0.85. Program: 10/22 cards. Adviser protocol now: Jev + GLM-5.3 until Terra returns.
+
+### Exact next safe action
+
+(1) UX-1 operator green-light (#743) remains THE gate for card 04 lineage (04->13->14->15->17->18->19). (2) Card 11 (Gemini adapter) needs official API/privacy review; card 12 needs budget/egress permission. (3) Card 05's consumers arrive with card 04/13. (4) Gate-recheck cron active (8h).
+
 ## 2026-11-15 - SFU26 P3 consolidation - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `b9b9370` -> PR 766 candidate `616c984` (8 files +424/-14) -> exact-head CI 43753086058 SUCCESS -> merge `b9bc9558bd05246d06ae615f916c3464c6814aa1` -> post-main CI 43777137430 SUCCESS -> [#765 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/765#issuecomment-6903694137).

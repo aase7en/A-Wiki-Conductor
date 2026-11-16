@@ -1,4 +1,9 @@
 # HANDOFF — A-Sunday Conductor
+## 2026-11-16 - SFU26 card 05 settings read models - CURRENT
+
+Card 05 COMPLETE: PR 768 candidate `4887124`; merge `de9826820ce750d86b6c66074ee5bc5337a32b3c`; post-main CI 43950911879 SUCCESS; #767 closed. Safe settings/activity read model exists (11 surfaces, deny-by-default, laundering-proof emissions).
+STATE: 10/22 cards; adviser protocol = Jev + GLM-5.3 substitute (operator directive 2026-11-16, Terra usage-limited); UX-1 (#743) still the primary human gate (card 04 lineage); gate-recheck cron every 8h.
+
 ## 2026-11-15 - SFU26 P3 consolidation - CURRENT
 
 P3 consolidation COMPLETE: PR 766 candidate `616c984`; merge `b9bc9558bd05246d06ae615f916c3464c6814aa1`; post-main CI 43777137430 SUCCESS; #765 closed. Frame bound + correlation strictness + fleet guards + policy pins delivered; P3 backlog of cards 01/02/06/03 now ZERO.
