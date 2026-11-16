@@ -1,4 +1,13 @@
 # A-Sunday Conductor — Current Work
+## 2026-11-15 - SFU26 P3 consolidation - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `b9b9370` -> PR 766 candidate `616c984` (8 files +424/-14) -> exact-head CI 43753086058 SUCCESS -> merge `b9bc9558bd05246d06ae615f916c3464c6814aa1` -> post-main CI 43777137430 SUCCESS -> [#765 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/765#issuecomment-6903694137).
+Delivered: P3 follow-up backlog of cards 01/02/06/03 closed — monitor frame bound (byte-exact 262144/262145 typed marker), correlation plain-str strictness, fleet two-faced-subclass guards (both sites), card-01 policy pins (app.routes-derived; real pre-routing 405). Review PASS first try; Jev merge_now 0.76 (softer signal disclosed); Terra usage-limit disclosed. Program state: 9/22 cards + P3 backlog ZERO — NO autonomous lanes remain; everything waits on human gates.
+
+### Exact next safe action
+
+(1) OPERATOR GATE — UX-1 green-light (#743): review docs/design/sunday-family-ux1-mockup.html + 5 decisions; unlocks card 04 (UX-2 React) -> 05/13/14/15/17/18/19 lineage (the largest remaining block). (2) Card 11 awaits official Gemini API/privacy review; card 12 awaits explicit budget/egress permission; cards 14/15 await authority framing (Terra required). (3) Two optional P3 advisories remain (RecursionError doc note; str-subclass created_at) — future lanes.
+
 ## 2026-11-15 - SFU26 card 03 fleet identity projection - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `69c0a2e` -> PR 764 candidate `92f1557` (feat `58b2bb5` + P1/P2 repair; 3 files +1909/-0) -> exact-head CI 43732361310 SUCCESS -> merge `3c83e604b05e9b114997e50ea43aeaab1ae0acd2` -> post-main CI 43748635822 SUCCESS -> [#763 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/763#issuecomment-6899696531).
