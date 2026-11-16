@@ -50,10 +50,16 @@ neighbors survive; identifier handles and all safe text fields obey the
 fleet path-shape law plus the web_api deny-prefix/``_REF``/``_CODE`` shapes
 (reimplemented locally because ``web_api`` drags in pydantic and transport
 machinery; ``tests/test_settings_activity_projection.py`` imports both and
-asserts decision equality, pinning parity); emitted frames are bounded at
-256 rows per group with drop accounting; every emitted dataclass is frozen
-with slots and carries a pinned ``non_authoritative`` flag: this projection
-is display/read context, never mutation, claim, or completion authority.
+asserts decision equality, pinning parity); emitted text is always the
+probed plain-str view returned by the validator — never ``str()`` on the
+original duck value — and emitted ints are plain ``int`` coercions, so
+two-faced str/int subclasses cannot launder attacker text into safe fields
+or record reprs; hostile iterables that fail mid-iteration degrade their
+group with a typed reason instead of escaping; emitted frames are bounded
+at 256 rows per group with drop accounting; every emitted dataclass is
+frozen with slots and carries a pinned ``non_authoritative`` flag: this
+projection is display/read context, never mutation, claim, or completion
+authority.
 """
 
 from __future__ import annotations
@@ -425,93 +431,132 @@ def _url_shaped(value: str) -> bool:
     return "://" in value
 
 
-def _check_ref(value: object) -> str | None:
-    """Typed rejection code for a non-conforming identifier/ref, else None.
+def _checked_ref(value: object) -> tuple[str | None, str | None]:
+    """Typed ``(rejection_code, validated_emission_text)`` for identifier/refs.
 
+    The returned text is the probed plain-str view that was validated —
+    emission sites must emit exactly that text and never ``str(value)`` on
+    the original duck value: a two-faced str subclass can carry an
+    attacker-controlled ``__str__`` that differs from its iteration view.
     Decision-equal to ``web_api._text`` on the parity corpus (charset,
     length and deny-prefix law) and additionally enforces the fleet
     path-shape law so a path never projects through a safe field.
     """
     if not isinstance(value, str):
-        return "IDENTIFIER_INVALID"
+        return "IDENTIFIER_INVALID", None
     probed = _probed_str(value)
     if probed is None:
-        return "IDENTIFIER_INVALID"
+        return "IDENTIFIER_INVALID", None
     value = probed
     if any(ord(char) < 32 for char in value):
-        return "IDENTIFIER_INVALID"
+        return "IDENTIFIER_INVALID", None
     if value == "" or value.strip() == "":
-        return "IDENTIFIER_BLANK"
+        return "IDENTIFIER_BLANK", None
     if value != value.strip():
-        return "IDENTIFIER_INVALID"
+        return "IDENTIFIER_INVALID", None
     if _deny_prefixed(value):
-        return "SAFE_FIELD_SECRET_SHAPED"
+        return "SAFE_FIELD_SECRET_SHAPED", None
     if _url_shaped(value):
-        return "SAFE_FIELD_URL_SHAPED"
+        return "SAFE_FIELD_URL_SHAPED", None
     if _path_shaped(value):
-        return "SAFE_FIELD_PATH_SHAPED"
+        return "SAFE_FIELD_PATH_SHAPED", None
     if len(value) > _REF_LIMIT:
-        return "IDENTIFIER_TOO_LONG"
+        return "IDENTIFIER_TOO_LONG", None
     if _REF_RE.fullmatch(value) is None:
-        return "IDENTIFIER_INVALID"
-    return None
+        return "IDENTIFIER_INVALID", None
+    return None, probed
+
+
+def _check_ref(value: object) -> str | None:
+    """Typed rejection code for a non-conforming identifier/ref, else None."""
+    return _checked_ref(value)[0]
+
+
+def _checked_text(value: object) -> tuple[str | None, str | None]:
+    """Typed ``(rejection_code, validated_emission_text)`` for free text.
+
+    The emitted text is the probed plain-str view, never ``str()`` on the
+    original duck value (two-faced str subclass containment).
+    """
+    if not isinstance(value, str):
+        return "FIELD_TYPE_INVALID", None
+    probed = _probed_str(value)
+    if probed is None:
+        return "FIELD_TYPE_INVALID", None
+    value = probed
+    if any(ord(char) < 32 for char in value):
+        return "FIELD_TYPE_INVALID", None
+    if value != value.strip():
+        return "FIELD_TYPE_INVALID", None
+    if _deny_prefixed(value):
+        return "SAFE_FIELD_SECRET_SHAPED", None
+    if _url_shaped(value):
+        return "SAFE_FIELD_URL_SHAPED", None
+    if _path_shaped(value):
+        return "SAFE_FIELD_PATH_SHAPED", None
+    if len(value) > _TEXT_LIMIT:
+        return "FIELD_TOO_LONG", None
+    return None, probed
 
 
 def _check_text(value: object) -> str | None:
-    """Safe free-text law for display/code-ish fields (no charset pin).
+    """Safe free-text law for display/code-ish fields (no charset pin)."""
+    return _checked_text(value)[0]
 
-    Bounded, control-char-free, deny-prefix / URL / path shaped values are
-    typed rejections; a lying str subclass is contained.
-    """
+
+def _checked_digest(value: object) -> tuple[str | None, str | None]:
+    """Typed ``(rejection_code, validated_emission_text)`` for digests."""
     if not isinstance(value, str):
-        return "FIELD_TYPE_INVALID"
+        return "FIELD_TYPE_INVALID", None
     probed = _probed_str(value)
     if probed is None:
-        return "FIELD_TYPE_INVALID"
-    value = probed
-    if any(ord(char) < 32 for char in value):
-        return "FIELD_TYPE_INVALID"
-    if value != value.strip():
-        return "FIELD_TYPE_INVALID"
-    if _deny_prefixed(value):
-        return "SAFE_FIELD_SECRET_SHAPED"
-    if _url_shaped(value):
-        return "SAFE_FIELD_URL_SHAPED"
-    if _path_shaped(value):
-        return "SAFE_FIELD_PATH_SHAPED"
-    if len(value) > _TEXT_LIMIT:
-        return "FIELD_TOO_LONG"
-    if value == "":
-        return None
-    return None
+        return "FIELD_TYPE_INVALID", None
+    if any(ord(char) < 32 for char in probed):
+        return "FIELD_TYPE_INVALID", None
+    if _DIGEST.fullmatch(probed) is None:
+        return "DIGEST_INVALID", None
+    return None, probed
 
 
 def _check_digest(value: object) -> str | None:
+    return _checked_digest(value)[0]
+
+
+def _checked_sha(value: object) -> tuple[str | None, str | None]:
+    """Typed ``(rejection_code, validated_emission_text)`` for head SHAs."""
     if not isinstance(value, str):
-        return "FIELD_TYPE_INVALID"
+        return "HEAD_SHA_INVALID", None
     probed = _probed_str(value)
-    if probed is None:
-        return "FIELD_TYPE_INVALID"
-    if any(ord(char) < 32 for char in probed):
-        return "FIELD_TYPE_INVALID"
-    if _DIGEST.fullmatch(probed) is None:
-        return "DIGEST_INVALID"
-    return None
+    if probed is None or _SHA.fullmatch(probed) is None:
+        return "HEAD_SHA_INVALID", None
+    return None, probed
 
 
 def _check_sha(value: object) -> str | None:
-    if not isinstance(value, str):
-        return "HEAD_SHA_INVALID"
-    probed = _probed_str(value)
-    if probed is None or _SHA.fullmatch(probed) is None:
-        return "HEAD_SHA_INVALID"
-    return None
+    return _checked_sha(value)[0]
 
 
 def _check_int(value: object) -> str | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return "FIELD_TYPE_INVALID"
     return None
+
+
+def _coerce_int(value: object) -> int | None:
+    """Plain-int emission view; None when not a plain coercible int.
+
+    A hostile int subclass can carry an attacker-controlled ``__repr__``;
+    emission stores plain ``int`` values only so record reprs cannot
+    launder attacker text.
+    """
+    if type(value) is int:
+        return value
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    try:
+        return int(value)
+    except Exception:
+        return None
 
 
 def _check_bool(value: object) -> str | None:
@@ -590,14 +635,14 @@ def _tuple_text_field(
         return "TUPLE_TOO_LONG", None
     emitted: list[str] = []
     for entry in entries:
-        code = _check_ref(entry)
+        code, entry_text = _checked_ref(entry)
         if code is None:
-            emitted.append(str(entry))
+            emitted.append(entry_text)
             continue
-        code_text = _check_text(entry)
+        code_text, entry_text = _checked_text(entry)
         if code_text is not None:
             return code_text, None
-        emitted.append(str(entry))
+        emitted.append(entry_text)
     return None, tuple(emitted)
 
 
@@ -645,12 +690,12 @@ def _text_fields(
                 _rejection(surface, "RECORD_FIELD_MISSING", name, source_index),
                 values,
             )
-        code = _check_ref(value)
+        code, emitted = _checked_ref(value)
         if code == "IDENTIFIER_BLANK":
             code = "FIELD_TYPE_INVALID"
         if code:
             return _rejection(surface, code, name, source_index), values
-        values[name] = str(value)
+        values[name] = emitted
     for name in optional:
         status, value = _read(record, name)
         if status == "unreadable":
@@ -658,10 +703,10 @@ def _text_fields(
         if status == "missing" or value is None:
             values[name] = None
             continue
-        code = _check_ref(value)
+        code, emitted = _checked_ref(value)
         if code:
             return _rejection(surface, code, name, source_index), values
-        values[name] = str(value)
+        values[name] = emitted
     for name in optional_free:
         status, value = _read(record, name)
         if status == "unreadable":
@@ -670,10 +715,10 @@ def _text_fields(
             values[name] = None
             continue
         text = _enum_text(value)
-        code = _check_text(text)
+        code, emitted = _checked_text(text)
         if code:
             return _rejection(surface, code, name, source_index), values
-        values[name] = None if text == "" else str(text)
+        values[name] = None if emitted == "" else emitted
     return None, values
 
 
@@ -691,10 +736,10 @@ def _optional_int_fields(
         if status == "missing" or value is None:
             values[name] = None
             continue
-        code = _check_int(value)
-        if code:
-            return _rejection(surface, code, name, source_index), values
-        values[name] = value  # type: ignore[assignment]
+        coerced = _coerce_int(value)
+        if coerced is None:
+            return _rejection(surface, "FIELD_TYPE_INVALID", name, source_index), values
+        values[name] = coerced
     return None, values
 
 
@@ -749,6 +794,15 @@ def _derived_flag(
 def _validate_provider(
     record: object, source_index: int
 ) -> SettingsProviderRecord | SettingsRecordRejection:
+    """Validate one injected provider record into its display record.
+
+    Trust boundary (F4 note): the embedded ``ProviderOperatorRow``
+    (including its ``display_name``, provider_type and models metadata) is
+    reused by import and trusted by contract as validated at the
+    ``provider_operator_view`` boundary; this module re-validates only the
+    injected metadata extras (protocol_family, schema_version, endpoint_ref,
+    admission, and the credential_ref-derived boolean).
+    """
     surface = "providers"
     if _reject_plain(record):
         return _rejection(surface, "RECORD_TYPE_UNSUPPORTED", None, source_index)
@@ -766,18 +820,18 @@ def _validate_provider(
             extras[name] = None
             continue
         text = _enum_text(value)
-        code = _check_text(text)
+        code, emitted = _checked_text(text)
         if code:
             return _rejection(surface, code, name, source_index)
-        extras[name] = None if text == "" else str(text)
+        extras[name] = None if emitted == "" else emitted
     status, endpoint_value = _read(record, "endpoint_ref")
     if status == "unreadable":
         return _unreadable(surface, source_index)
     if status == "ok" and endpoint_value is not None:
-        code = _check_ref(endpoint_value)
+        code, emitted = _checked_ref(endpoint_value)
         if code:
             return _rejection(surface, code, "endpoint_ref", source_index)
-        extras["endpoint_ref"] = str(endpoint_value)
+        extras["endpoint_ref"] = emitted
     else:
         extras["endpoint_ref"] = None
     admission_status, admission_value = _read(record, "admission")
@@ -818,7 +872,7 @@ def _build_admission(
             _rejection(surface, "RECORD_FIELD_MISSING", "admission_id", source_index),
             None,
         )
-    code = _check_ref(admission_id)
+    code, admission_text = _checked_ref(admission_id)
     if code:
         return _rejection(surface, code, "admission_id", source_index), None
     status_outcome, status_values = _text_fields(
@@ -843,7 +897,8 @@ def _build_admission(
         return _unreadable(surface, source_index), None
     generation_value: int | None = None
     if gen_status == "ok" and generation is not None:
-        if isinstance(generation, bool) or not isinstance(generation, int):
+        generation_value = _coerce_int(generation)
+        if generation_value is None:
             return (
                 _rejection(
                     surface, "GENERATION_INVALID", "configuration_generation",
@@ -851,9 +906,8 @@ def _build_admission(
                 ),
                 None,
             )
-        generation_value = generation
     return None, SettingsAdmissionRecord(
-        admission_id=str(admission_id),
+        admission_id=admission_text or "",
         status=status_values["status"],
         acquired_at=stamps["acquired_at"],
         expires_at=stamps["expires_at"],
@@ -969,10 +1023,10 @@ def _validate_hook(
         return _unreadable(surface, source_index)
     head_value: str | None = None
     if head_status == "ok" and head is not None:
-        code = _check_sha(head)
+        code, emitted = _checked_sha(head)
         if code:
             return _rejection(surface, code, "head_sha", source_index)
-        head_value = str(head)
+        head_value = emitted
     digest_outcome, digests = _digest_fields(
         record, surface, source_index, names=("evidence_digest", "command_digest")
     )
@@ -1089,10 +1143,10 @@ def _digest_fields(
         if status == "missing" or value is None:
             values[name] = None
             continue
-        code = _check_digest(value)
+        code, emitted = _checked_digest(value)
         if code:
             return _rejection(surface, code, name, source_index), values
-        values[name] = str(value)
+        values[name] = emitted
     return None, values
 
 
@@ -1139,9 +1193,9 @@ def _validate_execution(
             _rejection(surface, "RECORD_FIELD_MISSING", "sequence_no", source_index),
             None,
         )[0]
-    code = _check_int(sequence_no)
-    if code:
-        return _rejection(surface, code, "sequence_no", source_index)
+    sequence_value = _coerce_int(sequence_no)
+    if sequence_value is None:
+        return _rejection(surface, "FIELD_TYPE_INVALID", "sequence_no", source_index)
     outcome, values = _text_fields(
         record,
         surface,
@@ -1168,7 +1222,7 @@ def _validate_execution(
     return SettingsExecutionActivityRecord(
         event_id=values["event_id"] or "",
         execution_id=values["execution_id"] or "",
-        sequence_no=sequence_no,  # type: ignore[arg-type]
+        sequence_no=sequence_value,
         event_type=values["event_type"],
         transport_state=values["transport_state"],
         execution_state=values["execution_state"],
@@ -1206,7 +1260,7 @@ def _validate_mutation(
             ),
             None,
         )[0]
-    code = _check_ref(actor_value)
+    code, actor_text = _checked_ref(actor_value)
     if code:
         return _rejection(surface, code, "actor_id", source_index)
     outcome, values = _text_fields(
@@ -1218,7 +1272,7 @@ def _validate_mutation(
     if stamps_outcome is not None:
         return stamps_outcome
     return SettingsMutationAuditRecord(
-        actor_id=str(actor_value),
+        actor_id=actor_text or "",
         actor_kind=actor_kind,
         action=values["action"],
         at=stamps["at"],
@@ -1251,10 +1305,10 @@ def _validate_brain(
     language_value: str | None = None
     if language_status == "ok" and language_backend is not None:
         text = _enum_text(language_backend)
-        code = _check_text(text)
+        code, emitted = _checked_text(text)
         if code:
             return _rejection(surface, code, "language_backend", source_index)
-        language_value = None if text == "" else str(text)
+        language_value = None if emitted == "" else emitted
     timeout_outcome, timeouts = _optional_int_fields(
         record, surface, source_index, names=("tool_timeout",)
     )
@@ -1312,10 +1366,9 @@ def _validate_runtime(
         return _unreadable(surface, source_index)
     port_value: int | None = None
     if port_status == "ok" and health_port is not None:
-        code = _check_int(health_port)
-        if code or not 1 <= health_port <= 65535:  # type: ignore[operator]
+        port_value = _coerce_int(health_port)
+        if port_value is None or not 1 <= port_value <= 65535:
             return _rejection(surface, "FIELD_TYPE_INVALID", "health_port", source_index)
-        port_value = health_port
     timeouts_outcome, timeouts = _optional_int_fields(
         record,
         surface,
@@ -1360,10 +1413,10 @@ def _validate_binding(
         return _unreadable(surface, source_index)
     head_value: str | None = None
     if head_status == "ok" and expected_head is not None:
-        code = _check_sha(expected_head)
+        code, emitted = _checked_sha(expected_head)
         if code:
             return _rejection(surface, code, "expected_head", source_index)
-        head_value = str(expected_head)
+        head_value = emitted
     mutation_status, mutation_allowed = _read(record, "mutation_allowed")
     if mutation_status == "unreadable":
         return _unreadable(surface, source_index)
@@ -1395,7 +1448,7 @@ def _validate_reference_group(
             _rejection(surface, "RECORD_FIELD_MISSING", "reference_id", source_index),
             None,
         )[0]
-    code = _check_ref(reference_id)
+    code, reference_text = _checked_ref(reference_id)
     if code:
         return _rejection(surface, code, "reference_id", source_index)
     counts: dict[str, int] = {}
@@ -1411,7 +1464,7 @@ def _validate_reference_group(
             return _rejection(surface, code, name, source_index)
         counts[name] = count
     return SettingsLocalReferenceRecord(
-        reference_id=str(reference_id),
+        reference_id=reference_text or "",
         reference_count=counts["paths"],
         root_count=counts["roots"],
     )
@@ -1492,9 +1545,10 @@ def _validate_network(
     reason_value: str | None = None
     if reason_status == "ok" and reason_code is not None:
         text = _enum_text(reason_code)
-        if not isinstance(text, str) or text not in _NETWORK_REASON_CODES:
+        probed = _probed_str(text) if isinstance(text, str) else None
+        if probed is None or probed not in _NETWORK_REASON_CODES:
             return _rejection(surface, "REASON_CODE_INVALID", "reason_code", source_index)
-        reason_value = text
+        reason_value = probed
     return SettingsNetworkPolicyRecord(
         privacy_class=values["privacy_class"],
         network_policy=values["network_policy"],
@@ -1526,12 +1580,27 @@ def _project_surface(kind: str, inputs: object, validate) -> SettingsSurfaceGrou
         return _degraded_group(kind)
     records: list = []
     rejections: list[SettingsRecordRejection] = []
-    for index, record in enumerate(inputs):
-        outcome = validate(record, index)
-        if isinstance(outcome, SettingsRecordRejection):
-            rejections.append(outcome)
-        else:
-            records.append(outcome)
+    try:
+        for index, record in enumerate(inputs):
+            outcome = validate(record, index)
+            if isinstance(outcome, SettingsRecordRejection):
+                rejections.append(outcome)
+            else:
+                records.append(outcome)
+    except Exception:
+        # F2 containment: a hostile list/tuple subclass may raise from
+        # ``__iter__`` mid-iteration. Already-validated records/rejections
+        # are trivially safe to keep; the group degrades with a typed
+        # reason instead of letting the raw exception escape.
+        return SettingsSurfaceGroup(
+            kind=kind,
+            state="DEGRADED",
+            reason="SURFACE_INPUT_INVALID",
+            records=tuple(records[:_FRAME_ROW_LIMIT]),
+            rejections=tuple(rejections[:_REJECTION_LIMIT]),
+            dropped_count=0,
+            truncated=False,
+        )
     truncated = len(records) > _FRAME_ROW_LIMIT or len(rejections) > _REJECTION_LIMIT
     dropped_count = max(0, len(records) - _FRAME_ROW_LIMIT) + max(
         0, len(rejections) - _REJECTION_LIMIT

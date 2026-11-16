@@ -1271,3 +1271,265 @@ class TestValidatorParity:
             assert sap._path_shaped(value) is True, value
             if web_accepts:
                 continue
+
+
+# ---------------------------------------------------------------------------
+# Security repair round 1 (independent review F1-F5, WO-P1-767)
+# ---------------------------------------------------------------------------
+
+
+LEAK_ATTACK = "/srv/private/leak-path"
+EVIL_REPR = "<EVIL-REPR-LAUNDRY-999999>"
+
+
+class TwoFacedStr(str):
+    """Benign ``__iter__`` view; attacker-controlled ``__str__``.
+
+    The probed iteration view is the truth the projection must emit;
+    ``str(value)`` on the original object returns the attack text.
+    """
+
+    def __new__(cls, benign: str, attack: str = LEAK_ATTACK):
+        self = super().__new__(cls, benign)
+        self.attack = attack
+        return self
+
+    def __str__(self) -> str:
+        return self.attack
+
+
+class EvilInt(int):
+    """Hostile int subclass laundering attacker text through ``__repr__``."""
+
+    def __repr__(self) -> str:
+        return EVIL_REPR
+
+
+class MidIterHostileList(list):
+    """A real ``list`` whose ``__iter__`` raises mid-iteration."""
+
+    def __init__(self, items, raise_after: int) -> None:
+        super().__init__(items)
+        self.raise_after = raise_after
+
+    def __iter__(self):
+        def generate():
+            for count, item in enumerate(list.__iter__(self)):
+                if count == self.raise_after:
+                    raise RuntimeError("hostile mid-iteration raise")
+                yield item
+
+        return generate()
+
+
+class TestTwoFacedEmissionLaw:
+    """F1: emission must carry the probed iteration view, never str(duck)."""
+
+    def test_two_faced_task_id_emits_iteration_view(self) -> None:
+        group = project_settings_activity_view(
+            hook_records=(make_hook_envelope(task_id=TwoFacedStr("tk-1")),)
+        ).hook_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.task_id == "tk-1"
+        assert type(record.task_id) is str
+        assert LEAK_ATTACK not in _project_strings(record)
+        assert LEAK_ATTACK not in repr(group)
+
+    def test_two_faced_markers_emits_iteration_view(self) -> None:
+        group = project_settings_activity_view(
+            hook_records=(make_hook_envelope(markers=(TwoFacedStr("SAFE"),)),)
+        ).hook_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.markers == ("SAFE",)
+        assert all(type(entry) is str for entry in record.markers)
+        assert LEAK_ATTACK not in _project_strings(record)
+        assert LEAK_ATTACK not in repr(group)
+
+    def test_two_faced_evidence_digest_emits_iteration_view(self) -> None:
+        group = project_settings_activity_view(
+            hook_records=(make_hook_envelope(evidence_digest=TwoFacedStr("c" * 64)),)
+        ).hook_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.evidence_digest == "c" * 64
+        assert LEAK_ATTACK not in _project_strings(record)
+        assert LEAK_ATTACK not in repr(group)
+
+    def test_two_faced_endpoint_ref_emits_iteration_view(self) -> None:
+        group = project_settings_activity_view(
+            providers=(
+                make_provider_input(endpoint_ref=TwoFacedStr("endpoint:primary")),
+            )
+        ).providers
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.endpoint_ref == "endpoint:primary"
+        assert LEAK_ATTACK not in _project_strings(record)
+        assert LEAK_ATTACK not in repr(group)
+
+    def test_two_faced_display_name_emits_iteration_view(self) -> None:
+        group = project_settings_activity_view(
+            registry_entries=(
+                make_registry_entry(display_name=TwoFacedStr("Project One")),
+            )
+        ).registry
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.display_name == "Project One"
+        assert LEAK_ATTACK not in _project_strings(record)
+        assert LEAK_ATTACK not in repr(group)
+
+
+class TestIterableContainmentLaw:
+    """F2: a hostile list subclass raising mid-``__iter__`` is contained."""
+
+    @pytest.mark.parametrize("raise_after, kept_records", [(0, 0), (1, 1)])
+    def test_hostile_iteration_degrades_group_without_escape(
+        self, raise_after: int, kept_records: int
+    ) -> None:
+        hostile = MidIterHostileList(
+            [make_control_event(event_id=f"event-{i}") for i in range(3)],
+            raise_after,
+        )
+        group = project_settings_activity_view(
+            control_events=hostile
+        ).control_activity
+        assert group.state == "DEGRADED"
+        assert group.reason == "SURFACE_INPUT_INVALID"
+        assert len(group.records) == kept_records
+        assert group.truncated is False
+
+
+class TestIntCoercionLaw:
+    """F3: hostile int-subclass ``__repr__`` cannot launder via reprs."""
+
+    def test_evil_int_pid_emits_plain_int(self) -> None:
+        group = project_settings_activity_view(
+            execution_events=(make_execution_event(pid=EvilInt(4321)),)
+        ).execution_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.pid == 4321
+        assert type(record.pid) is int
+        assert EVIL_REPR not in repr(record)
+        assert EVIL_REPR not in repr(group)
+
+    def test_evil_int_duration_and_sequence_emit_plain_ints(self) -> None:
+        group = project_settings_activity_view(
+            hook_records=(
+                make_hook_envelope(duration_ms=EvilInt(25), sequence=EvilInt(3)),
+            )
+        ).hook_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.duration_ms == 25
+        assert type(record.duration_ms) is int
+        assert record.sequence == 3
+        assert type(record.sequence) is int
+        assert EVIL_REPR not in repr(record)
+
+    def test_evil_int_sequence_no_emits_plain_int(self) -> None:
+        group = project_settings_activity_view(
+            execution_events=(make_execution_event(sequence_no=EvilInt(1)),)
+        ).execution_activity
+        (record,) = group.records
+        assert record.sequence_no == 1
+        assert type(record.sequence_no) is int
+        assert EVIL_REPR not in repr(record)
+
+    def test_evil_int_generation_and_port_emit_plain_ints(self) -> None:
+        admission = SimpleNamespace(
+            admission_id="adm-1",
+            status="ACTIVE",
+            acquired_at="2026-11-16T10:00:00+00:00",
+            expires_at="2026-11-16T15:00:00+00:00",
+            released_at=None,
+            reconciled_at=None,
+            configuration_generation=EvilInt(7),
+        )
+        (provider,) = project_settings_activity_view(
+            providers=(make_provider_input(admission=admission),)
+        ).providers.records
+        assert provider.admission.configuration_generation == 7
+        assert type(provider.admission.configuration_generation) is int
+        (runtime,) = project_settings_activity_view(
+            worker_runtime_configs=(make_runtime_config(health_port=EvilInt(8123)),)
+        ).worker_runtime.records
+        assert runtime.health_port == 8123
+        assert type(runtime.health_port) is int
+        assert EVIL_REPR not in repr(provider)
+        assert EVIL_REPR not in repr(runtime)
+
+
+def _raising_property(name: str) -> property:
+    def raise_attr(self) -> None:
+        raise RuntimeError(f"raising deny probe: {name}")
+
+    return property(raise_attr)
+
+
+class TestDenyNonAccessRound1:
+    """F5: the six remaining DENY fields are never read (raising fixture)."""
+
+    @pytest.mark.parametrize(
+        "deny_name",
+        [
+            "repo",
+            "worktree",
+            "branch",
+            "authority_repo",
+            "execution_repo",
+            "justification",
+        ],
+    )
+    def test_deny_field_raising_never_read(self, deny_name: str) -> None:
+        envelope = make_hook_envelope()
+        values = dict(envelope.__dict__)
+        values[deny_name] = _raising_property(deny_name)
+        record_cls = type("HookDenyRaisingEnvelope", (), values)
+        group = project_settings_activity_view(
+            hook_records=(record_cls(),)
+        ).hook_activity
+        assert group.state == "OK"
+        (record,) = group.records
+        assert record.task_id == "task-1"
+        assert group.rejections == ()
+
+
+class TestWholeViewRenderPin:
+    """F5: repr()/str() of the whole view leak nothing forbidden."""
+
+    def test_whole_view_repr_and_str_contain_no_forbidden_values(self) -> None:
+        view = project_settings_activity_view(
+            providers=(
+                make_provider_input(endpoint_ref=TwoFacedStr("endpoint:primary")),
+            ),
+            hook_records=(
+                make_hook_envelope(
+                    task_id=TwoFacedStr("tk-1"),
+                    markers=(TwoFacedStr("SAFE"),),
+                    evidence_digest=TwoFacedStr("c" * 64),
+                    duration_ms=EvilInt(25),
+                ),
+            ),
+            control_events=(make_control_event(),),
+            execution_events=(
+                make_execution_event(pid=EvilInt(4321), sequence_no=EvilInt(1)),
+            ),
+            mutation_audits=(make_mutation_record(),),
+            worker_brain_settings=(make_brain_settings(),),
+            worker_runtime_configs=(make_runtime_config(),),
+            project_bindings=(make_project_binding(),),
+            local_reference_groups=(make_reference_group(),),
+            registry_entries=(
+                make_registry_entry(display_name=TwoFacedStr("Project One")),
+            ),
+            network_policies=(make_network_policy(),),
+            now=NOW,
+        )
+        for rendered in (repr(view), str(view)):
+            for forbidden in (*ALL_FORBIDDEN, LEAK_ATTACK, EVIL_REPR):
+                assert forbidden not in rendered, forbidden
+        assert_forbidden_absent(view)
