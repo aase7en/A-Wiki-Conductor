@@ -49,3 +49,14 @@ One new, clearly labeled requirements document that maps:
 
 ## Exact next safe action
 Freeze the two-file docs candidate, open reviewable PR linked to #771, verify the remote diff and CI status, await independent acceptance, then coordinate AGENTS/roadmap alignment only after #770's owner/claim is reconciled. No source implementation or production install from this issue alone.
+
+## 2026-11-17 Operator multi-frontend expansion — CHECKPOINT
+
+The operator expanded this **same** SundayFamily requirements/WO scope to include Gemini/Claude/other AI frontends, browser-mediated proposals, native MCP/API/CLI, and Kilo/GLM workers. This is not a new repo, task/claim/queue authority or new source implementation authorization.
+
+- Edited only the already-scoped, newly introduced requirements document (section 10), on the same owned PR #772 branch; root `AGENTS.md`, `PROJECT-GRAPH.yaml`, UX, master roadmap and continuity hotspots remain forbidden.
+- Principle: model-agnostic frontend/planner/reviewer **proposal/advisory** contracts with currently accepted GPT integrator/merge/release authority unchanged until explicit governance approval.
+- Browser consumer AI: native MCP only when verified for specific account/client; otherwise manual read-only Context Pack export / `WorkOrderProposal` import for v1. Optional MV3 `PROPOSE_ONLY` extension is post-v1 and requires an independent R3 security claim.
+- Confirmed reuse from read-only source: existing provider SQLite config, worker lease hotspot fence, pure worktree lifecycle classifier, TypeSafe adapter pinned to `jev-1.13.0` at checked SHA, SRM installer/doctor read models. Do not assert actual end-to-end installs or live multi-AI tests.
+- Exact next action: review full two-file PR diff/hosted CI on its **new** head; obtain independent review; merge expected head only after gate, then post-main verify. **After PR #770** (separate active UX owner) also accepted/merged, claim a separate short root AGENTS/graph alignment WO that links the accepted requirements under its task-conditional nodes. No source/provider/runtime/UX mutation from this checkpoint.
+- Physical Windows/macOS checkouts and unrelated user files were not changed by this GitHub-only docs update.
