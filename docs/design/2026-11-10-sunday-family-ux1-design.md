@@ -1,7 +1,9 @@
 # SundayFamily UX-1 Design Packet
 
 Date: 2026-11-10 | Issue: #743 (UX-1 lane; charter on #739) | Base: `16b897a` (supplied)
-Status: TARGET-STATE PROPOSAL / OPERATOR GREEN-LIGHT PENDING
+Status: TARGET-STATE PROPOSAL / OPERATOR GREEN-LIGHT PENDING (functional IA/packaging/behavior gates remain)
+
+> **Visual direction approved 2026-11-17:** Operator explicitly selected **Color E-Ink + hand-inked manga linework** as the SundayFamily Web/PWA target. The previous near-black UX-1 colors below are historical mockup proposals rather than the chosen new web visual theme; see `docs/design/sunday-family-design-system.md` and Issue #743. Keep this document's seven primary user domains as the working IA until the operator resolves the remaining UX-1 decisions. This color/style choice alone is **not** full UX-2/card-04 implementation green-light, nor a Tk-retirement/Command-Gateway/security change.
 Claim: `UX1-739-DESIGN-001`, comment 6770451351.
 WO: [UX-1 work order](../work-orders/WO-P1-743-sunday-family-ux1-dashboard.md).
 Preview: [offline mockup](sunday-family-ux1-mockup.html).
