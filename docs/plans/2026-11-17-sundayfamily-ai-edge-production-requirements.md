@@ -118,3 +118,68 @@ Any missing implementation slice needs its own accepted WO and scope; **this add
 5. Run read-only feasibility/benchmark first; gated external provider use/paid credits and installer release remain later decisions.
 
 **Definition of checkpoint success:** the product intent is durable, linked to #771 and the SFU26 program, traceable to exact GitHub revision, and isolated from concurrent UX/UI work. **Definition of project production success is separate and requires measured E2E proof.**
+
+---
+
+## 10. Universal AI Frontends and Safe Agent Handoff (operator expansion: 2026-11-17)
+
+**Status: DESIGN PROPOSAL / operator product intent, not implemented, not an approval to change existing agent authority.** This addendum extends the initial ChatGPT-oriented use case to **a model-agnostic multi-frontend experience**. ChatGPT is the operator's currently preferred conversational front door and GPT remains the *current accepted integrator* under repo policy; other AI frontend, planner and advisory-reviewer roles may be supported through separately admitted contracts. **Changing final architecture acceptance/merge/release authority requires an explicit accepted governance decision**, not a Settings dropdown.
+
+### 10.1 Integration channels, prioritized
+
+| Channel | Intended role | Boundary / readiness |
+|---|---|---|
+| Verified native MCP client | Supported ChatGPT/Claude/Gemini/CLI client may access specifically exposed read/propose tools | Verify **client- and account-specific** transport, scopes, origin and authentication; cloud-hosted web apps **cannot assume** direct access to a user's localhost |
+| Official API / CLI executor | Bounded agent-worker transport (Kilo/GLM, Claude Code, Gemini CLI, approved cloud/local models) | Reuse existing A-FastTask/A-Conductor task/provider admission and SRM device capability routing; no second dispatcher |
+| SundayFamily web UI | Read-only redacted Context Pack export and structured Work Order Proposal import (first broadly portable browser handoff) | Import is **PROPOSE_ONLY** and must not write arbitrary files or execute before existing authority/approval and stale-base checks |
+| Optional browser companion / MV3 side panel | Explicit user-selected text/clipboard → reviewed structured proposal | **Post-v1** candidate, not a DOM scraper or automatic chat-bot; no cookies, login/session tokens, arbitrary filesystem reads, process access or unreviewed machine commands |
+| Unsupported consumer web chat | User-mediated copy/paste only | Never claim native MCP or automated execution solely from website branding; verify service terms, geography, plan and entitlement |
+
+A hypothetical localhost ingress or remote tunnel is a security-sensitive **proposal**, not a preapproved new generic MCP gateway. Prefer reusing current SundayMCP authenticated tool contracts; assess Native Messaging vs authenticated loopback only if the post-v1 browser feature is admitted.
+
+### 10.2 Data and authorization contract
+
+Suggested minimal envelope (*candidate to map onto existing Work Order/domain contracts before implementation*):
+
+- \`proposal_id\` / \`idempotency_ref\`, \`source_surface\`, bounded source principal and \`created_at\`/expiry;
+- \`project_ref\`, exact \`expected_base_sha\`, \`requested_scope\` (paths/workspaces), risk/sensitivity and \`intent_summary\`;
+- typed \`acceptance_criteria\`, prerequisites/explicit dependencies, candidate worker capabilities, expected budget and evidence destination;
+- **provenance and untrusted input marker**, with no passwords, browser cookies, provider secrets or broad shell invocations.
+
+A proposal is **not** an accepted Work Order, claim, lease, provider admission, grant, task completion or authority to merge. Inspect existing Work Order, command-gateway, claim, lease, budget, config and evidence schemas before defining new identifiers or storage. Disallow replay of ambiguous results and guard origin, identity, bounded payload, resource usage and redaction. User mediation does **not** by itself remove prompt-injection risk: all imported plans remain untrusted.
+
+### 10.3 Workflows and trust
+
+\`User/AI frontend -> read-only context and proposal -> existing A-Conductor admission/approval -> existing claim/lease and verified executor -> deterministic tests/CI/evidence -> permitted independent reviewer -> accepted integrator/human release gate\`.
+
+The human-approved job can continue *independently of an active chat* **only** when the actual durable execution, ownership and recovery contracts prove it. Do not assume the browser or ChatGPT can wake itself to poll. Concurrent AI clients submit proposals or independent read-only review advice; only the existing claim owner may mutate bounded worktrees. Preserve physical-repo hotspot fencing and worktree lifecycle invariants; a new fence/lock/queue is allowed only if a verified implementation gap warrants it.
+
+### 10.4 Separate UX ownership / v1 scope
+
+- The operator's Gemini Carbon / Kilo GLM-5.3 visual UX work remains in **#769 / PR #770**; do not rewrite design-system, UX mockups or frontend files from this planning addendum.
+- **v1 minimum:** an independently verified AI client besides ChatGPT may propose/read through accepted native MCP/CLI, plus **manual Context Pack export / Proposal import** supporting web chats that lack a verified integration.
+- **v1.1+ candidate:** browser extension/side-panel **PROPOSE_ONLY**, pending an accepted R3 threat model and user/account compatibility tests; no automated DOM takeover as a dependency of v1.
+- Existing safe Settings read models precede any guarded edit/write surface. No operational readiness until local E2E, tests, provenance and rollback demonstrate it.
+
+### 10.5 Repository reuse and implementation dependency map
+
+**Known from source inspection (2026-11-17):** \`provider_config_store.py\` already persists non-secret provider config in the **existing control SQLite**; \`worker_lease.py\` has local physical-repository hotspot mutation fencing; \`worktree_lifecycle.py\` is a pure fail-closed classifier; \`typesafe_semantic_provider.py\` is pinned to **\`jev-1.13.0\` at this checked SHA**, NOT Carbon's proposed \`jev-1.14.0\`; \`command_gateway.py\` is existing admission; SRM \`src/sunday/installer.ts\` and \`doctor.ts\` implement bounded install/diagnostic contracts but **not a proven end-to-end one-command installer**. The private \`sunday-family-extension\` repository's observed local tracked HEAD tree was empty; its actual deployed/browser state remains unverified.
+
+| Track | Owner / existing authority | Next nonoverlapping proof |
+|---|---|---|
+| **P0 recovery / gap audit** | Existing #771, #744, #495, #607, #630 / controlled read-only audit | Exact SHAs, live claims and implementation-vs-paper matrix; identify true gaps |
+| **P1 operator shell + manual handoff** | SFU26 04/05/13, UX gate #743 / PR #770 | Sanitized read API, user-tested context export/propose import and stale-base/replay rejection |
+| **P2 accepted execution + one other native client** | Existing Work Order / Command Gateway / A-FastTask / SRM | Authorized worker on exact worktree, known owner, deterministic CI/evidence, disconnect/recovery tests |
+| **P3 opt-in decision/cost settings** | Existing SFU26 06–12/16 and SQLite config source | Read-back, budget, privacy, OFF→SHADOW evaluation; no paid egress without separate approval |
+| **P4 one-command packaging** | Existing SFU26 17–19, #607 / #630 | Signed versioned Windows/macOS artifacts, preflight, pairing, doctor, update/rollback, clean-machine acceptance |
+| **P5 optional browser extension** | Separate future R3 cross-repo scope | Explicit gesture, pairing/revocation, origin/replay/prompt-injection proof; zero browser-to-execution bypass |
+
+**Risk correction to advisory input:** never implement a global process kill/lease theft as “Emergency Stop”; first pause new dispatch and use exact verified-owned cancellation with reconciliation. Do not default to execution of remote \`curl|sh\` or \`irm|iex\` without authenticity verification. Do not accept model version/pricing, unsupported browser integrations, performance targets or installer timing as verified without current official source plus local evidence.
+
+### 10.6 Agent discovery / continuity handoff gate
+
+This document and WO-P1-771 are **candidate documents in PR #772**, not accepted instructions in \`main\`. While **PR #770 is open**, its owner holds \`AGENTS.md\`, \`PROJECT-GRAPH.yaml\`, shared UX/master-roadmap/continuity hotspots. **Do not edit those files in this branch.** After #770 and #772 pass independent acceptance and their accepted heads are merged/post-main verified, claim a distinct bounded docs alignment lane to update the canonical agent startup path with a short *conditional* requirement:
+
+\`When the task involves SundayFamily product architecture, multi-AI frontend integration, model routing/configuration, execution/agent bridge, or release packaging, read the accepted SFU26 roadmap and this SundayFamily requirements addendum before proposing implementation; re-verify actual GitHub/runtime/WO/claim/ownership and never treat plan text as current runtime.\`
+
+This makes all agents discover the same **durable canonical reference**, while allowing UX-only agents to stay on their design-specific path. Repository propagation to independently cloned Windows/macOS projects requires each to fetch/reconcile accepted \`main\` safely; a GitHub merge alone does not force live agents to reread already-open contexts.
