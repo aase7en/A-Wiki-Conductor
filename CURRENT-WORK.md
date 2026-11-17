@@ -1,4 +1,10 @@
 # A-Sunday Conductor — Current Work
+## 2026-11-17 - SUNDAYFAMILY COLOR E-INK VISUAL DECISION — OPERATOR APPROVED / DOC ALIGNMENT IN REVIEW
+
+The operator explicitly chose Color E-Ink (muted sage/teal/mustard/terracotta on warm paper) + manga ink linework for **all target SundayFamily Web/PWA screens**. Decision: Issues #743/#769; repository docs candidate WO-P1-769 branch `docs/wo-p1-769-eink-manga-direction`, based on `6ccc341013085d72fae90902115ab42c76e0217d`. New visual source proposal: `docs/design/sunday-family-design-system.md`. Root Tk `DESIGN.md` remains Tk implementation authority; runtime/permission/claim/Tk-retirement policy unchanged. **This candidate is NOT merged/accepted yet; CI and independent exact-head review are gates.** UX-1 functional IA/packaging decisions remain open, so this visual choice does not self-unblock card 04 UX-2 implementation.
+
+Next safe action: freeze exact docs candidate, run targeted/YAML/agent-routing checks, independent review + hosted CI; resolve findings, merge only under acceptance, then verify main and fold continuity. Retain 10/22 program count unless actual new merged card evidence changes it.
+
 ## 2026-11-16 - SFU26 card 05 settings read models - MERGED / POST_MAIN_VERIFIED - CURRENT
 
 Base `b260a12` -> PR 768 candidate `4887124` (feat `8242b37` + 2 security rounds; 3 files +3375/-0) -> exact-head CI 43948464060 SUCCESS -> merge `de9826820ce750d86b6c66074ee5bc5337a32b3c` -> post-main CI 43950911879 SUCCESS -> [#767 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/767#issuecomment-6928954448).

@@ -1,4 +1,10 @@
 # HANDOFF — A-Sunday Conductor
+## 2026-11-17 - SundayFamily E-Ink / Manga Visual Target — OPERATOR DECISION, DOCS PR PENDING
+
+Decision is durable at Issues #743/#769: Color E-Ink hand-drawn manga is the chosen **Web/PWA** target for SundayFamily modules, replacing dark-web/monochrome-only proposals. Agent routing and roadmap alignment candidate WO-P1-769, branch `docs/wo-p1-769-eink-manga-direction`, base `6ccc341013085d72fae90902115ab42c76e0217d`. The claimed change-set is docs-only: `docs/design/sunday-family-design-system.md`, scoped DESIGN.md/AGENTS.md/PROJECT-GRAPH.yaml/UX-1/master roadmap/PROJECT-PLAN and these continuity files. No product source/runtime/deployment changes. Existing Tk dark implementation and Command Gateway/security policy are intact. The operator has **not** separately approved remaining IA/packaging/UX-2 gates. Candidate status: pending exact-head CI + independent review; do not claim merge/complete before evidence.
+
+Recovery: read Issue #769 + WO-P1-769; inspect real remote branch/worktree/diff and Claim before mutation, protect root untracked. Then verify/review/fan-in; update this handoff on accepted merge or material blocker, release claim only after successful closeout.
+
 ## 2026-11-16 - SFU26 card 05 settings read models - CURRENT
 
 Card 05 COMPLETE: PR 768 candidate `4887124`; merge `de9826820ce750d86b6c66074ee5bc5337a32b3c`; post-main CI 43950911879 SUCCESS; #767 closed. Safe settings/activity read model exists (11 surfaces, deny-by-default, laundering-proof emissions).

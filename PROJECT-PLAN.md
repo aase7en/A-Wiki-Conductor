@@ -2,6 +2,8 @@
 
 > **Naming decision (2026-08-22):** the product display name is **A-Sunday Conductor** (window titles, installer, Start Menu, public docs). It supersedes "A-Conductor" as the public name. This plan and the contracts under `docs/contracts/` continue to use "A-Conductor" as the internal codename; the Python package remains `a_conductor` and the data folder remains `%LOCALAPPDATA%\A-Conductor\`.
 
+> **SundayFamily visual target decision (2026-11-17):** Operator selected **muted Color E-Ink manga/ink style** for the unified Web/PWA/production-management SundayFamily experience. Target guide: `docs/design/sunday-family-design-system.md`, governed via Issue #769 and UX-1 #743. Keep old dark Tk/Ttk UI operational and its original approved constraints until parity/retirement is separately proven. Preserve A-Conductor authority, SundayMCP substrate, A-Wiki knowledge, authentication/Command Gateway and incremental per-card delivery; this is a design decision, not a source/deployment authorization.
+
 ## 1. Project Vision
 
 A-Wiki Conductor is a local autonomous control plane for coordinating multiple AI agents, coding agents, MCP servers, local models, cloud models, and A-Wiki memory.

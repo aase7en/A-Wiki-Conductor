@@ -2,6 +2,8 @@
 
 วันที่: 2026-11-13 Asia/Bangkok (planning discovery เริ่ม 2026-11-12T21:53:50Z)
 สถานะ: PROPOSED PROGRAM ROADMAP — NON-BINDING UNTIL PER-CARD WO ACCEPTANCE / NO PRODUCTION AUTHORITY GRANTED BY THIS DOCUMENT
+
+> **OPERATOR-APPROVED VISUAL DIRECTION (2026-11-17, Issues #743/#769):** SundayFamily Web/PWA target screens use muted **Color E-Ink + hand-drawn manga ink/halftone illustrations**, Thai-first high-readability tables, evidence-first statuses, static optimized artwork and the original stippled family identity. This supersedes any older dark-web/monochrome-only target appearance in this roadmap, **not** accepted Tk runtime/design authority, A-Conductor control contracts, task/claim/review policy, or per-card security gates. Adopt `docs/design/sunday-family-design-system.md` as the visual target after reviewed merge; preserve UX-1 seven primary domains until outstanding IA decisions are explicitly approved. Card 04 (UX-2 React) must reconcile tokens/components/routes with this design, and follow the existing WO, permission, claim, CI and independent-review gates. **Visual approval != UX-2 implementation/packaging/retirement authorization.**
 Published by: `docs/work-orders/WO-P1-744-sfu26-roadmap-publication.md` (Issue: #744)
 Authority repository: `aase7en/A-Wiki-Conductor`
 Verified branch/base: `main@38fb5d5708d60049b9f50e2a377e526b667b0d07`

@@ -49,6 +49,9 @@ workflow_nodes:
     when: UI, UX, interaction, responsive behavior, motion, branding
     read:
       - DESIGN.md
+      - docs/design/sunday-family-design-system.md
+      - docs/design/2026-11-10-sunday-family-ux1-design.md
+      - docs/contracts/sunday-family-web-runtime-boundary-v1.md
   source_mutation:
     when: any src/a_conductor mutation
     read:
