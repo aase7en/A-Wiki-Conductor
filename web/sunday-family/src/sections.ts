@@ -43,8 +43,8 @@ export const SECTIONS: readonly SectionMeta[] = [
     id: 'tools',
     thai: 'เครื่องมือและการใช้งาน',
     english: 'Tools & Usage',
-    reasonCode: 'INSPECTOR_NOT_PROVIDED',
-    reason: 'ยังไม่มีหลักฐาน Inspector สำหรับหน้านี้ — inventory ไม่ใช่ usage history',
+    reasonCode: 'INSPECTOR_FROM_MONITOR_VIEWS',
+    reason: 'มาจาก monitor-views inspector projection — usage events ยังไม่มีแหลังงาน',
     boundary: 'อ่านอย่างเดียว — ไม่มี Run/Rename/Invoke',
   },
   {
