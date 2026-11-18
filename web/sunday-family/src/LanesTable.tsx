@@ -25,7 +25,9 @@ export function LanesTable({ lanes, generatedAt, stale, staleReason, streamDegra
         <tbody>{lanes.map((lane, index) => <tr key={`${lane.identity.execution_id ?? lane.identity.lease_id ?? lane.identity.lane}-${index}`}>
           <td><strong>{lane.identity.lane ?? 'Unknown lane'}</strong><br />{lane.identity.work_order_ref ?? lane.identity.task_ref ?? 'No task reference'}
             <div className="muted">{lane.identity.execution_id ?? 'Execution unknown'}</div></td>
-          <td><StateBadge state={lane.state} /><div>{lane.state_markers.join(' / ')}</div>
+          <td><StateBadge state={stale ? 'STALE' : lane.state}
+            note={stale ? `Last reported: ${lane.state} (unverified)` : undefined} />
+            <div>{lane.state_markers.join(' / ')}</div>
             <small>Progress: {lane.last_meaningful_progress ?? 'unknown'}</small></td>
           <td>{lane.blocker_code ?? 'No blocker reported'}<div className="muted">{lane.next_safe_action ?? 'Next action unavailable'}</div></td>
           <td>{Object.entries(lane.gates).filter(([name]) => name !== 'provenance').map(([name, value]) => <div key={name}>{name}: {value ?? 'UNKNOWN'}</div>)}</td>

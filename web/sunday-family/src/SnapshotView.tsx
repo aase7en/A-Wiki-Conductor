@@ -25,7 +25,8 @@ export function SnapshotView({ snapshot, token }: { snapshot: Snapshot; token?: 
     <div className="secondary-grid">
       {live && <section id="monitor" className="panel" aria-labelledby="monitor-title">
         <div className="panel-heading"><h2 id="monitor-title">Monitor</h2>
-          <span className={`status ${live.health.degraded ? 'warning' : ''}`}>{live.health.degraded ? 'DEGRADED' : 'READY'}</span></div>
+          <span className={`status ${snapshot.stale || live.health.degraded ? 'warning' : ''}`}>
+            {snapshot.stale ? 'STALE' : live.health.degraded ? 'DEGRADED' : 'READY'}</span></div>
         <div className="snapshot-meta">{sections.map(section => <p key={section.name}>
           <strong>{section.name[0].toUpperCase() + section.name.slice(1)}</strong>{' '}
           <SectionCounts counts={section.counts} />
