@@ -35,9 +35,9 @@ export const SECTIONS: readonly SectionMeta[] = [
     id: 'work',
     thai: 'งานและเลน',
     english: 'Work & Lanes',
-    reasonCode: 'WORK_SECTION_PENDING',
-    reason: 'มุมมองเฉพาะของงานและเลนยังไม่ถูกจัดสร้าง — lane projection ปัจจุบันแสดงในภาพรวม',
-    boundary: 'อ่านอย่างเดียว — ไม่แก้ claims/schedule; ข้อมูลที่ขาด = ไม่ทราบ',
+    reasonCode: 'LANE_PROJECTION_FROM_COCKPIT',
+    reason: 'มุมมองเลนมาจาก cockpit snapshot — project/claim/roadmap joins ยังไม่มี DTO',
+    boundary: 'หน้านี้อ่านอย่างเดียว — แก้การถือครองงาน (claims) หรือตารางเวลา (schedule) ไม่ได้ ข้อมูลที่ขาดแสดงเป็น ไม่ทราบ',
   },
   {
     id: 'tools',

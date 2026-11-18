@@ -7,6 +7,7 @@ import { TokenGate } from './TokenGate';
 import { MetricsPanel } from './MetricsPanel';
 import { DEFAULT_SECTION, SECTIONS, sectionMeta, type SectionId } from './sections';
 import { UnavailablePanel } from './StatusPanels';
+import { WorkView } from './WorkView';
 
 function Monitor({ token, disconnect }: { token: string; disconnect: () => void }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -48,7 +49,7 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
         <MetricsPanel token={token} />
         {error && <section className="notice" role="alert"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>Retry snapshot</button></section>}
         {snapshot ? <SnapshotView snapshot={snapshot} token={token} /> : !error && <p role="status" className="empty">Loading monitor snapshot...</p>}
-      </> : <UnavailablePanel section={meta} />}
+      </> : section === 'work' ? <WorkView snapshot={snapshot} error={error} onRetry={() => setAttempt(value => value + 1)} /> : <UnavailablePanel section={meta} />}
       <footer className="workspace-footer">SF-WEB / Monitor v1 <span>Local data. Explicit limitations. No fabricated state.</span></footer>
     </main>
   </div>;

@@ -60,7 +60,7 @@ describe('seven-section shell (WO-P1-774 slice A)', () => {
     stubMonitorApi();
     render(<App />);
     expect(await screen.findByText('Execution lanes')).toBeInTheDocument();
-    for (const section of SECTIONS.filter(item => item.id !== 'overview')) {
+    for (const section of SECTIONS.filter(item => !['overview', 'work'].includes(item.id))) {
       fireEvent.click(navButton(section.thai));
       expect(screen.getByRole('heading', { level: 1, name: new RegExp(section.thai) })).toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2, name: new RegExp(section.thai) })).toBeInTheDocument();
