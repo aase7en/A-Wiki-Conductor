@@ -45,6 +45,11 @@ workflow_nodes:
     when: product architecture, roadmap, trust boundary, durable workflow policy
     read:
       - PROJECT-PLAN.md
+  sunday_family_architecture:
+    when: SundayFamily AI frontends, native MCP/API/CLI client integration, model/provider routing or config, agent workforce, browser companion, install and production readiness
+    read:
+      - docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md
+      - docs/plans/2026-11-17-sundayfamily-ai-edge-production-requirements.md
   ui_design:
     when: UI, UX, interaction, responsive behavior, motion, branding
     read:
