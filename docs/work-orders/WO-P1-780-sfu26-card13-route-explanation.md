@@ -36,14 +36,27 @@ execution pathway, endpoint, approval authority, or inference dependency.
   CURRENT-WORK.md, handoff.md, all src/a_conductor/, plans, secrets; PR #776/#779 branches.
 - Evidence: exact one-file diff, identity suite green via exact-head CI, independent
   review before merge, no self-merge. Candidate stays DRAFT until independent evidence.
+- Repair round 1 (2026-11-18): resolved P2 DTO-placement ambiguity + 2 P3s from
+  independent review [PR #781 c6988121321](https://github.com/aase7en/A-Wiki-Conductor/pull/781#issuecomment-6988121321)
+  — pinned `snapshot.monitor.route`, placeholder/error typed-unavailable law, finite
+  bounds (32/16, fail-closed), `MAX_FRAME_BYTES` naming, per-file R2 allowlist.
 
 ## R2 successor contract (implementation-ready; blocked until card 04 merges AND the integrator accepts this section AND a fresh R2 claim exists)
 
 ### Deliverable
 
-1. Read-only `route` child view inside the EXISTING authenticated monitor snapshot
-   (`/api/v1/monitor/snapshot` + stream), composed through the accepted
-   `monitor_live_provider` child-view seam (inspector precedent). NO new endpoint.
+1. Read-only route child view at the pinned path **`snapshot.monitor.route`** — a key
+   inside the existing live-monitor child object, composed by the accepted
+   `monitor_live_provider` seam (`{"mode": "live", "monitor": views}` →
+   `views["route"]`), which `web_api.WebFeed.read()` already injects verbatim as
+   `view["monitor"]`. Served unchanged by the existing authenticated
+   `/api/v1/snapshot` + `/api/v1/monitor/snapshot` aliases and the stream feed.
+   **NO top-level `snapshot.route` sibling** (that would require a new composition
+   seam in `web_api.py`, which this WO does not admit). NO new endpoint. When
+   `monitor` is the typed placeholder (`{error, gate}`) or the typed live-projection
+   error child, the `route` key is ABSENT and the UI MUST render route as typed
+   `UNAVAILABLE` with reason `MONITOR_CHILD_UNAVAILABLE` — never coerce a
+   placeholder into live `MonitorViews` and never fabricate route rows.
 2. UX-3 drawer in the existing Jev/route-detail section slot of the card 04 shell,
    following the accepted SundayFamily Color E-Ink design system. ADVISORY ONLY:
    no Approve/Retry/Auto-accept controls.
@@ -51,21 +64,26 @@ execution pathway, endpoint, approval authority, or inference dependency.
    or extension of an existing accepted projection if the integrator prefers):
    injects-only, no clock/network/store I/O, mirroring the card 05/06 projection laws.
 
-### DTO (minimal contract)
+### DTO (minimal contract; root path pinned as `snapshot.monitor.route` — MonitorViews branch only)
 
 ```
-route: {
+monitor.route: {            // present ONLY in the live MonitorViews union branch;
+                            // absent in the MonitorPlaceholder / error child, where
+                            // the UI renders UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE
   state: AVAILABLE | UNAVAILABLE,
   unavailable_reason?: SELECTION_RESULT_ABSENT | SEMANTIC_TELEMETRY_ABSENT | RECEIPT_ROW_ABSENT | PRODUCER_NOT_DEPLOYED,
-  attempts: [  bounded, dedup by (execution_id, attempt_id), duplicate_of pointers: {
+  attempts: [ ≤ 32 rows, dedup by (execution_id, attempt_id): {
     execution_id, attempt_id, request_id?,
     selection?: { outcome, reason_code, selected_provider_id, selected_model_id,
                   expected_configuration_generation,
-                  shortlist: [{ provider_id, model_id, stage, eligible, reason_code,
-                                expected_configuration_generation }] },
+                  shortlist: [ ≤ 16 rows: { provider_id, model_id, stage, eligible, reason_code,
+                                expected_configuration_generation } ] },
     usage_state, input_usage?, output_usage?,
     latency_ms? + clock label, started_at_wall?, finished_at_wall?,
-    fallback_reason?, disposition?, receipt_status, accepted, duplicate_of?,
+    fallback_reason?, disposition?, receipt_status, accepted,
+    duplicate_of?: int (0-based index into this same attempts[] pointing at the
+                       first row carrying this identity; absent on first-of-identity —
+                       same semantics as route_telemetry_projection.duplicate_of),
     cost: { label: OBSERVED | ESTIMATED | UNKNOWN, reason, amount?, currency? },
     source_freshness?: { state, age_seconds?, drift_notes[] },
     context_digest_ref? } ],
@@ -73,6 +91,16 @@ route: {
              primitive, probability?, model_version_pin }   // ADVISORY ONLY, never a decision authority
 }
 ```
+
+Bounds law (fail-closed, never silent truncation): attempts > 32 or a shortlist > 16
+rows yields the whole child as `UNAVAILABLE` with reason `ROUTE_EVIDENCE_OVER_LIMIT`
+— mirroring the monitor frame law; no partial row sets, no fabricated truncation
+accounting. Every emitted frame (snapshot + stream) stays inside the existing
+`web_api.MAX_FRAME_BYTES = 262_144` bound; an over-bound child fails as the existing
+typed `MONITOR_FRAME_OVERSIZED`, not as truncation. Frontend contract: extend
+`web/sunday-family/src/api.ts` — `MonitorViews` gains the `route` key and
+`parseSnapshot`/`isLiveMonitor` validate the child (bounds + typed fields) when
+present; the `MonitorPlaceholder` branch stays byte-identical with `route` absent.
 
 Cost mapping law: card-06 `KNOWN` (measured usage × injected pricing) → `ESTIMATED`;
 `UNKNOWN` stays `UNKNOWN` + reason. `OBSERVED` is reserved for a future accepted
@@ -83,7 +111,7 @@ billing-evidence source and must never be emitted by this WO's code.
 | # | ACCEPTED REQUIREMENT (roadmap §13 / §7.1) | EXISTING SOURCE (accepted, on main) | DATA GAP | REQUIRED DTO FIELD | TEST | ALLOWED R2 FILE SCOPE |
 |---|---|---|---|---|---|---|
 | 1 | Route/attempt identity | `route_telemetry_projection.RouteAttemptInput` (execution_id/attempt_id/request_id) | no production producer | `attempts[].{execution_id,attempt_id,request_id}` | dedup + duplicate_of validator test | NEW `src/a_conductor/route_explanation_projection.py`, its test file |
-| 2 | Eligible candidates + exclusion codes | `provider_fallback_policy` reason vocabulary (15 codes) via `RouteSelectionSummary.shortlist` | zero runtime events | `attempts[].selection.shortlist[].reason_code` (verbatim, never invented) | absent→`UNAVAILABLE/SELECTION_RESULT_ABSENT`; verbatim-reason test | same + `monitor_live_provider.py` composition hook |
+| 2 | Eligible candidates + exclusion codes | `provider_fallback_policy` reason vocabulary (15 codes) via `RouteSelectionSummary.shortlist` | zero runtime events | `monitor.route.attempts[].selection.shortlist[].reason_code` (verbatim, never invented) | absent→`UNAVAILABLE/SELECTION_RESULT_ABSENT`; verbatim-reason test | same + `monitor_live_provider.py` composition hook |
 | 3 | Selected/rejected reason | `RouteSelectionSummary.{outcome,reason_code}` | same | `attempts[].selection.{outcome,reason_code}` | reason-code passthrough test | same |
 | 4 | Provider/model provenance | `provider_operator_view.ProviderOperatorRow` (models, trust_class, egress, generation, provenance, quota) | web DTO absent | provenance fields on attempt rows / provider sub-block | provenance truthfulness test | same |
 | 5 | Policy/registry revisions | `expected_configuration_generation` chain (policy + observability) | web DTO absent | `selection.expected_configuration_generation` + drift note | stale-generation label test | same |
@@ -91,9 +119,9 @@ billing-evidence source and must never be emitted by this WO's code.
 | 7 | Observed/estimated/unknown cost | `RouteTelemetryCost` KNOWN/UNKNOWN chain (USAGE_ABSENT→PRICING_ABSENT→CURRENCY_ABSENT) | no OBSERVED source; pricing unwired | `cost.{label,reason,amount?,currency?}` | 3-way label test; KNOWN→ESTIMATED mapping test; never-0-fabrication test | same |
 | 8 | Usage measured | usage_state MEASURED/typed-unavailable | producer absent | `usage_state,input_usage?,output_usage?` | typed-unavailable test | same |
 | 9 | Authorization/quota constraints | `AdmissionEvidence` lifecycle + QUOTA_*/PAID_SUBSTITUTION_NOT_AUTHORIZED codes | web DTO absent | admissions/quota fields, deny-by-default | unauthorized-candidate hidden/denied test | same |
-| 10 | No-advice honesty (optional Jev) | `semantic_decision.py` typed core (NOUL forbids confidence semantics; typed provider errors) | 12J not started — advice stays UNAVAILABLE with reason | `advice.{state,unavailable_reason,primitive,probability?}` | no-advice vs provider-error vs low-confidence tests; NOUL-probability-not-confidence label test | `web/sunday-family/src/*` + `web/sunday-family/tests/*` (drawer, api.ts branch) |
+| 10 | No-advice honesty (optional Jev) | `semantic_decision.py` typed core (NOUL forbids confidence semantics; typed provider errors) | 12J not started — advice stays UNAVAILABLE with reason | `monitor.route.advice.{state,unavailable_reason,primitive,probability?}` | no-advice vs provider-error vs low-confidence tests; NOUL-probability-not-confidence label test | precise per-file allowlist (see Security §R2 allowed files): `api.ts` + NEW drawer component + NEW tests |
 | 11 | Context digest reference | `EvidencePack.digest/fingerprint` (card 07) | unwired to attempts | `context_digest_ref?` (digest string only, never pack content) | digest-ref-is-string-only test | same |
-| 12 | Reuse snapshot, no new endpoint | `monitor_live_provider` child seam; card-01 14-route method-surface contract | — | child under existing snapshot/stream | route-surface completeness test stays exact (no new route added) | `tests/test_web_api.py` surface contract touch if strictly needed |
+| 12 | Reuse snapshot, no new endpoint | `monitor_live_provider` child seam (`{"mode","monitor"}` shape consumed verbatim by `web_api.WebFeed.read()`); card-01 14-route method-surface contract | — | `monitor.route` child only; no top-level sibling; no `web_api.py` change | route-surface completeness test stays exact (no new route added); placeholder/error child → UI typed `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE` test | `tests/test_web_api.py` surface contract touch only if strictly needed (no behavioral change) |
 
 ### Test matrix (from roadmap §13, made deterministic)
 
@@ -106,7 +134,8 @@ billing-evidence source and must never be emitted by this WO's code.
 7. No secret reveal/copy → deny-by-default field law (card-05 pattern) proven by validator tests.
 8. Absent selection/telemetry/receipt → typed UNAVAILABLE with exact reason code, counts never fabricated.
 9. Surface completeness → card-01 exact method-surface contract unchanged (no new endpoints).
-10. Snapshot child bound (rows ≤ N, byte budget) per monitor frame law.
+10. Snapshot child bound → attempts ≤ 32, shortlist ≤ 16, whole child typed `UNAVAILABLE/ROUTE_EVIDENCE_OVER_LIMIT` on over-limit (no truncation), frame inside `MAX_FRAME_BYTES = 262_144` (existing typed `MONITOR_FRAME_OVERSIZED` on breach) per monitor frame law.
+11. Monitor child absent → placeholder (`{error,gate}`) and live-projection error child render route `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE`; placeholder is never coerced into `MonitorViews`.
 
 ### Security & authority constraints
 
@@ -115,9 +144,18 @@ billing-evidence source and must never be emitted by this WO's code.
 - No selection-event producer wiring (belongs to canary lineage / separate accepted WO).
 - No pricing/billing source invention; cost stays ESTIMATED/UNKNOWN.
 - Read DEFECT_LESSONS.md before any `src/a_conductor/` mutation (repo law).
-- R2 allowed files (proposal, integrator may amend at acceptance): the projection module + its
-  tests, `monitor_live_provider.py` composition, `web/sunday-family/src/**`, `web/sunday-family/tests/**`.
-  UX-2 files remain GPT-owned until PR #776 merges and the claim handoff is recorded.
+- R2 allowed files — **precise per-file allowlist, no whole-tree claims**: NEW
+  `src/a_conductor/route_explanation_projection.py`; NEW `tests/test_route_explanation_projection.py`;
+  `src/a_conductor/monitor_live_provider.py` (route-child composition only);
+  `web/sunday-family/src/api.ts` (MonitorViews/parseSnapshot route branch);
+  NEW `web/sunday-family/src/RoutePanel.tsx` (drawer); NEW
+  `web/sunday-family/tests/route-panel.test.tsx`; NEW
+  `web/sunday-family/tests/route-dto.test.ts`. If the merged card-04 tree requires
+  touching one additional existing section host component (e.g. the Jev/route-detail
+  section), the successor claim MUST enumerate that exact file by name from the merged
+  tree, and the accepted WO may be amended with integrator approval BEFORE mutation —
+  never a `src/**`/`tests/**` glob. UX-2 files remain GPT-owned until PR #776 merges
+  and the claim handoff is recorded.
 
 ### Rollback
 
