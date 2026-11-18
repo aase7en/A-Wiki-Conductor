@@ -67,8 +67,8 @@ export const SECTIONS: readonly SectionMeta[] = [
     id: 'activity',
     thai: 'บันทึกกิจกรรม',
     english: 'Activity & Logs',
-    reasonCode: 'ACTIVITY_READER_UNAVAILABLE',
-    reason: 'ยังไม่มี activity feed จาก API นี้ — stream snapshot ไม่ใช่ activity log',
+    reasonCode: 'MONITOR_TIMELINE_ONLY',
+    reason: 'timeline นี้เป็นเหตุการณ์ของ monitor เท่านั้น — activity log ของงานยังไม่มี DTO',
     boundary: 'อ่าน sanitized records เท่านั้น — SSE connected ไม่ใช่ progress/ผลลัพธ์',
   },
 ];

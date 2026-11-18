@@ -6,8 +6,10 @@ import { SnapshotView } from './SnapshotView';
 import { TokenGate } from './TokenGate';
 import { MetricsPanel } from './MetricsPanel';
 import { DEFAULT_SECTION, SECTIONS, sectionMeta, type SectionId } from './sections';
-import { UnavailablePanel } from './StatusPanels';
+import { ActivityView } from './ActivityView';
 import { FleetView } from './FleetView';
+import { JevView } from './JevView';
+import { SettingsView } from './SettingsView';
 import { ToolsView } from './ToolsView';
 import { WorkView } from './WorkView';
 
@@ -54,7 +56,9 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
       </> : section === 'work' ? <WorkView snapshot={snapshot} error={error} onRetry={() => setAttempt(value => value + 1)} />
         : section === 'fleet' ? <FleetView token={token} />
         : section === 'tools' ? <ToolsView snapshot={snapshot} />
-        : <UnavailablePanel section={meta} />}
+        : section === 'settings' ? <SettingsView token={token} />
+        : section === 'jev' ? <JevView />
+        : <ActivityView snapshot={snapshot} />}
       <footer className="workspace-footer">SF-WEB / Monitor v1 <span>Local data. Explicit limitations. No fabricated state.</span></footer>
     </main>
   </div>;

@@ -60,11 +60,11 @@ describe('seven-section shell (WO-P1-774 slice A)', () => {
     stubMonitorApi();
     render(<App />);
     expect(await screen.findByText('Execution lanes')).toBeInTheDocument();
-    for (const section of SECTIONS.filter(item => !['overview', 'work', 'fleet', 'tools'].includes(item.id))) {
+    for (const section of SECTIONS.filter(item => ['settings', 'jev', 'activity'].includes(item.id))) {
       fireEvent.click(navButton(section.thai));
       expect(screen.getByRole('heading', { level: 1, name: new RegExp(section.thai) })).toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2, name: new RegExp(section.thai) })).toBeInTheDocument();
-      expect(screen.getByText('ยังไม่มีหลักฐานยืนยัน')).toBeInTheDocument();
+      expect(screen.getAllByText('ยังไม่มีหลักฐานยืนยัน').length).toBeGreaterThan(0);
       expect(screen.getByText(section.reasonCode)).toBeInTheDocument();
       expect(screen.queryByText(/^0 (เครื่อง|งาน|รายการ)/)).toBeNull();
     }
