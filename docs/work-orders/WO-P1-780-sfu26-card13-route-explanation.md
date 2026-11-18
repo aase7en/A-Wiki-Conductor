@@ -40,6 +40,13 @@ execution pathway, endpoint, approval authority, or inference dependency.
   independent review [PR #781 c6988121321](https://github.com/aase7en/A-Wiki-Conductor/pull/781#issuecomment-6988121321)
   — pinned `snapshot.monitor.route`, placeholder/error typed-unavailable law, finite
   bounds (32/16, fail-closed), `MAX_FRAME_BYTES` naming, per-file R2 allowlist.
+- Repair round 2 (2026-11-18): resolved typed-reason/byte-bound contradictions + row-12
+  test scope from [PR #781 c6994695148](https://github.com/aase7en/A-Wiki-Conductor/pull/781#issuecomment-6994695148)
+  — `ROUTE_EVIDENCE_OVER_LIMIT` added to the `unavailable_reason` union; three-tier
+  over-limit law (`ROUTE_EVIDENCE_OVER_LIMIT` projection tier / `MONITOR_PAYLOAD_TOO_LARGE`
+  child tier per `monitor_live_provider.py:171-172` / `MONITOR_FRAME_OVERSIZED` whole-frame
+  tier per `web_api.py:94-98`); `MONITOR_CHILD_UNAVAILABLE` pinned as UI-side-only;
+  `tests/test_web_api.py` pinned as run-only with amendment-before-mutation rule.
 
 ## R2 successor contract (implementation-ready; blocked until card 04 merges AND the integrator accepts this section AND a fresh R2 claim exists)
 
@@ -71,7 +78,7 @@ monitor.route: {            // present ONLY in the live MonitorViews union branc
                             // absent in the MonitorPlaceholder / error child, where
                             // the UI renders UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE
   state: AVAILABLE | UNAVAILABLE,
-  unavailable_reason?: SELECTION_RESULT_ABSENT | SEMANTIC_TELEMETRY_ABSENT | RECEIPT_ROW_ABSENT | PRODUCER_NOT_DEPLOYED,
+  unavailable_reason?: SELECTION_RESULT_ABSENT | SEMANTIC_TELEMETRY_ABSENT | RECEIPT_ROW_ABSENT | PRODUCER_NOT_DEPLOYED | ROUTE_EVIDENCE_OVER_LIMIT,
   attempts: [ ≤ 32 rows, dedup by (execution_id, attempt_id): {
     execution_id, attempt_id, request_id?,
     selection?: { outcome, reason_code, selected_provider_id, selected_model_id,
@@ -92,12 +99,28 @@ monitor.route: {            // present ONLY in the live MonitorViews union branc
 }
 ```
 
-Bounds law (fail-closed, never silent truncation): attempts > 32 or a shortlist > 16
-rows yields the whole child as `UNAVAILABLE` with reason `ROUTE_EVIDENCE_OVER_LIMIT`
-— mirroring the monitor frame law; no partial row sets, no fabricated truncation
-accounting. Every emitted frame (snapshot + stream) stays inside the existing
-`web_api.MAX_FRAME_BYTES = 262_144` bound; an over-bound child fails as the existing
-typed `MONITOR_FRAME_OVERSIZED`, not as truncation. Frontend contract: extend
+Over-limit and byte-bound law — three DISTINCT tiers, fail-closed, never silent
+truncation (codes cross-checked against the accepted production paths):
+
+1. **Route evidence over-limit (projection tier):** attempts > 32 or a shortlist > 16
+   rows → the whole `monitor.route` child is `UNAVAILABLE` with reason
+   `ROUTE_EVIDENCE_OVER_LIMIT` (member of the `unavailable_reason` union above);
+   no partial row sets, no fabricated truncation accounting.
+2. **Monitor child encoded over-limit (child-byte tier):** if the serialized live
+   monitor child (including `route`) exceeds `MAX_FRAME_BYTES`, the accepted
+   `monitor_live_provider` guard (`monitor_live_provider.py:171-172`) replaces the
+   WHOLE child with the typed error marker `{"error": "MONITOR_PAYLOAD_TOO_LARGE",
+   ...}` — `route` is then absent and the UI renders route
+   `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE`.
+3. **Whole-frame encoded over-limit (frame tier):** if the entire snapshot/stream
+   frame exceeds `MAX_FRAME_BYTES = 262_144`, the accepted `web_api.encode_frame`
+   raises typed `MONITOR_FRAME_OVERSIZED` (`web_api.py:94-98`) exactly as today —
+   unchanged by this WO.
+
+`MONITOR_CHILD_UNAVAILABLE` is a **UI-side derived reason only** (rendered when the
+monitor child is a placeholder, a live-projection error, or a monitor-wide error
+marker such as `MONITOR_PAYLOAD_TOO_LARGE`); it is never serialized inside any
+placeholder/error JSON. Frontend contract: extend
 `web/sunday-family/src/api.ts` — `MonitorViews` gains the `route` key and
 `parseSnapshot`/`isLiveMonitor` validate the child (bounds + typed fields) when
 present; the `MonitorPlaceholder` branch stays byte-identical with `route` absent.
@@ -121,7 +144,7 @@ billing-evidence source and must never be emitted by this WO's code.
 | 9 | Authorization/quota constraints | `AdmissionEvidence` lifecycle + QUOTA_*/PAID_SUBSTITUTION_NOT_AUTHORIZED codes | web DTO absent | admissions/quota fields, deny-by-default | unauthorized-candidate hidden/denied test | same |
 | 10 | No-advice honesty (optional Jev) | `semantic_decision.py` typed core (NOUL forbids confidence semantics; typed provider errors) | 12J not started — advice stays UNAVAILABLE with reason | `monitor.route.advice.{state,unavailable_reason,primitive,probability?}` | no-advice vs provider-error vs low-confidence tests; NOUL-probability-not-confidence label test | precise per-file allowlist (see Security §R2 allowed files): `api.ts` + NEW drawer component + NEW tests |
 | 11 | Context digest reference | `EvidencePack.digest/fingerprint` (card 07) | unwired to attempts | `context_digest_ref?` (digest string only, never pack content) | digest-ref-is-string-only test | same |
-| 12 | Reuse snapshot, no new endpoint | `monitor_live_provider` child seam (`{"mode","monitor"}` shape consumed verbatim by `web_api.WebFeed.read()`); card-01 14-route method-surface contract | — | `monitor.route` child only; no top-level sibling; no `web_api.py` change | route-surface completeness test stays exact (no new route added); placeholder/error child → UI typed `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE` test | `tests/test_web_api.py` surface contract touch only if strictly needed (no behavioral change) |
+| 12 | Reuse snapshot, no new endpoint | `monitor_live_provider` child seam (`{"mode","monitor"}` shape consumed verbatim by `web_api.WebFeed.read()`); card-01 14-route method-surface contract | — | `monitor.route` child only; no top-level sibling; no `web_api.py` change | route-surface completeness test stays exact (no new route added); placeholder/error child → UI typed `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE` test | `tests/test_web_api.py` is an existing read-only suite to RUN as-is (surface contract must pass unmodified); editing it requires an explicit successor-claim amendment with integrator approval BEFORE mutation — it is not part of the seven-file R2 allowlist |
 
 ### Test matrix (from roadmap §13, made deterministic)
 
@@ -134,8 +157,8 @@ billing-evidence source and must never be emitted by this WO's code.
 7. No secret reveal/copy → deny-by-default field law (card-05 pattern) proven by validator tests.
 8. Absent selection/telemetry/receipt → typed UNAVAILABLE with exact reason code, counts never fabricated.
 9. Surface completeness → card-01 exact method-surface contract unchanged (no new endpoints).
-10. Snapshot child bound → attempts ≤ 32, shortlist ≤ 16, whole child typed `UNAVAILABLE/ROUTE_EVIDENCE_OVER_LIMIT` on over-limit (no truncation), frame inside `MAX_FRAME_BYTES = 262_144` (existing typed `MONITOR_FRAME_OVERSIZED` on breach) per monitor frame law.
-11. Monitor child absent → placeholder (`{error,gate}`) and live-projection error child render route `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE`; placeholder is never coerced into `MonitorViews`.
+10. Over-limit/byte-bound three-tier truth: (a) attempts > 32 or shortlist > 16 → `monitor.route` = `UNAVAILABLE/ROUTE_EVIDENCE_OVER_LIMIT`, no truncation; (b) monitor child encoded > `MAX_FRAME_BYTES` → accepted guard yields the `MONITOR_PAYLOAD_TOO_LARGE` error child, `route` absent, UI renders `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE`; (c) whole frame encoded > `262_144` → existing typed `MONITOR_FRAME_OVERSIZED` behavior unchanged.
+11. Monitor child absent or monitor-wide error → placeholder (`{error,gate}`), live-projection error child, and `MONITOR_PAYLOAD_TOO_LARGE` marker all render route `UNAVAILABLE/MONITOR_CHILD_UNAVAILABLE` (UI-side reason); placeholder is never coerced into `MonitorViews` and `MONITOR_CHILD_UNAVAILABLE` never appears in serialized JSON.
 
 ### Security & authority constraints
 
