@@ -18,7 +18,7 @@ const STATE_META: Record<KnownState, { meaning: string; tone: string }> = {
   UNKNOWN: { meaning: 'ยังไม่มีหลักฐานยืนยัน', tone: 'unknown' },
 };
 
-const isKnownState = (value: string): value is KnownState => value in STATE_META;
+const isKnownState = (value: string): value is KnownState => Object.prototype.hasOwnProperty.call(STATE_META, value);
 
 export function StateBadge({ state, note }: { state: string; note?: string | null }) {
   const known = isKnownState(state);

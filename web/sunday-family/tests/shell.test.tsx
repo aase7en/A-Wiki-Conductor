@@ -108,6 +108,15 @@ describe('StateBadge truthful status components', () => {
     expect(badge?.className).not.toMatch(/verified|running/);
   });
 
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'fails closed on inherited object key %s', state => {
+      const { container } = render(<StateBadge state={state} />);
+      const badge = container.querySelector('.sf-badge');
+      expect(badge?.getAttribute('data-state')).toBe('UNKNOWN');
+      expect(badge?.className).not.toMatch(/verified|running/);
+      expect(screen.getByText(/รหัสสถานะไม่รู้จัก/)).toBeInTheDocument();
+    });
+
   it('fails closed on an empty state string', () => {
     const { container } = render(<StateBadge state="" />);
     expect(container.querySelector('.sf-badge')?.getAttribute('data-state')).toBe('UNKNOWN');

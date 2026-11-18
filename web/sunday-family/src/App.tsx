@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { errorMessage, getSnapshot, type Snapshot } from './api';
 import { HealthIndicator } from './HealthIndicator';
 import { LiveStream } from './LiveStream';
@@ -17,6 +17,7 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
+  const [streamDisconnected, setStreamDisconnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [section, setSection] = useState<SectionId>(DEFAULT_SECTION);
   useEffect(() => {
@@ -36,11 +37,26 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
     return () => controller.abort();
   }, [token, attempt]);
 
+  const onStreamSnapshot = useCallback((view: Snapshot) => {
+    setSnapshot(view);
+    setStreamDisconnected(false);
+    // An authenticated, validated stream snapshot can restore freshness.
+    setError('');
+  }, []);
+  const onStreamDisconnect = useCallback(() => {
+    setStreamDisconnected(true);
+  }, []);
+
   const meta = sectionMeta(section);
-  // A failed authenticated refresh invalidates the freshness claim of any
-  // retained frame, even if an SSE message races with the failed request.
-  const displayedSnapshot = snapshot && error
-    ? { ...snapshot, stale: true, stale_reason: 'SNAPSHOT_REFRESH_FAILED' }
+  // Do not claim stale data is current when SSE drops or a refresh fails.
+  // The stream loss remains visible even if a later HTTP refresh succeeds.
+  const displayedSnapshot = snapshot && (error || streamDisconnected)
+    ? {
+        ...snapshot, stale: true,
+        stale_reason: error ? 'SNAPSHOT_REFRESH_FAILED'
+          : snapshot.stale ? snapshot.stale_reason ?? 'STREAM_DISCONNECTED' : 'STREAM_DISCONNECTED',
+        monitor_stream_degraded: snapshot.monitor_stream_degraded || streamDisconnected,
+      }
     : snapshot;
 
   return <div className="app-shell">
@@ -66,8 +82,8 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
         <button onClick={() => setAttempt(value => value + 1)}>Retry snapshot</button>
       </section>}
       {displayedSnapshot?.stale && !error && <p role="status" className="notice">Snapshot is STALE — {displayedSnapshot.stale_reason ?? 'freshness not verified'}.</p>}
+      {ready && <LiveStream token={token} onSnapshot={onStreamSnapshot} onDisconnect={onStreamDisconnect} />}
       {section === 'overview' ? <>
-        {ready && <LiveStream token={token} onSnapshot={setSnapshot} />}
         <MetricsPanel token={token} />
         {displayedSnapshot ? <SnapshotView snapshot={displayedSnapshot} token={token} /> : !error && <p role="status" className="empty">Loading monitor snapshot...</p>}
       </> : section === 'work' ? <WorkView snapshot={displayedSnapshot} error={error} onRetry={() => setAttempt(value => value + 1)} />
