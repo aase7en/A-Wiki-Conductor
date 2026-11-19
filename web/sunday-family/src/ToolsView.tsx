@@ -43,6 +43,8 @@ export function ToolsView({ snapshot }: { snapshot: Snapshot | null }) {
     <p className="sf-boundary">{meta.boundary}</p>
   </section>;
   return <>
+    {snapshot.stale && <ReasonLine reason={snapshot.stale_reason ?? 'SOURCE_FRESHNESS_UNVERIFIED'}
+      source="Monitor API snapshot (stale)" observedAt={snapshot.generated_at} />}
     <ReasonLine reason="INSPECTOR_FROM_MONITOR_VIEWS" source="monitor-views inspector" observedAt={inspector.summary.generated_at} />
     <p className="sf-boundary">{meta.boundary}</p>
     {INSPECTOR_SECTIONS.map(({ key, thai }) => {
@@ -54,14 +56,17 @@ export function ToolsView({ snapshot }: { snapshot: Snapshot | null }) {
         .join(' · ');
       return <section className="panel" key={key} aria-labelledby={`tools-${key}`}>
         <div className="panel-heading"><h2 id={`tools-${key}`}>{thai}</h2>
-          <span className="status">{counts || 'UNKNOWN 0'}</span></div>
+          <span className="status">{snapshot.stale
+            ? `Last reported (unverified): ${counts || 'UNKNOWN 0'}` : counts || 'UNKNOWN 0'}</span></div>
         <TruncatedNote retained={rows.length} truncated={summary.truncated} dropped={summary.dropped} />
         {rows.length === 0 ? <p className="empty">ไม่มีรายการที่เก็บไว้ใน snapshot นี้</p>
           : <div className="table-scroll"><table>
             <thead><tr><th scope="col">Name</th><th scope="col">State</th><th scope="col">Phase / category</th><th scope="col">Source / provenance</th><th scope="col">Evidence</th></tr></thead>
             <tbody>{rows.map((row: Record<string, unknown>, index: number) => <tr key={`${text(row.name, 'unknown')}-${index}`}>
               <td><strong>{text(row.name, 'ไม่ทราบชื่อ')}</strong><div className="muted">{text(row.device, 'ไม่ทราบอุปกรณ์')}</div></td>
-              <td><StateBadge state={text(row.state, '')} /><div className="muted">{text(row.last_error, '') || '—'}</div></td>
+              <td><StateBadge state={snapshot.stale ? 'STALE' : text(row.state, '')}
+                note={snapshot.stale ? `Last reported: ${text(row.state, 'UNKNOWN')} (unverified)` : undefined} />
+                <div className="muted">{text(row.last_error, '') || '—'}</div></td>
               <td>{text(row.phase, 'ไม่ทราบ phase')}<div className="muted">{text(row.category, 'ไม่ทราบหมวด')}</div></td>
               <td>{text(row.source, 'ไม่ทราบแหล่ง')}<div className="muted">{text(row.provenance, 'ไม่ทราบ provenance')}</div></td>
               <td><div>{text(row.registration_evidence, 'ไม่ทราบหลักฐาน')}</div>

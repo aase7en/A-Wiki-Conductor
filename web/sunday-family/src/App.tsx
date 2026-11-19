@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { errorMessage, getSnapshot, type Snapshot } from './api';
 import { HealthIndicator } from './HealthIndicator';
 import { LiveStream } from './LiveStream';
@@ -20,17 +20,21 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
   const [streamDisconnected, setStreamDisconnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [section, setSection] = useState<SectionId>(DEFAULT_SECTION);
+  // A late HTTP response (including failure) cannot supersede a newer SSE event.
+  const streamRevision = useRef(0);
   useEffect(() => {
     const controller = new AbortController();
+    const requestRevision = streamRevision.current;
     setError('');
     void getSnapshot(token, controller.signal).then(view => {
-      if (!controller.signal.aborted) { setSnapshot(view); setReady(true); }
+      if (!controller.signal.aborted && streamRevision.current === requestRevision) { setSnapshot(view); setReady(true); }
     }).catch(cause => {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && streamRevision.current === requestRevision) {
         setError(errorMessage(cause));
         // The last successful projection is no longer safe to present as current.
         setSnapshot(previous => previous ? {
-          ...previous, stale: true, stale_reason: 'SNAPSHOT_REFRESH_FAILED',
+          ...previous, stale: true,
+          stale_reason: previous.stale ? previous.stale_reason : 'SNAPSHOT_REFRESH_FAILED',
         } : null);
       }
     });
@@ -38,6 +42,7 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
   }, [token, attempt]);
 
   const onStreamSnapshot = useCallback((view: Snapshot) => {
+    streamRevision.current += 1;
     setSnapshot(view);
     setStreamDisconnected(false);
     // An authenticated, validated stream snapshot can restore freshness.
@@ -53,7 +58,8 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
   const displayedSnapshot = snapshot && (error || streamDisconnected)
     ? {
         ...snapshot, stale: true,
-        stale_reason: error ? 'SNAPSHOT_REFRESH_FAILED'
+        stale_reason: error
+          ? (snapshot.stale ? snapshot.stale_reason : 'SNAPSHOT_REFRESH_FAILED')
           : snapshot.stale ? snapshot.stale_reason ?? 'STREAM_DISCONNECTED' : 'STREAM_DISCONNECTED',
         monitor_stream_degraded: snapshot.monitor_stream_degraded || streamDisconnected,
       }
@@ -78,7 +84,7 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
         <button type="button" onClick={() => setAttempt(value => value + 1)}>Refresh snapshot</button>
       </div><HealthIndicator token={token} /></header>
       {error && <section className="notice" role="alert">
-        <p>อ่าน Snapshot ใหม่ไม่สำเร็จ — ข้อมูลที่ค้างอยู่เป็น STALE (ข้อมูลเก่า). {error}</p>
+        <p>อ่าน Snapshot ใหม่ไม่สำเร็จ — SNAPSHOT_REFRESH_FAILED. ข้อมูลที่ค้างอยู่เป็น STALE (ข้อมูลเก่า). {error}</p>
         <button onClick={() => setAttempt(value => value + 1)}>Retry snapshot</button>
       </section>}
       {displayedSnapshot?.stale && !error && <p role="status" className="notice">Snapshot is STALE — {displayedSnapshot.stale_reason ?? 'freshness not verified'}.</p>}

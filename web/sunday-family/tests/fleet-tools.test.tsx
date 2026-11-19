@@ -111,6 +111,18 @@ describe('Tools & Usage section (WO-P1-774 slice C)', () => {
     expect(screen.queryByRole('button', { name: /Run|Invoke/ })).toBeNull();
   });
 
+
+  it('downgrades stale inspector READY instead of showing a verified badge', () => {
+    const { container } = render(<ToolsView snapshot={{
+      ...liveSnapshot, stale: true, stale_reason: 'SOURCE_STALE',
+    }} />);
+    const badge = container.querySelector('table .sf-badge');
+    expect(badge?.getAttribute('data-state')).toBe('STALE');
+    expect(container.querySelector('table .sf-badge--verified')).toBeNull();
+    expect(screen.getByText(/Last reported: READY \(unverified\)/)).toBeInTheDocument();
+    expect(screen.getByText(/SOURCE_STALE/)).toBeInTheDocument();
+  });
+
   it('renders honest unavailable when the inspector projection is absent', () => {
     render(<ToolsView snapshot={snapshot} />);
     expect(screen.getByText('INSPECTOR_NOT_PROVIDED')).toBeInTheDocument();

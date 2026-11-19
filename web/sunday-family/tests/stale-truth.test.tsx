@@ -74,6 +74,101 @@ describe('snapshot refresh failure', () => {
   });
 });
 
+describe('HTTP and SSE source ordering (WO-P1-774 advisory P1/P2)', () => {
+  it('does not let a late HTTP refresh overwrite a newer authenticated SSE snapshot', async () => {
+    sessionStorage.setItem('sunday-family.monitor-token', 'test-token');
+    let reads = 0;
+    let releaseHttp: ((response: Response) => void) | undefined;
+    let channel: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const fetch = vi.fn((path: string, init?: RequestInit) => {
+      if (path.endsWith('/snapshot')) {
+        reads += 1;
+        if (reads === 1) return Promise.resolve(Response.json(snapshot));
+        return new Promise<Response>(resolve => { releaseHttp = resolve; });
+      }
+      if (path.endsWith('/health')) return Promise.resolve(Response.json({
+        api_version: API_VERSION, status: 'ok', degraded: false,
+        profile: 'headless-read-only', version: '1', conditions: [],
+      }));
+      if (path.endsWith('/connectors')) return Promise.resolve(Response.json({
+        scope: 'app-session', connectors: [],
+      }));
+      if (path.endsWith('/stream')) {
+        return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            channel = controller;
+            init?.signal?.addEventListener('abort', () => {
+              try { controller.close(); } catch { /* already closed */ }
+            }, { once: true });
+          },
+        }), { headers: { 'Content-Type': 'text/event-stream; charset=utf-8' } }));
+      }
+      return Promise.resolve(streamResponse([]));
+    });
+    vi.stubGlobal('fetch', fetch);
+    const { container, unmount } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /งานและเลน/ }));
+    expect(await screen.findByText('Current at source')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh snapshot' }));
+    await waitFor(() => expect(reads).toBe(2));
+    await act(async () => {
+      if (!channel) throw new Error('missing SSE');
+      channel.enqueue(new TextEncoder().encode(
+        'data: ' + JSON.stringify({
+          ...snapshot, generated_at: '2026-11-19T09:00:00Z',
+          cockpit: { lanes: [{ ...snapshot.cockpit.lanes[0], state: 'WAITING' }] },
+        }) + '\n\n'));
+    });
+    expect(container.querySelector('tr .sf-badge[data-state="WAITING"]')).not.toBeNull();
+    await act(async () => {
+      if (!releaseHttp) throw new Error('missing pending refresh');
+      releaseHttp(Response.json(snapshot));
+    });
+    expect(container.querySelector('tr .sf-badge[data-state="WAITING"]')).not.toBeNull();
+    expect(container.querySelector('tr .sf-badge[data-state="RUNNING"]')).toBeNull();
+    unmount();
+  });
+
+  it('preserves server stale reason when a later HTTP refresh fails', async () => {
+    sessionStorage.setItem('sunday-family.monitor-token', 'test-token');
+    let reads = 0;
+    const fromSource = { ...snapshot, stale: true, stale_reason: 'SOURCE_STALE' };
+    const fetch = vi.fn((path: string, init?: RequestInit) => {
+      if (path.endsWith('/snapshot')) {
+        reads += 1;
+        return reads === 1 ? Promise.resolve(Response.json(fromSource))
+          : Promise.reject(new Error('NETWORK_OFFLINE'));
+      }
+      if (path.endsWith('/health')) return Promise.resolve(Response.json({
+        api_version: API_VERSION, status: 'ok', degraded: false,
+        profile: 'headless-read-only', version: '1', conditions: [],
+      }));
+      if (path.endsWith('/connectors')) return Promise.resolve(Response.json({
+        scope: 'app-session', connectors: [],
+      }));
+      if (path.endsWith('/stream')) {
+        return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            init?.signal?.addEventListener('abort', () => {
+              try { controller.close(); } catch { /* already closed */ }
+            }, { once: true });
+          },
+        }), { headers: { 'Content-Type': 'text/event-stream; charset=utf-8' } }));
+      }
+      return Promise.resolve(streamResponse([]));
+    });
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /งานและเลน/ }));
+    expect(await screen.findByText('Stale: SOURCE_STALE')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh snapshot' }));
+    await waitFor(() => expect(reads).toBe(2));
+    expect(await screen.findByText(/อ่าน Snapshot ใหม่ไม่สำเร็จ/)).toBeInTheDocument();
+    expect(screen.getByText('Stale: SOURCE_STALE')).toBeInTheDocument();
+    expect(screen.getByText(/SNAPSHOT_REFRESH_FAILED/)).toBeInTheDocument();
+  });
+});
+
 describe('stream freshness across navigation', () => {
   it('marks retained READY as STALE after stream disconnect on every section', async () => {
     sessionStorage.setItem('sunday-family.monitor-token', 'test-token');
