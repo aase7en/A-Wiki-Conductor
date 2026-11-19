@@ -87,7 +87,12 @@ describe('Tools & Usage section (WO-P1-774 slice C)', () => {
     expect(screen.getByText('windows-local')).toBeInTheDocument();
     expect(screen.getByText('CONNECTED')).toBeInTheDocument();
     expect(screen.getByText('probe:readyz')).toBeInTheDocument();
-    expect(screen.getByText('READY')).toBeInTheDocument();
+    // The fixture's SSE stream ends immediately; assert its terminal stale state,
+    // not a timing-dependent fresh READY badge.
+    expect(await screen.findByText(/Snapshot is STALE — STREAM_DISCONNECTED/)).toBeInTheDocument();
+    const inspectorBadge = screen.getByText('a-worker-01').closest('tr')?.querySelector('.sf-badge');
+    expect(inspectorBadge?.getAttribute('data-state')).toBe('STALE');
+    expect(screen.getByText(/Last reported: READY \(unverified\)/)).toBeInTheDocument();
   });
 
   it('reports retained counts and truncation truthfully per section', async () => {
