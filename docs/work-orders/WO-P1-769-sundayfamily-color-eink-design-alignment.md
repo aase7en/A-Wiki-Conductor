@@ -1,7 +1,7 @@
 # WO-P1-769 — SundayFamily Color E-Ink + Manga Visual Direction Alignment
 Issue: #769
 Related: #743 (UX-1), #739 (SundayFamily charter)
-Status: MERGED / DOCS_ONLY / POST_MAIN_CI_PENDING / RECONCILING
+Status: MERGED / DOCS_ONLY / POST_MAIN_VERIFIED / RECONCILING
 Task topology: CONTROL_PLANE_ONLY
 Risk: R2 — shared UI/design guidance and Agent entry routing; no runtime/security contract mutation.
 Owner: ChatGPT integrator via verified SundayMCP macOS
@@ -32,4 +32,4 @@ The target SundayFamily **Web/PWA/production-management UI** shall use muted **C
 - Independent exact-SHA design/governance review and hosted CI required before merge. No self-review substitution.
 - Post-merge confirm new instructions on main; only then mark implementation-authority alignment complete.
 ## Checkpoint
-Candidate accepted via PR #770: `778fd7c4c451b7dbfa11fa132911c9ed2d6abc9b` -> merge commit `789ee650b7723bcca7a986f569ef3b47962debc4`. Exact-head CI `44035291236` SUCCESS, independent KiloCode/GLM-5.3 read-only review PASS on exact head (PR comment `6946107838`). Post-main CI `44071018797` started; conclusion pending at this checkpoint, so completion/claim release are not claimed yet. Diff was 10 scoped docs files, no runtime or production mutations. Reviewer P3 advisories: two trailing newlines, explicit runtime ToolPhase mapping, and clarify 7 IA domains vs 12 coverage items; defer to future touching lane. UX-2/card-04 implementation and Tk retirement remain separately gated.
+Candidate accepted via PR #770: `778fd7c4c451b7dbfa11fa132911c9ed2d6abc9b` -> merge commit `789ee650b7723bcca7a986f569ef3b47962debc4`. Exact-head CI `44035291236` SUCCESS, independent KiloCode/GLM-5.3 read-only review PASS on exact head (PR comment `6946107838`). Post-main CI `44071018797` completed SUCCESS on exact merge SHA (all four jobs; independently rechecked 2026-11-19). Continuity PR #773 still requires updated exact-head CI and qualified review/merge; this WO remains RECONCILING and claim release is not yet asserted. Diff was 10 scoped docs files, no runtime or production mutations. Reviewer P3 advisories: two trailing newlines, explicit runtime ToolPhase mapping, and clarify 7 IA domains vs 12 coverage items; defer to future touching lane. UX-2/card-04 implementation and Tk retirement remain separately gated.

@@ -1,9 +1,9 @@
 # HANDOFF — A-Sunday Conductor
-## 2026-11-17 - WO-P1-769 Color E-Ink / Manga Design — MERGED / POST_MAIN_CI_PENDING
+## 2026-11-19 - WO-P1-769 Color E-Ink / Manga Design — MERGED / POST_MAIN_VERIFIED / RECONCILING
 
-PR #770 merged at `789ee650b7723bcca7a986f569ef3b47962debc4` (candidate `778fd7c4c451b7dbfa11fa132911c9ed2d6abc9b`); exact-head CI `44035291236` SUCCESS; independent KiloCode/GLM-5.3 review PASS on frozen head in PR #770 comment `6946107838`. Current `main` contains `docs/design/sunday-family-design-system.md`, additive `AGENTS.md` / `PROJECT-GRAPH.yaml` UI node, UX-1 and master roadmap addenda. The older 'PR pending' section below is historical. **Post-main CI `44071018797` is not yet final at this checkpoint.**
+PR #770 merged at `789ee650b7723bcca7a986f569ef3b47962debc4` (candidate `778fd7c4c451b7dbfa11fa132911c9ed2d6abc9b`); exact-head CI `44035291236` SUCCESS; independent KiloCode/GLM-5.3 review PASS on frozen head in PR #770 comment `6946107838`. Current `main` contains `docs/design/sunday-family-design-system.md`, additive `AGENTS.md` / `PROJECT-GRAPH.yaml` UI node, UX-1 and master roadmap addenda. The older 'PR pending' section below is historical. **Post-main CI `44071018797` is COMPLETED / SUCCESS (all four jobs; verified 2026-11-19).** Continuity PR #773 still requires updated exact-head CI and qualified review/acceptance before merge; WO claim is not yet released.
 
-Scope remains docs-only, Tk design/runtime/security/contracts unchanged. UX-1 feature/IA decisions are not automatically approved by visual style; no card-04 React implementation release. Remaining P3 cosmetic/status-mapping/12-vs-7 clarifiers are deferred to a separately accepted touching lane, not blockers for #770. Next verify post-main CI, finish continuity fold and mark Issue #769/WO claim released; avoid writing root checkout or reusing retired worker lanes.
+Scope remains docs-only, Tk design/runtime/security/contracts unchanged. UX-1 feature/IA decisions are not automatically approved by visual style; no card-04 React implementation release. Remaining P3 cosmetic/status-mapping/12-vs-7 clarifiers are deferred to a separately accepted touching lane, not blockers for #770. Next review and verify updated PR #773 at its frozen SHA, merge if all gates pass, then reconcile Issue #769 and release WO claim; avoid writing root checkout or reusing retired worker lanes.
 
 ## 2026-11-17 - SundayFamily E-Ink / Manga Visual Target — OPERATOR DECISION, DOCS PR PENDING
 
