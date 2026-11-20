@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:a-conductor:schema:loop-recipe:1.0.0",
+  "title": "A-Conductor Loop Recipe",
+  "$comment": "Registry model adapted from cobusgreyling/loop-engineering patterns/registry.schema.json (MIT), pinned at e1c9d5f5e23655b65d04c5617aff77ab3ad58c16.",
+  "description": "Reusable loop metadata layered above the existing A-Conductor Task Contract; it does not replace scheduler, task, claim, provider, or state authorities.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "recipe_id",
+    "name",
+    "goal",
+    "autonomy_level",
+    "assurance_tier",
+    "trigger",
+    "task_contract_template_ref",
+    "durable_state_ref",
+    "phases",
+    "human_gates",
+    "loop_limits",
+    "verification_refs"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "recipe_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+
+    "name": {"type": "string", "minLength": 3, "maxLength": 128},
+    "goal": {"type": "string", "minLength": 10, "maxLength": 2000},
+    "enabled": {"type": "boolean", "default": false},
+    "autonomy_level": {
+      "enum": ["A0_MANUAL", "A1_OBSERVE", "A2_ASSISTED", "A3_AUTONOMOUS"]
+    },
+    "assurance_tier": {
+      "enum": ["R0_DOCS", "R1_LOW", "R2_NORMAL", "R3_CRITICAL"]
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["MANUAL", "SCHEDULE", "EVENT"]},
+        "cadence": {
+          "type": "string",
+          "pattern": "^[0-9]+[mhd](-[0-9]+[mhd])?$"
+        },
+        "event_type": {"type": "string", "minLength": 1}
+      }
+    },
+    "task_contract_template_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to an existing Task Contract template/authority."
+    },
+
+    "durable_state_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Reference to canonical existing durable state; never creates a shadow SSoT."
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]{1,63}$"
+      },
+      "uniqueItems": true
+    },
+    "human_gates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]{1,127}$"
+      },
+      "uniqueItems": true
+    },
+    "loop_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_iterations_per_run",
+        "max_identical_failures",
+        "max_consecutive_failures"
+      ],
+
+      "properties": {
+        "max_iterations_per_run": {"type": "integer", "minimum": 1},
+        "max_identical_failures": {"type": "integer", "minimum": 1},
+        "max_consecutive_failures": {"type": "integer", "minimum": 1},
+        "max_runs_per_day": {"type": ["integer", "null"], "minimum": 1},
+        "max_tokens_per_run": {"type": ["integer", "null"], "minimum": 0},
+        "max_tokens_per_day": {"type": ["integer", "null"], "minimum": 0},
+        "max_elapsed_seconds_per_run": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "max_estimated_cost_usd_per_run": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "max_estimated_cost_usd_per_day": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "early_exit_required": {"type": "boolean", "default": true}
+      }
+    },
+    "verification_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+
+    "notes": {"type": ["string", "null"], "maxLength": 4000}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "properties": {"kind": {"const": "SCHEDULE"}},
+            "required": ["kind"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trigger": {"required": ["cadence"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "properties": {"kind": {"const": "EVENT"}},
+            "required": ["kind"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "trigger": {"required": ["event_type"]}
+        }
+      }
+    }
+  ]
+}

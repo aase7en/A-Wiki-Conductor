@@ -131,6 +131,7 @@ WO-P1-154-fast-execution-workflow.md
 WO-P1-155-zero-relay-accelerator.md
 WO-P1-156-worker-mcp-resilience.md
 WO-P1-158-zero-relay-zcode.md
+WO-P1-159-loop-engineering-adoption.md
 WO-P1-162-glm-first-execution-entry.md
 WO-P1-163-wo162-post-merge-continuity-fold.md
 WO-P1-164-collab-row-reconciliation.md
