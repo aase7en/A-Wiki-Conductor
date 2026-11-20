@@ -160,3 +160,79 @@ def test_attempt_rejects_missing_token_accounting_value() -> None:
             outcome=LoopOutcome.SUCCESS,
             tokens_used=None,  # type: ignore[arg-type]
         )
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"max_tokens": 0}, LoopGuardReason.TOKEN_BUDGET),
+        ({"max_elapsed_seconds": 0}, LoopGuardReason.ELAPSED_BUDGET),
+        ({"max_estimated_cost_usd": 0}, LoopGuardReason.COST_BUDGET),
+    ],
+)
+def test_zero_budget_denies_before_first_attempt(
+    overrides: dict[str, object],
+    expected: LoopGuardReason,
+) -> None:
+    result = evaluate_loop_guard([], policy(**overrides))
+    assert result.allowed is False
+    assert result.reason is expected
+    assert result.metrics.attempt_records == 0
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"max_tokens": 0},
+        {"max_elapsed_seconds": 0},
+        {"max_estimated_cost_usd": 0},
+    ],
+)
+def test_zero_budget_with_existing_history_keeps_denying(
+    overrides: dict[str, object],
+) -> None:
+    history = [attempt(1, LoopOutcome.SUCCESS, tokens=1, elapsed=1.0, cost=0.1)]
+    assert evaluate_loop_guard(history, policy(**overrides)).allowed is False
+
+
+def test_none_budgets_mean_no_limit() -> None:
+    empty = evaluate_loop_guard(
+        [],
+        policy(max_tokens=None, max_elapsed_seconds=None, max_estimated_cost_usd=None),
+    )
+    assert empty.allowed is True
+    assert empty.reason is LoopGuardReason.CONTINUE
+    zero_usage = evaluate_loop_guard(
+        [attempt(1, LoopOutcome.SUCCESS)],
+        policy(max_tokens=None, max_elapsed_seconds=None, max_estimated_cost_usd=None),
+    )
+    assert zero_usage.allowed is True
+    assert zero_usage.reason is LoopGuardReason.CONTINUE
+
+
+@pytest.mark.parametrize(
+    ("overrides", "history"),
+    [
+        ({"max_tokens": 5}, []),
+        ({"max_tokens": 5}, [attempt(1, LoopOutcome.SUCCESS, tokens=4)]),
+        ({"max_elapsed_seconds": 10.0}, []),
+        ({"max_elapsed_seconds": 10.0}, [attempt(1, LoopOutcome.SUCCESS, elapsed=9.9)]),
+        ({"max_estimated_cost_usd": 2.0}, []),
+        ({"max_estimated_cost_usd": 2.0}, [attempt(1, LoopOutcome.SUCCESS, cost=1.5)]),
+    ],
+)
+def test_positive_budgets_below_threshold_continue(
+    overrides: dict[str, object],
+    history: list[LoopAttempt],
+) -> None:
+    result = evaluate_loop_guard(history, policy(**overrides))
+    assert result.allowed is True
+    assert result.reason is LoopGuardReason.CONTINUE
+
+
+def test_budget_denial_does_not_mutate_history() -> None:
+    history = [attempt(1, LoopOutcome.SUCCESS, tokens=5)]
+    result = evaluate_loop_guard(history, policy(max_tokens=0))
+    assert result.allowed is False
+    assert len(history) == 1
+    assert history[0].tokens_used == 5

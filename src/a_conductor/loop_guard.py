@@ -185,7 +185,9 @@ def evaluate_loop_guard(
     """Return the deterministic decision before another iteration.
 
     Priority is stable and fail-closed: hard iteration cap, repeated identical
-    failure, broader no-progress streak, then resource budgets.
+    failure, broader no-progress streak, then resource budgets. Budgets are
+    enforced even before the first attempt: a zero budget denies immediately
+    (``0`` is a hard zero, ``None`` disables the budget).
     """
     if not isinstance(policy, LoopGuardPolicy):
         raise ValueError("policy must be LoopGuardPolicy")
@@ -201,20 +203,17 @@ def evaluate_loop_guard(
     elif metrics.consecutive_failures >= policy.max_consecutive_failures:
         reason = LoopGuardReason.NO_PROGRESS
     elif (
-        attempts
-        and policy.max_tokens is not None
+        policy.max_tokens is not None
         and metrics.tokens_used >= policy.max_tokens
     ):
         reason = LoopGuardReason.TOKEN_BUDGET
     elif (
-        attempts
-        and policy.max_elapsed_seconds is not None
+        policy.max_elapsed_seconds is not None
         and metrics.elapsed_seconds >= policy.max_elapsed_seconds
     ):
         reason = LoopGuardReason.ELAPSED_BUDGET
     elif (
-        attempts
-        and policy.max_estimated_cost_usd is not None
+        policy.max_estimated_cost_usd is not None
         and metrics.estimated_cost_usd >= policy.max_estimated_cost_usd
     ):
         reason = LoopGuardReason.COST_BUDGET
