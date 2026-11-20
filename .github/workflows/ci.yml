@@ -206,3 +206,17 @@ jobs:
           tests/test_branding.py tests/test_sh_templates.py -q
       - name: Smoke test (headless)
         run: python -m a_conductor --smoke --database ${{ runner.temp }}/acond-smoke.sqlite
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - name: Install frontend dependencies from lockfile
+        run: npm --prefix web/sunday-family ci
+      - name: Run frontend tests
+        run: npm --prefix web/sunday-family run test
+      - name: Build frontend bundle
+        run: npm --prefix web/sunday-family run build

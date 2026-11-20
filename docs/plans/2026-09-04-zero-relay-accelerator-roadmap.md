@@ -102,7 +102,8 @@ Do not automate ZCode UI clicks by default. UI automation is brittle and must no
 | `ZRA-1` | R3 | One-shot no-relay dispatch | A-Conductor submits one bounded synthetic task to a callable authorized GLM route and receives exact task-bound result without human copy/paste |
 | `ZRA-2` | R3 | Automatic result ingestion + verify/repair | result identity/evidence validated; one forced review failure creates one bounded repair task and receives repaired result automatically |
 | `ZRA-3` | R3 | Safe autonomous continuation | accepted result advances to next READY task without human relay; duplicate/timeout/ambiguous state never blind-replays |
-| `ZRA-4` | R3 | Parallel accelerator | up to 2–3 independent GLM-capable READY lanes dispatch under existing lease/WIP/ownership limits; fan-in verifies exact results |
+| `ZRA-3G` | R3 | Goal-runner operator surface | one durable goal/continue command can drive recover -> attach/claim -> execute -> verify -> continue without repeated human `continue`; browser/Extension/Tampermonkey surface is transport/presentation only and requires MSP-0 + MSP-2 before deliberate same-project multi-session use |
+| `ZRA-4` | R3 | Parallel accelerator | up to 2–3 independent GLM-capable READY lanes dispatch under existing lease/WIP/ownership limits; fan-in verifies exact results; same-project multi-session control additionally requires accepted MSP-0 + MSP-2 |
 | `ZRA-5` | R2/R3 | ODP integration seam | ODP capability-first selection can choose this accepted execution route; mailbox remains fallback, not authority |
 
 ## 7. P0 execution order
@@ -114,6 +115,9 @@ WO154 fast workflow accepted
   -> ZRA-1 single real no-relay task  [preview/transport-harness evidence exists; FULL authorized/admitted production acceptance PENDING — do not treat as done]
   -> ZRA-2 repair loop [only to the level actually proven; do not overclaim]
   -> ZRA-3 automatic continuation [production continuation PENDING]
+  -> MSP-0 collision-proof run artifacts
+  -> MSP-2 atomic multi-session hotspot admission
+  -> ZRA-3G one-goal / continue-without-watching operator surface
   -> ZRA-4 bounded parallel dispatch
   -> resume ODP roadmap using zero-relay execution fabric
   -> ZRA-5 ODP integration as the routing seam becomes ready
@@ -133,6 +137,8 @@ Also block when:
 - task trust/egress policy denies the route;
 - repository/worktree ownership is ambiguous;
 - an earlier execution may still be running or its outcome is unknown;
+- a same-hotspot claim/admission winner already exists; losing ChatGPT sessions must attach/observe rather than launch another writer;
+- physical delegated-run artifact identity is not collision-proof for the requested multi-session mode;
 - result task/provider/model/base-HEAD identity does not match;
 - secret resolution would cross an unapproved boundary.
 
@@ -160,5 +166,7 @@ Secondary metrics:
 - result copy/paste actions = 0;
 - blind replay after ambiguous transport = 0;
 - duplicate mutable ownership = 0;
+- cross-session run-artifact overwrites = 0;
+- repeated human `continue` commands per durable goal approach 0 after ZRA-3G acceptance;
 - median task handoff latency materially lower than stable-mailbox manual-trigger baseline;
 - later roadmap throughput improves without higher blocking-defect escape rate.

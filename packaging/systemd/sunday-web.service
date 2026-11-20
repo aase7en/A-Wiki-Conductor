@@ -1,0 +1,19 @@
+[Unit]
+Description=A-Sunday Conductor Web API (SF-WEB)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/a-conductor-web web --host 127.0.0.1 --port 8756
+Restart=on-failure
+RestartSec=5
+User=sunday
+Group=sunday
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sunday-conductor
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

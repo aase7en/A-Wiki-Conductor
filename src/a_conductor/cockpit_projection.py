@@ -1,0 +1,1349 @@
+"""WO-P1-424 COCKPIT-1 — immutable read-only Runtime Cockpit projection.
+
+Pure DTO/composer layer: it converts injected observations (already gathered
+from accepted read authorities by callers) into one immutable lane projection
+and snapshot with explicit field provenance and UNKNOWN / STALE /
+EVIDENCE_INCOMPLETE semantics. The module never reads files, spawns
+processes, keeps mutable state, schedules work, or issues commands. Hook and
+WTL read-back authorities are not accepted in this candidate, so their
+fields stay UNKNOWN by contract.
+
+WO-P1-493 MSP-3: lanes may additionally carry one origin/session provenance
+observation as read-model display context only. Origin data never joins a
+state decision, gate, replay, next-action, process, or ownership path. The
+pre-MSP1 read-back wiring does not exist yet, so composed lanes render typed
+UNAVAILABLE/NOT_RECORDED absence instead of inferring provenance.
+
+The durable execution-state and transport vocabularies mirror the accepted
+SQLiteExecutionStore enums so real durable records project without inventing
+a second lifecycle. The origin-ref grammar mirrors the accepted MSP-1
+origin_provenance vocabulary (WO-P1-482) so opaque derived references
+project without importing that module.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+
+from .registry import windows_worktree_key
+
+
+class CockpitProjectionError(ValueError):
+    """Invalid cockpit observation inputs; projection fails closed."""
+
+
+class CockpitFingerprintError(TypeError):
+    """Fingerprint requested for an object that is not a cockpit snapshot."""
+
+
+class CockpitState(Enum):
+    NOT_DISPATCHED = "NOT_DISPATCHED"
+    PENDING_SCOPE = "PENDING_SCOPE"
+    RUNNING = "RUNNING"
+    BORROWED_ACTIVE = "BORROWED_ACTIVE"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
+    WAITING_CI = "WAITING_CI"
+    WAITING_GLM = "WAITING_GLM"
+    WAITING_JEV = "WAITING_JEV"
+    WAITING_EXTERNAL = "WAITING_EXTERNAL"
+    COOLDOWN = "COOLDOWN"
+    PARKED_CAPACITY = "PARKED_CAPACITY"
+    BLOCKED = "BLOCKED"
+    HUMAN_REQUIRED = "HUMAN_REQUIRED"
+    STALLED_RECONCILE = "STALLED_RECONCILE"
+    TERMINAL_UNHARVESTED = "TERMINAL_UNHARVESTED"
+    OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
+    FAILED_VERIFIED = "FAILED_VERIFIED"
+    COMPLETED_VERIFIED = "COMPLETED_VERIFIED"
+    UNKNOWN = "UNKNOWN"
+
+
+class CockpitGateStatus(Enum):
+    UNKNOWN = "UNKNOWN"
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PROVEN = "PROVEN"
+    REFUTED = "REFUTED"
+
+
+_TRANSPORT_STATES = ("CONNECTED", "DEGRADED", "LOST", "UNAVAILABLE")
+_EXECUTION_STATES = (
+    "QUEUED",
+    "STARTING",
+    "RUNNING",
+    "PROCESS_STILL_RUNNING",
+    "SUCCEEDED",
+    "FAILED",
+    "PARTIAL",
+    "CANCELLED",
+    "PROCESS_EXITED_UNKNOWN_RESULT",
+    "RECOVERY_REQUIRED",
+    "VERIFICATION_REQUIRED",
+)
+_EXECUTION_PROVENANCES = ("DURABLE_EXECUTION_RECORD", "OPERATOR_DECLARED")
+_ACCEPTED_EXECUTION_PROVENANCE = "DURABLE_EXECUTION_RECORD"
+_GATE_PROVENANCES = ("OPERATOR_DECLARED", "DURABLE_GATE_RECORD")
+_ACCEPTED_GATE_PROVENANCE = "DURABLE_GATE_RECORD"
+_PORT_UNAVAILABLE = "PORT_UNAVAILABLE"
+_RECORD_NOT_FOUND = "RECORD_NOT_FOUND"
+_ACTIVE_LEASE = "ACTIVE"
+_NOT_DECLARED = "NOT_DECLARED"
+_DURABLE_PROVENANCE = "DURABLE_EXECUTION_RECORD"
+_CONTROL_CENTER_PROVENANCE = "CONTROL_CENTER_SNAPSHOT"
+
+_HOOK_UNACCEPTED_REASON = (
+    "Hook read-back authority not accepted (WO-P1-424); field stays UNKNOWN."
+)
+_WTL_UNACCEPTED_REASON = (
+    "WTL read-back authority not accepted (WO-P1-424); field stays UNKNOWN."
+)
+
+_REPLAY_ACTIVE = "ACTIVE_EXECUTION_NEVER_DUPLICATE"
+_REPLAY_RECOVER = "RECOVER_POINTER_PROCESS_RESULT_GIT_BEFORE_REDISPATCH"
+_REPLAY_RECONCILE = "RECONCILE_BEFORE_ANY_REDISPATCH"
+_REPLAY_SETTLED = "SETTLED_NO_REPLAY"
+_REPLAY_NO_FLIGHT = "NO_EXECUTION_IN_FLIGHT"
+_REPLAY_PARKED = "PARKED_CLAIM_NEVER_DUPLICATE"
+
+_ORIGIN_REF_PATTERN = re.compile(
+    r"origin-chat-v1:[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?:[0-9a-f]{64}"
+)
+_ORIGIN_SURFACES = frozenset({"a-conductor", "srm", "claude-code", "kilo", "rdc"})
+_ORIGIN_PROVENANCES = ("CONTROL_HOOK_EVENT",)
+_ACTIVITY_PROVENANCE = "DURABLE_MONITOR_RECORD"
+_ACTIVITY_STATES = frozenset(
+    {
+        "RUNNING",
+        "BORROWED_ACTIVE",
+        "WAITING_APPROVAL",
+        "WAITING_CI",
+        "WAITING_GLM",
+        "WAITING_JEV",
+        "WAITING_EXTERNAL",
+        "COOLDOWN",
+        "PARKED_CAPACITY",
+        "BLOCKED",
+        "HUMAN_REQUIRED",
+    }
+)
+_CAPACITY_CLASSES = frozenset(
+    {"BASE_MUTABLE", "BORROWED_MUTABLE", "INDEPENDENT_REVIEW", "READ_ONLY"}
+)
+_TYPED_REASON_PATTERN = re.compile(r"^[A-Z][A-Z0-9_:\-]{0,127}$")
+_ORIGIN_STATUS_RECORDED = "RECORDED"
+_ORIGIN_STATUS_NOT_RECORDED = "NOT_RECORDED"
+_ORIGIN_STATUS_UNAVAILABLE = "UNAVAILABLE"
+_ORIGIN_STATUS_UNKNOWN = "UNKNOWN"
+_ORIGIN_PROVENANCE_UNSUPPORTED_REASON = "ORIGIN_PROVENANCE_UNSUPPORTED"
+
+
+@dataclass(frozen=True)
+class CockpitLaneIdentity:
+    """Declared lane context (who the projection is about), with provenance."""
+
+    work_order_ref: str
+    task_ref: str
+    topology: str | None = None
+    lane: str | None = None
+    executor: str | None = None
+    provider: str | None = None
+    harness: str | None = None
+    authority_repo: str | None = None
+    execution_repo: str | None = None
+    worktree: str | None = None
+    branch: str | None = None
+    expected_head: str | None = None
+    execution_id: str | None = None
+    lease_id: str | None = None
+    provenance: str = "WORK_ORDER_DECLARED"
+
+    def __post_init__(self) -> None:
+        for label, value in (
+            ("WORK_ORDER_REF", self.work_order_ref),
+            ("TASK_REF", self.task_ref),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise CockpitProjectionError(f"LANE_IDENTITY_{label}_REQUIRED")
+
+
+@dataclass(frozen=True)
+class CockpitExecutionObservation:
+    available: bool = False
+    provenance: str | None = None
+    reason: str | None = None
+    execution_id: str | None = None
+    job_id: str | None = None
+    work_order_ref: str | None = None
+    worker_id: str | None = None
+    backend_id: str | None = None
+    repo_root: str | None = None
+    branch: str | None = None
+    head_before: str | None = None
+    transport_state: str | None = None
+    execution_state: str | None = None
+    pid: int | None = None
+    exit_code: int | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    updated_at: str | None = None
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "CockpitExecutionObservation":
+        return cls(available=False, reason=reason)
+
+    def __post_init__(self) -> None:
+        if self.transport_state is not None and self.transport_state not in _TRANSPORT_STATES:
+            raise CockpitProjectionError("EXECUTION_TRANSPORT_STATE_UNSUPPORTED")
+        if self.execution_state is not None and self.execution_state not in _EXECUTION_STATES:
+            raise CockpitProjectionError("EXECUTION_STATE_UNSUPPORTED")
+        if not self.available:
+            return
+        if self.provenance not in _EXECUTION_PROVENANCES:
+            raise CockpitProjectionError("EXECUTION_PROVENANCE_UNSUPPORTED")
+        if self.provenance == "OPERATOR_DECLARED" and self.pid is None:
+            raise CockpitProjectionError("EXECUTION_OPERATOR_DECLARATION_REQUIRES_PID")
+        if self.execution_state is None:
+            raise CockpitProjectionError("EXECUTION_STATE_REQUIRED")
+        if self.transport_state is None:
+            raise CockpitProjectionError("EXECUTION_TRANSPORT_STATE_REQUIRED")
+
+
+@dataclass(frozen=True)
+class CockpitLeaseObservation:
+    available: bool = False
+    provenance: str | None = None
+    reason: str | None = None
+    lease_id: str | None = None
+    worker_id: str | None = None
+    worktree_key: str | None = None
+    branch: str | None = None
+    expected_head: str | None = None
+    health: str | None = None
+    acquired_at: str | None = None
+    heartbeat_at: str | None = None
+    expires_at: str | None = None
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "CockpitLeaseObservation":
+        return cls(available=False, reason=reason)
+
+    def __post_init__(self) -> None:
+        if self.available and not (
+            isinstance(self.provenance, str) and self.provenance.strip()
+        ):
+            raise CockpitProjectionError("LEASE_PROVENANCE_REQUIRED")
+
+
+@dataclass(frozen=True)
+class CockpitGitObservation:
+    available: bool = False
+    provenance: str | None = None
+    reason: str | None = None
+    branch: str | None = None
+    head: str | None = None
+    dirty_state: str | None = None
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "CockpitGitObservation":
+        return cls(available=False, reason=reason)
+
+    def __post_init__(self) -> None:
+        if self.available and not (
+            isinstance(self.provenance, str) and self.provenance.strip()
+        ):
+            raise CockpitProjectionError("GIT_PROVENANCE_REQUIRED")
+
+
+@dataclass(frozen=True)
+class CockpitGateEvidence:
+    verification: CockpitGateStatus = CockpitGateStatus.UNKNOWN
+    review: CockpitGateStatus = CockpitGateStatus.NOT_REQUIRED
+    merge: CockpitGateStatus = CockpitGateStatus.UNKNOWN
+    post_main: CockpitGateStatus = CockpitGateStatus.UNKNOWN
+    ci: CockpitGateStatus = CockpitGateStatus.UNKNOWN
+    provenance: str = "OPERATOR_DECLARED"
+
+    def __post_init__(self) -> None:
+        if self.provenance not in _GATE_PROVENANCES:
+            raise CockpitProjectionError("GATE_PROVENANCE_UNSUPPORTED")
+
+
+@dataclass(frozen=True)
+class CockpitOriginObservation:
+    """Injected origin/session provenance; display context only (WO-P1-493).
+
+    Carries only the opaque MSP-1 derived reference grammar — never a raw
+    chat/session identifier. Unsupported provenance stays constructible so it
+    can render typed UNKNOWN display, but its payload is dropped at this
+    boundary and is never held or rendered anywhere.
+    """
+
+    available: bool = False
+    provenance: str | None = None
+    reason: str | None = None
+    origin_ref: str | None = None
+    origin_surface: str | None = None
+    observed_at: str | None = None
+    execution_id: str | None = None
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "CockpitOriginObservation":
+        return cls(available=False, reason=reason)
+
+    def __post_init__(self) -> None:
+        if not self.available:
+            return
+        if not (
+            isinstance(self.provenance, str) and self.provenance.strip()
+        ):
+            raise CockpitProjectionError("ORIGIN_PROVENANCE_REQUIRED")
+        if self.provenance not in _ORIGIN_PROVENANCES:
+            # Unsupported provenance renders typed UNKNOWN display only; it
+            # must never hold or expose an origin payload.
+            object.__setattr__(self, "origin_ref", None)
+            object.__setattr__(self, "origin_surface", None)
+            return
+        if not (
+            isinstance(self.origin_ref, str)
+            and _ORIGIN_REF_PATTERN.fullmatch(self.origin_ref)
+        ):
+            raise CockpitProjectionError("ORIGIN_REF_MUST_BE_OPAQUE_DERIVED_REF")
+        if not (
+            isinstance(self.origin_surface, str)
+            and self.origin_surface in _ORIGIN_SURFACES
+        ):
+            raise CockpitProjectionError("ORIGIN_SURFACE_UNSUPPORTED")
+
+
+@dataclass(frozen=True)
+class CockpitOriginDisplay:
+    """Rendered origin provenance context; carries no authority fields."""
+
+    status: str = _ORIGIN_STATUS_UNAVAILABLE
+    origin_ref: str | None = None
+    origin_surface: str | None = None
+    key_version: str | None = None
+    reason: str | None = None
+
+
+def _origin_display(origin: CockpitOriginObservation) -> CockpitOriginDisplay:
+    if not origin.available:
+        if origin.reason == _RECORD_NOT_FOUND:
+            return CockpitOriginDisplay(status=_ORIGIN_STATUS_NOT_RECORDED)
+        return CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNAVAILABLE, reason=origin.reason
+        )
+    if origin.provenance not in _ORIGIN_PROVENANCES:
+        return CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNKNOWN,
+            reason=_ORIGIN_PROVENANCE_UNSUPPORTED_REASON,
+        )
+    _, key_version, _digest = origin.origin_ref.split(":")
+    return CockpitOriginDisplay(
+        status=_ORIGIN_STATUS_RECORDED,
+        origin_ref=origin.origin_ref,
+        origin_surface=origin.origin_surface,
+        key_version=key_version,
+    )
+
+
+@dataclass(frozen=True)
+class CockpitActivityObservation:
+    """Authoritative lane activity/wait projection from an existing durable source."""
+
+    available: bool = False
+    provenance: str | None = None
+    reason: str | None = None
+    work_order_ref: str | None = None
+    task_ref: str | None = None
+    lane_ref: str | None = None
+    execution_id: str | None = None
+    state: str | None = None
+    capacity_class: str | None = None
+    observed_at: str | None = None
+    next_recheck_at: str | None = None
+    countdown_seconds: int | None = None
+    active_mutation_child: bool | None = None
+
+    @classmethod
+    def unavailable(cls, reason: str) -> "CockpitActivityObservation":
+        return cls(available=False, reason=reason)
+
+    def __post_init__(self) -> None:
+        if not self.available:
+            return
+        if self.provenance != _ACTIVITY_PROVENANCE:
+            raise CockpitProjectionError("ACTIVITY_PROVENANCE_UNSUPPORTED")
+        if not isinstance(self.work_order_ref, str) or not self.work_order_ref.strip():
+            raise CockpitProjectionError("ACTIVITY_WORK_ORDER_REF_REQUIRED")
+        if not isinstance(self.task_ref, str) or not self.task_ref.strip():
+            raise CockpitProjectionError("ACTIVITY_TASK_REF_REQUIRED")
+        if not isinstance(self.lane_ref, str) or not self.lane_ref.strip():
+            raise CockpitProjectionError("ACTIVITY_LANE_REF_REQUIRED")
+        if self.state not in _ACTIVITY_STATES:
+            raise CockpitProjectionError("ACTIVITY_STATE_UNSUPPORTED")
+        if self.capacity_class is not None and self.capacity_class not in _CAPACITY_CLASSES:
+            raise CockpitProjectionError("ACTIVITY_CAPACITY_CLASS_UNSUPPORTED")
+        if self.reason is not None and not _TYPED_REASON_PATTERN.fullmatch(self.reason):
+            raise CockpitProjectionError("ACTIVITY_REASON_MUST_BE_TYPED_CODE")
+        if self.state in {"BLOCKED", "HUMAN_REQUIRED"} and self.reason is None:
+            raise CockpitProjectionError("ACTIVITY_BLOCKING_STATE_REQUIRES_REASON")
+        if self.state in {"BORROWED_ACTIVE", "PARKED_CAPACITY"} and (
+            self.capacity_class != "BORROWED_MUTABLE"
+        ):
+            raise CockpitProjectionError("ACTIVITY_BORROWED_STATE_REQUIRES_BORROWED_CLASS")
+        if self.state == "RUNNING" and self.capacity_class == "BORROWED_MUTABLE":
+            raise CockpitProjectionError("ACTIVITY_RUNNING_BORROWED_CLASS_INVALID")
+        if self.state in {"RUNNING", "BORROWED_ACTIVE"} and not (
+            isinstance(self.execution_id, str) and self.execution_id.strip()
+        ):
+            raise CockpitProjectionError("ACTIVITY_ACTIVE_STATE_REQUIRES_EXECUTION_ID")
+        if self.countdown_seconds is not None and (
+            not isinstance(self.countdown_seconds, int)
+            or isinstance(self.countdown_seconds, bool)
+            or self.countdown_seconds < 0
+        ):
+            raise CockpitProjectionError("ACTIVITY_COUNTDOWN_INVALID")
+        if self.active_mutation_child is not None and not isinstance(self.active_mutation_child, bool):
+            raise CockpitProjectionError("ACTIVITY_ACTIVE_CHILD_INVALID")
+
+
+@dataclass(frozen=True)
+class CockpitProcessIdentity:
+    """Observed process identity; authoritative only with exact provenance."""
+
+    pid: int | None = None
+    authoritative: bool = False
+    provenance: str | None = None
+
+
+@dataclass(frozen=True)
+class CockpitLaneInputs:
+    identity: CockpitLaneIdentity
+    execution: CockpitExecutionObservation = field(
+        default_factory=lambda: CockpitExecutionObservation.unavailable(_PORT_UNAVAILABLE)
+    )
+    lease: CockpitLeaseObservation = field(
+        default_factory=lambda: CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE)
+    )
+    git: CockpitGitObservation = field(
+        default_factory=lambda: CockpitGitObservation.unavailable(_PORT_UNAVAILABLE)
+    )
+    gates: CockpitGateEvidence = field(default_factory=CockpitGateEvidence)
+    origin: CockpitOriginObservation = field(
+        default_factory=lambda: CockpitOriginObservation.unavailable(_PORT_UNAVAILABLE)
+    )
+    activity: CockpitActivityObservation = field(
+        default_factory=lambda: CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
+    )
+    activity_collision: bool = False
+
+
+@dataclass(frozen=True)
+class CockpitObservations:
+    """One bounded pin of every lane observation, with a generation stamp."""
+
+    lanes: tuple[CockpitLaneInputs, ...] = ()
+    generated_at: str = ""
+
+
+@dataclass(frozen=True)
+class CockpitLaneProjection:
+    identity: CockpitLaneIdentity
+    state: CockpitState
+    state_markers: tuple[str, ...]
+    blocker_code: str | None
+    execution_id: str | None = None
+    job_id: str | None = None
+    process_identity: CockpitProcessIdentity = field(default_factory=CockpitProcessIdentity)
+    transport_state: str | None = None
+    last_activity: str | None = None
+    last_meaningful_progress: str | None = None
+    capacity_class: str | None = None
+    wait_reason: str | None = None
+    next_recheck_at: str | None = None
+    countdown_seconds: int | None = None
+    active_mutation_child: bool | None = None
+    replay_safety: str = "RECOVER_EVIDENCE_BEFORE_ANY_REDISPATCH"
+    next_safe_action: str = "RECOVER_READ_AUTHORITIES_THEN_REPROJECT"
+    hook_state: str = "UNKNOWN"
+    hook_reason: str = _HOOK_UNACCEPTED_REASON
+    wtl_state: str = "UNKNOWN"
+    wtl_reason: str = _WTL_UNACCEPTED_REASON
+    gates: CockpitGateEvidence = field(default_factory=CockpitGateEvidence)
+    origin_display: CockpitOriginDisplay = field(
+        default_factory=lambda: CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNAVAILABLE, reason=_PORT_UNAVAILABLE
+        )
+    )
+
+
+@dataclass(frozen=True)
+class CockpitSnapshot:
+    lanes: tuple[CockpitLaneProjection, ...]
+    generated_at: str
+    stale: bool = False
+    stale_reason: str | None = None
+    degraded_observability: tuple[str, ...] = ()
+
+
+def _anchor_mismatch(observed: str | None, declared: str | None) -> bool:
+    return observed is not None and declared is not None and observed != declared
+
+
+def _execution_matches(
+    identity: CockpitLaneIdentity, execution: CockpitExecutionObservation
+) -> bool:
+    return not (
+        _anchor_mismatch(execution.repo_root, identity.worktree)
+        or _anchor_mismatch(execution.branch, identity.branch)
+        or _anchor_mismatch(execution.head_before, identity.expected_head)
+    )
+
+
+def _lease_matches(
+    identity: CockpitLaneIdentity, lease: CockpitLeaseObservation
+) -> bool:
+    return not (
+        _anchor_mismatch(lease.worktree_key, identity.worktree)
+        or _anchor_mismatch(lease.branch, identity.branch)
+        or _anchor_mismatch(lease.expected_head, identity.expected_head)
+    )
+
+
+def _activity_matches(
+    identity: CockpitLaneIdentity,
+    activity: CockpitActivityObservation,
+    execution: CockpitExecutionObservation,
+) -> bool:
+    if not (
+        activity.available
+        and activity.work_order_ref == identity.work_order_ref
+        and activity.task_ref == identity.task_ref
+        and activity.lane_ref == identity.lane
+    ):
+        return False
+    if execution.available:
+        return bool(activity.execution_id and activity.execution_id == execution.execution_id)
+    return True
+
+
+def _activity_fresh(activity: CockpitActivityObservation, generated_at: str | None) -> bool:
+    observed = activity.observed_at
+    if not isinstance(observed, str) or not observed.strip() or generated_at is None:
+        return False
+    try:
+        observed_dt = datetime.fromisoformat(observed.replace("Z", "+00:00"))
+        if observed_dt.tzinfo is None:
+            return False
+        observed_dt = observed_dt.astimezone(timezone.utc)
+        generated_dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        if generated_dt.tzinfo is None:
+            return False
+        generated_dt = generated_dt.astimezone(timezone.utc)
+        return (
+            observed_dt <= generated_dt
+            and generated_dt - observed_dt <= timedelta(minutes=30)
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def _activity_countdown_seconds(
+    activity: CockpitActivityObservation, generated_at: str | None
+) -> int | None:
+    if not generated_at:
+        return None
+    try:
+        generated_dt = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+        if generated_dt.tzinfo is None:
+            return None
+        if isinstance(activity.next_recheck_at, str):
+            recheck_dt = datetime.fromisoformat(
+                activity.next_recheck_at.replace("Z", "+00:00")
+            )
+            if recheck_dt.tzinfo is None:
+                return None
+            seconds = (recheck_dt - generated_dt).total_seconds()
+        elif activity.countdown_seconds is not None and isinstance(
+            activity.observed_at, str
+        ):
+            observed_dt = datetime.fromisoformat(
+                activity.observed_at.replace("Z", "+00:00")
+            )
+            if observed_dt.tzinfo is None:
+                return None
+            seconds = activity.countdown_seconds - (
+                generated_dt - observed_dt
+            ).total_seconds()
+        else:
+            return None
+        return max(0, int(seconds))
+    except (TypeError, ValueError):
+        return None
+
+
+def _process_identity(
+    identity: CockpitLaneIdentity, execution: CockpitExecutionObservation
+) -> CockpitProcessIdentity:
+    authoritative = bool(
+        execution.available
+        and execution.pid is not None
+        and execution.provenance == _ACCEPTED_EXECUTION_PROVENANCE
+        and _execution_matches(identity, execution)
+    )
+    return CockpitProcessIdentity(
+        pid=execution.pid if execution.available else None,
+        authoritative=authoritative,
+        provenance=execution.provenance if execution.available else None,
+    )
+
+
+def _evaluate_gates(gates: CockpitGateEvidence) -> tuple[bool, str | None]:
+    for status, missing_code, refuted_code in (
+        (gates.verification, "MISSING_VERIFICATION_PROOF", "VERIFICATION_REFUTED"),
+        (gates.review, "MISSING_REVIEW_PROOF", "REVIEW_REFUTED"),
+        (gates.merge, "MISSING_MERGE_PROOF", "MERGE_REFUTED"),
+        (gates.post_main, "MISSING_POST_MAIN_PROOF", "POST_MAIN_REFUTED"),
+        (gates.ci, "MISSING_CI_PROOF", "CI_REFUTED"),
+    ):
+        if status is CockpitGateStatus.REFUTED:
+            return False, refuted_code
+        if status is CockpitGateStatus.NOT_REQUIRED:
+            continue
+        if status is not CockpitGateStatus.PROVEN:
+            return False, missing_code
+    if gates.provenance != _ACCEPTED_GATE_PROVENANCE:
+        return False, "GATE_PROVENANCE_NOT_AUTHORITATIVE"
+    return True, None
+
+
+def project_cockpit_lane(
+    inputs: CockpitLaneInputs, *, generated_at: str | None = None
+) -> CockpitLaneProjection:
+    """Project one lane fail-closed; never infers truth from absence."""
+    identity = inputs.identity
+    execution = inputs.execution
+    lease = inputs.lease
+    activity = inputs.activity
+    activity_valid = (
+        activity.available
+        and _activity_matches(identity, activity, execution)
+        and _activity_fresh(activity, generated_at)
+    )
+    # Activity is secondary read-model context. It cannot contradict an exact
+    # durable execution lifecycle, including transport ambiguity and terminal truth.
+    if execution.available and (
+        execution.transport_state != "CONNECTED"
+        or execution.execution_state not in {"RUNNING", "PROCESS_STILL_RUNNING"}
+    ):
+        activity_valid = False
+    if not activity_valid:
+        activity = CockpitActivityObservation.unavailable("ACTIVITY_REJECTED")
+    evidence_incomplete = not lease.available or not inputs.git.available
+    base_markers = ("EVIDENCE_INCOMPLETE",) if evidence_incomplete else ()
+    common = dict(
+        identity=identity,
+        execution_id=execution.execution_id if execution.available else None,
+        job_id=execution.job_id if execution.available else None,
+        process_identity=_process_identity(identity, execution),
+        transport_state=execution.transport_state if execution.available else None,
+        last_activity=(
+            activity.observed_at
+            if activity.available and activity.observed_at
+            else ((execution.updated_at or execution.started_at) if execution.available else None)
+        ),
+        last_meaningful_progress=execution.updated_at if execution.available else None,
+        capacity_class=activity.capacity_class if activity.available else None,
+        wait_reason=activity.reason if activity.available else None,
+        next_recheck_at=activity.next_recheck_at if activity.available else None,
+        countdown_seconds=(
+            _activity_countdown_seconds(activity, generated_at)
+            if activity.available
+            else None
+        ),
+        active_mutation_child=(
+            activity.active_mutation_child if activity.available else None
+        ),
+        gates=inputs.gates,
+        origin_display=_origin_display(inputs.origin),
+    )
+
+    if inputs.activity_collision:
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=base_markers + ("UNKNOWN", "ACTIVITY_LANE_COLLISION"),
+            blocker_code="ACTIVITY_LANE_COLLISION",
+            next_safe_action="RECONCILE_ACTIVITY_LANE_COLLISION_THEN_REPROJECT",
+            **common,
+        )
+
+    if execution.available and execution.provenance != _ACCEPTED_EXECUTION_PROVENANCE:
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+            blocker_code="EXECUTION_PROVENANCE_NOT_AUTHORITATIVE",
+            next_safe_action="RECONCILE_EXECUTION_PROVENANCE_THEN_REPROJECT",
+            **common,
+        )
+
+    if execution.available and not _execution_matches(identity, execution):
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+            blocker_code="EXECUTION_PROVENANCE_MISMATCH",
+            next_safe_action="RECONCILE_EXECUTION_IDENTITY_BEFORE_TRUST",
+            **common,
+        )
+
+    if lease.available and not _lease_matches(identity, lease):
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+            blocker_code="LEASE_PROVENANCE_MISMATCH",
+            next_safe_action="RECONCILE_LEASE_IDENTITY_BEFORE_TRUST",
+            **common,
+        )
+
+    if inputs.activity.available and not activity_valid and not execution.available:
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+            blocker_code="ACTIVITY_EVIDENCE_REJECTED",
+            next_safe_action="RECONCILE_ACTIVITY_EVIDENCE_THEN_REPROJECT",
+            **common,
+        )
+
+    if activity.available:
+        state = CockpitState(activity.state)
+        if state in {CockpitState.RUNNING, CockpitState.BORROWED_ACTIVE} and (
+            not execution.available
+        ):
+            return CockpitLaneProjection(
+                state=CockpitState.UNKNOWN,
+                state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+                blocker_code="ACTIVE_EXECUTION_UNPROVEN",
+                next_safe_action="RECOVER_ACTIVE_EXECUTION_THEN_REPROJECT",
+                **common,
+            )
+        next_actions = {
+            CockpitState.RUNNING: "AWAIT_NEXT_OBSERVATION",
+            CockpitState.BORROWED_ACTIVE: "CONTINUE_BOUNDED_MICROSTEP_UNDER_EXISTING_CLAIM",
+            CockpitState.WAITING_APPROVAL: "AWAIT_APPROVAL_THEN_REPROJECT",
+            CockpitState.WAITING_CI: "AWAIT_CI_RESULT_THEN_REPROJECT",
+            CockpitState.WAITING_GLM: "AWAIT_GLM_CHILD_THEN_RECONCILE",
+            CockpitState.WAITING_JEV: "AWAIT_JEV_ADVISORY_THEN_REPROJECT",
+            CockpitState.WAITING_EXTERNAL: "AWAIT_EXTERNAL_DEPENDENCY_THEN_REPROJECT",
+            CockpitState.COOLDOWN: "AWAIT_DECLARED_COOLDOWN_THEN_RECHECK",
+            CockpitState.PARKED_CAPACITY: "AWAIT_ELASTIC_CAPACITY_THEN_RESUME_EXISTING_CLAIM",
+            CockpitState.BLOCKED: "RECONCILE_TYPED_BLOCKER_THEN_REPROJECT",
+            CockpitState.HUMAN_REQUIRED: "AWAIT_EXPLICIT_HUMAN_DECISION",
+        }
+        replay = (
+            _REPLAY_PARKED
+            if state is CockpitState.PARKED_CAPACITY
+            else _REPLAY_ACTIVE
+        )
+        blocker = activity.reason if state in {
+            CockpitState.BLOCKED,
+            CockpitState.HUMAN_REQUIRED,
+        } else None
+        markers = base_markers + ("DURABLE_ACTIVITY",)
+        if activity.capacity_class:
+            markers += (activity.capacity_class,)
+        return CockpitLaneProjection(
+            state=state,
+            state_markers=markers,
+            blocker_code=blocker,
+            replay_safety=replay,
+            next_safe_action=next_actions[state],
+            **common,
+        )
+
+    if not execution.available:
+        if execution.reason == _RECORD_NOT_FOUND:
+            if (
+                lease.available
+                and lease.health == _ACTIVE_LEASE
+                and _lease_matches(identity, lease)
+            ):
+                return CockpitLaneProjection(
+                    state=CockpitState.PENDING_SCOPE,
+                    state_markers=base_markers,
+                    blocker_code=None,
+                    replay_safety=_REPLAY_NO_FLIGHT,
+                    next_safe_action="DECLARE_MUTABLE_SCOPE_THEN_DISPATCH_UNDER_EXISTING_AUTHORITY",
+                    **common,
+                )
+            return CockpitLaneProjection(
+                state=CockpitState.NOT_DISPATCHED,
+                state_markers=base_markers,
+                blocker_code=None,
+                replay_safety=_REPLAY_NO_FLIGHT,
+                next_safe_action="DISPATCH_UNDER_EXISTING_AUTHORITY_WHEN_READY",
+                **common,
+            )
+        return CockpitLaneProjection(
+            state=CockpitState.UNKNOWN,
+            state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+            blocker_code="EXECUTION_EVIDENCE_UNAVAILABLE",
+            **common,
+        )
+
+    execution_state = execution.execution_state
+    transport_state = execution.transport_state
+
+    if execution_state == "PROCESS_EXITED_UNKNOWN_RESULT":
+        return CockpitLaneProjection(
+            state=CockpitState.OUTCOME_UNKNOWN,
+            state_markers=base_markers,
+            blocker_code="PROCESS_EXITED_UNKNOWN_RESULT",
+            replay_safety=_REPLAY_RECOVER,
+            next_safe_action="RECOVER_POINTER_PROCESS_RESULT_GIT_BEFORE_REDISPATCH",
+            **common,
+        )
+
+    if execution_state == "RECOVERY_REQUIRED":
+        return CockpitLaneProjection(
+            state=CockpitState.STALLED_RECONCILE,
+            state_markers=base_markers,
+            blocker_code="EXECUTION_RECOVERY_REQUIRED",
+            replay_safety=_REPLAY_RECONCILE,
+            next_safe_action="RECONCILE_EXECUTION_THROUGH_EXISTING_RECOVERY_AUTHORITY",
+            **common,
+        )
+
+    if execution_state == "QUEUED":
+        return CockpitLaneProjection(
+            state=CockpitState.WAITING_EXTERNAL,
+            state_markers=base_markers,
+            blocker_code=None,
+            replay_safety=_REPLAY_ACTIVE,
+            next_safe_action="AWAIT_EXTERNAL_EXECUTION_PROGRESS",
+            **common,
+        )
+
+    if execution_state == "STARTING":
+        return CockpitLaneProjection(
+            state=CockpitState.WAITING_EXTERNAL,
+            state_markers=base_markers,
+            blocker_code=None,
+            replay_safety=_REPLAY_ACTIVE,
+            next_safe_action="AWAIT_EXTERNAL_EXECUTION_PROGRESS",
+            **common,
+        )
+
+    if execution_state in ("RUNNING", "PROCESS_STILL_RUNNING"):
+        if transport_state == "LOST":
+            return CockpitLaneProjection(
+                state=CockpitState.STALLED_RECONCILE,
+                state_markers=base_markers,
+                blocker_code="TRANSPORT_LOST",
+                replay_safety=_REPLAY_RECONCILE,
+                next_safe_action="RECOVER_TRANSPORT_STATE_THEN_RECONCILE",
+                **common,
+            )
+        markers = base_markers + (
+            ("DEGRADED_OBSERVABILITY",)
+            if transport_state in ("DEGRADED", "UNAVAILABLE")
+            else ()
+        )
+        return CockpitLaneProjection(
+            state=CockpitState.RUNNING,
+            state_markers=markers,
+            blocker_code=None,
+            replay_safety=_REPLAY_ACTIVE,
+            next_safe_action="AWAIT_NEXT_OBSERVATION",
+            **common,
+        )
+
+    if execution_state == "VERIFICATION_REQUIRED":
+        return CockpitLaneProjection(
+            state=CockpitState.TERMINAL_UNHARVESTED,
+            state_markers=base_markers,
+            blocker_code="VERIFICATION_PROOF_REQUIRED",
+            replay_safety=_REPLAY_RECONCILE,
+            next_safe_action="COMPLETE_VERIFICATION_UNDER_EXISTING_AUTHORITY",
+            **common,
+        )
+
+    if execution_state == "PARTIAL":
+        return CockpitLaneProjection(
+            state=CockpitState.OUTCOME_UNKNOWN,
+            state_markers=base_markers,
+            blocker_code="PARTIAL_OUTCOME_NOT_VERIFIED",
+            replay_safety=_REPLAY_RECOVER,
+            next_safe_action="RECOVER_RESULT_EVIDENCE_BEFORE_TRUST",
+            **common,
+        )
+
+    if execution_state == "CANCELLED":
+        return CockpitLaneProjection(
+            state=CockpitState.TERMINAL_UNHARVESTED,
+            state_markers=base_markers,
+            blocker_code="EXECUTION_CANCELLED",
+            replay_safety=_REPLAY_RECONCILE,
+            next_safe_action="RECORD_CANCELLED_OUTCOME_UNDER_EXISTING_AUTHORITY",
+            **common,
+        )
+
+    if execution_state == "SUCCEEDED":
+        if execution.exit_code != 0 or execution.finished_at is None:
+            return CockpitLaneProjection(
+                state=CockpitState.OUTCOME_UNKNOWN,
+                state_markers=base_markers,
+                blocker_code="SUCCESS_WITHOUT_TERMINAL_PROOF",
+                replay_safety=_REPLAY_RECOVER,
+                next_safe_action="RECOVER_RESULT_EVIDENCE_BEFORE_TRUST",
+                **common,
+            )
+        complete, gate_blocker = _evaluate_gates(inputs.gates)
+        if complete:
+            return CockpitLaneProjection(
+                state=CockpitState.COMPLETED_VERIFIED,
+                state_markers=base_markers,
+                blocker_code=None,
+                replay_safety=_REPLAY_SETTLED,
+                next_safe_action="RECORD_DURABLE_CHECKPOINT",
+                **common,
+            )
+        return CockpitLaneProjection(
+            state=CockpitState.TERMINAL_UNHARVESTED,
+            state_markers=base_markers,
+            blocker_code=gate_blocker,
+            replay_safety=_REPLAY_RECONCILE,
+            next_safe_action="COMPLETE_MISSING_GATE_PROOFS",
+            **common,
+        )
+
+    if execution_state == "FAILED":
+        if execution.exit_code is None or execution.finished_at is None:
+            return CockpitLaneProjection(
+                state=CockpitState.OUTCOME_UNKNOWN,
+                state_markers=base_markers,
+                blocker_code="FAILURE_WITHOUT_TERMINAL_PROOF",
+                replay_safety=_REPLAY_RECOVER,
+                next_safe_action="RECOVER_RESULT_EVIDENCE_BEFORE_TRUST",
+                **common,
+            )
+        return CockpitLaneProjection(
+            state=CockpitState.FAILED_VERIFIED,
+            state_markers=base_markers,
+            blocker_code=None,
+            replay_safety=_REPLAY_SETTLED,
+            next_safe_action="REVIEW_FAILURE_EVIDENCE_UNDER_EXISTING_AUTHORITY",
+            **common,
+        )
+
+    return CockpitLaneProjection(
+        state=CockpitState.UNKNOWN,
+        state_markers=("UNKNOWN", "EVIDENCE_INCOMPLETE"),
+        blocker_code="EXECUTION_STATE_UNSUPPORTED",
+        **common,
+    )
+
+
+def _stale_lane(inputs: CockpitLaneInputs) -> CockpitLaneProjection:
+    return CockpitLaneProjection(
+        identity=inputs.identity,
+        state=CockpitState.UNKNOWN,
+        state_markers=("STALE", "UNKNOWN", "EVIDENCE_INCOMPLETE"),
+        blocker_code="SOURCE_DRIFT_DETECTED",
+        execution_id=None,
+        job_id=None,
+        process_identity=CockpitProcessIdentity(),
+        transport_state=None,
+        last_activity=None,
+        last_meaningful_progress=None,
+        replay_safety="REPIN_SOURCES_BEFORE_TRUST",
+        next_safe_action="REPIN_BOTH_SOURCES_THEN_REPROJECT",
+        gates=inputs.gates,
+        origin_display=CockpitOriginDisplay(
+            status=_ORIGIN_STATUS_UNKNOWN, reason="SOURCE_DRIFT_DETECTED"
+        ),
+    )
+
+
+def project_cockpit_snapshot(
+    observations: CockpitObservations,
+    *,
+    recheck: CockpitObservations | None = None,
+) -> CockpitSnapshot:
+    """Project one internally consistent snapshot.
+
+    A bounded re-pin whose observations drifted from the first pin renders
+    the whole snapshot STALE instead of mixing observations from different
+    identities.
+    """
+    if recheck is not None and recheck.lanes != observations.lanes:
+        return CockpitSnapshot(
+            lanes=tuple(_stale_lane(inputs) for inputs in observations.lanes),
+            generated_at=observations.generated_at,
+            stale=True,
+            stale_reason="SOURCE_DRIFT_DETECTED",
+            degraded_observability=(),
+        )
+    lanes = tuple(
+        project_cockpit_lane(inputs, generated_at=observations.generated_at)
+        for inputs in observations.lanes
+    )
+    degraded = tuple(
+        f"{lane.identity.lane}:DEGRADED_OBSERVABILITY"
+        for lane in lanes
+        if "DEGRADED_OBSERVABILITY" in lane.state_markers
+    )
+    return CockpitSnapshot(
+        lanes=lanes,
+        generated_at=observations.generated_at,
+        stale=False,
+        stale_reason=None,
+        degraded_observability=degraded,
+    )
+
+
+def _worker_display(row) -> str | None:
+    display = getattr(row, "display_name", None)
+    if isinstance(display, str) and display.strip():
+        return display
+    return None
+
+
+def _worker_worktree_anchor(row) -> str | None:
+    path = getattr(row, "project_root_path", None)
+    if not isinstance(path, str) or not path.strip():
+        return None
+    return windows_worktree_key(path)
+
+
+def _unanchored_activity_lane_inputs(
+    activity: CockpitActivityObservation, *, execution_reason: str
+) -> CockpitLaneInputs:
+    """Retain durable parked-claim identity when no worker/execution row exists."""
+    return CockpitLaneInputs(
+        identity=CockpitLaneIdentity(
+            work_order_ref=activity.work_order_ref,
+            task_ref=activity.task_ref,
+            topology=None,
+            lane=activity.lane_ref,
+            executor=_NOT_DECLARED,
+            provider=None,
+            harness=None,
+            authority_repo=None,
+            execution_repo=None,
+            worktree=None,
+            branch=None,
+            expected_head=None,
+            execution_id=None,
+            lease_id=None,
+            provenance=_ACTIVITY_PROVENANCE,
+        ),
+        execution=CockpitExecutionObservation.unavailable(execution_reason),
+        lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
+        git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+        gates=CockpitGateEvidence(),
+        activity=activity,
+    )
+
+
+def build_control_center_lane_inputs(
+    snapshot, activities: tuple[CockpitActivityObservation, ...] = ()
+) -> tuple[CockpitLaneInputs, ...]:
+    """Wrap workers and unmatched parked activities as read-only lane inputs.
+
+    The desktop control-center authority observes worker/assignment rows
+    only; execution, lease, git, and gate evidence has no accepted desktop
+    read-back yet and stays explicitly unavailable.
+    """
+    workers = tuple(getattr(snapshot, "workers", None) or ())
+    by_lane: dict[str, list[CockpitActivityObservation]] = {}
+    for item in activities:
+        if item.available:
+            group = by_lane.setdefault(item.lane_ref or "", [])
+            if item not in group:
+                group.append(item)
+    lanes: list[CockpitLaneInputs] = []
+    for row in workers:
+        matches = by_lane.get(row.worker_id, [])
+        activities_for_worker = matches or [
+            CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
+        ]
+        for activity in activities_for_worker:
+            has_activity = activity.available
+            lanes.append(
+                CockpitLaneInputs(
+                    identity=CockpitLaneIdentity(
+                        work_order_ref=(
+                            activity.work_order_ref if has_activity else _NOT_DECLARED
+                        ),
+                        task_ref=(activity.task_ref if has_activity else _NOT_DECLARED),
+                        topology=None,
+                        lane=activity.lane_ref if has_activity else row.worker_id,
+                        executor=_worker_display(row) or row.worker_id,
+                        provider=None,
+                        harness=getattr(row, "runtime_id", None),
+                        authority_repo=None,
+                        execution_repo=None,
+                        worktree=_worker_worktree_anchor(row),
+                        branch=None,
+                        expected_head=None,
+                        execution_id=None,
+                        lease_id=None,
+                        provenance=(
+                            _ACTIVITY_PROVENANCE
+                            if has_activity
+                            else _CONTROL_CENTER_PROVENANCE
+                        ),
+                    ),
+                    execution=CockpitExecutionObservation.unavailable(
+                        _PORT_UNAVAILABLE
+                    ),
+                    lease=CockpitLeaseObservation.unavailable(_PORT_UNAVAILABLE),
+                    git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                    gates=CockpitGateEvidence(),
+                    activity=activity,
+                    activity_collision=len(matches) > 1,
+                )
+            )
+    represented_lanes = {row.worker_id for row in workers}
+    unmatched_parked = [
+        (item, len(group) > 1)
+        for lane_ref, group in by_lane.items()
+        if lane_ref not in represented_lanes
+        for item in group
+        if item.state == "PARKED_CAPACITY" or len(group) > 1
+    ]
+    for activity, collision in sorted(
+        unmatched_parked,
+        key=lambda pair: (
+            pair[0].lane_ref or "",
+            pair[0].work_order_ref or "",
+            pair[0].task_ref or "",
+        ),
+    ):
+        lanes.append(
+            _unanchored_activity_lane_inputs(
+                activity, execution_reason=_PORT_UNAVAILABLE
+            )
+        )
+        if collision:
+            lanes[-1] = replace(lanes[-1], activity_collision=True)
+    return tuple(lanes)
+
+
+def build_observed_lane_inputs(
+    snapshot,
+    executions: tuple[CockpitExecutionObservation, ...],
+    leases: tuple[CockpitLeaseObservation, ...],
+    *,
+    execution_authority_readable: bool,
+    lease_authority_readable: bool,
+    origins: tuple[CockpitOriginObservation, ...] = (),
+    activities: tuple[CockpitActivityObservation, ...] = (),
+) -> tuple[CockpitLaneInputs, ...]:
+    """Compose durable observations with control-center worker context.
+
+    Durable execution records render as their own lanes anchored by the
+    record itself; control-center workers without any durable record render
+    NOT_DECLARED lanes whose execution truth is positively RECORD_NOT_FOUND
+    when the execution authority read succeeded, and PORT_UNAVAILABLE
+    otherwise. A durable PARKED_CAPACITY monitor record without an execution
+    record remains visible under its exact work-order/task/lane identity.
+    Worker display names are attached where the control-center snapshot
+    permits; worker_id remains the stable lane identity.
+
+    Origin/session provenance (WO-P1-493) joins by execution_id as display
+    context only, deterministically pinned to the earliest observed opaque
+    reference. Multiple origins for one accepted lane never duplicate the
+    lane or its durable owner, and lanes without a joined origin render
+    typed UNAVAILABLE absence.
+    """
+    workers = tuple(getattr(snapshot, "workers", None) or ())
+    displays = {
+        row.worker_id: display
+        for row in workers
+        if (display := _worker_display(row)) is not None
+    }
+    runtimes = {
+        row.worker_id: runtime
+        for row in workers
+        if (runtime := getattr(row, "runtime_id", None)) is not None
+    }
+    leases_by_worker: dict[str, CockpitLeaseObservation] = {}
+    for lease in leases:
+        if lease.worker_id and lease.worker_id not in leases_by_worker:
+            leases_by_worker[lease.worker_id] = lease
+    origins_by_execution: dict[str, CockpitOriginObservation] = {}
+    for origin in sorted(
+        origins,
+        key=lambda item: ((item.observed_at or ""), (item.origin_ref or "")),
+    ):
+        if not origin.available or not origin.execution_id:
+            continue
+        if origin.execution_id not in origins_by_execution:
+            origins_by_execution[origin.execution_id] = origin
+    _unavailable_origin = CockpitOriginObservation.unavailable(_PORT_UNAVAILABLE)
+    activities_by_lane: dict[str, list[CockpitActivityObservation]] = {}
+    for item in activities:
+        if item.available:
+            group = activities_by_lane.setdefault(item.lane_ref or "", [])
+            if item not in group:
+                group.append(item)
+
+    def _unavailable_lease() -> CockpitLeaseObservation:
+        return CockpitLeaseObservation.unavailable(
+            _RECORD_NOT_FOUND if lease_authority_readable else _PORT_UNAVAILABLE
+        )
+
+    lanes: list[CockpitLaneInputs] = []
+    observed_workers: set[str] = set()
+    for execution in executions:
+        if not execution.available:
+            continue
+        worker_id = execution.worker_id
+        if worker_id:
+            observed_workers.add(worker_id)
+        lease = leases_by_worker.get(worker_id) if worker_id else None
+        execution_id = execution.execution_id or _NOT_DECLARED
+        lanes.append(
+            CockpitLaneInputs(
+                identity=CockpitLaneIdentity(
+                    work_order_ref=execution.work_order_ref or _NOT_DECLARED,
+                    task_ref=execution.job_id or _NOT_DECLARED,
+                    topology=None,
+                    lane=(
+                        f"{worker_id}:{execution_id}" if worker_id else execution_id
+                    ),
+                    executor=displays.get(worker_id) or worker_id or _NOT_DECLARED,
+                    provider=None,
+                    harness=runtimes.get(worker_id),
+                    authority_repo=None,
+                    execution_repo=None,
+                    worktree=execution.repo_root,
+                    branch=execution.branch,
+                    expected_head=execution.head_before,
+                    execution_id=execution.execution_id,
+                    lease_id=lease.lease_id if lease else None,
+                    provenance=_DURABLE_PROVENANCE,
+                ),
+                execution=execution,
+                lease=lease or _unavailable_lease(),
+                git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                gates=CockpitGateEvidence(),
+                origin=(
+                    origins_by_execution.get(execution.execution_id)
+                    or _unavailable_origin
+                ),
+                activity=(
+                    (
+                        activities_by_lane.get(f"{worker_id}:{execution_id}")
+                        or activities_by_lane.get(execution_id)
+                        or [CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)]
+                    )[0]
+                ),
+                activity_collision=len(
+                    activities_by_lane.get(f"{worker_id}:{execution_id}")
+                    or activities_by_lane.get(execution_id)
+                    or ()
+                ) > 1,
+            )
+        )
+    for row in workers:
+        if row.worker_id in observed_workers:
+            continue
+        lease = leases_by_worker.get(row.worker_id)
+        matches = activities_by_lane.get(row.worker_id, [])
+        activities_for_worker = matches or [
+            CockpitActivityObservation.unavailable(_PORT_UNAVAILABLE)
+        ]
+        for activity in activities_for_worker:
+            has_activity = activity.available
+            lanes.append(
+                CockpitLaneInputs(
+                    identity=CockpitLaneIdentity(
+                        work_order_ref=(
+                            activity.work_order_ref if has_activity else _NOT_DECLARED
+                        ),
+                        task_ref=(activity.task_ref if has_activity else _NOT_DECLARED),
+                        topology=None,
+                        lane=activity.lane_ref if has_activity else row.worker_id,
+                        executor=_worker_display(row) or row.worker_id,
+                        provider=None,
+                        harness=getattr(row, "runtime_id", None),
+                        authority_repo=None,
+                        execution_repo=None,
+                        worktree=_worker_worktree_anchor(row),
+                        branch=None,
+                        expected_head=None,
+                        execution_id=None,
+                        lease_id=lease.lease_id if lease else None,
+                        provenance=(
+                            _ACTIVITY_PROVENANCE
+                            if has_activity
+                            else _CONTROL_CENTER_PROVENANCE
+                        ),
+                    ),
+                    execution=CockpitExecutionObservation.unavailable(
+                        _RECORD_NOT_FOUND if execution_authority_readable else _PORT_UNAVAILABLE
+                    ),
+                    lease=lease or _unavailable_lease(),
+                    git=CockpitGitObservation.unavailable(_PORT_UNAVAILABLE),
+                    gates=CockpitGateEvidence(),
+                    origin=_unavailable_origin,
+                    activity=activity,
+                    activity_collision=len(matches) > 1,
+                )
+            )
+    represented_lanes = {lane.identity.lane for lane in lanes}
+    represented_lanes.update(
+        lane.activity.lane_ref
+        for lane in lanes
+        if lane.activity.available and lane.activity.lane_ref
+    )
+    unmatched_parked = [
+        (item, len(group) > 1)
+        for lane_ref, group in activities_by_lane.items()
+        if lane_ref not in represented_lanes
+        for item in group
+        if item.state == "PARKED_CAPACITY" or len(group) > 1
+    ]
+    for activity, collision in sorted(
+        unmatched_parked,
+        key=lambda pair: (
+            pair[0].lane_ref or "",
+            pair[0].work_order_ref or "",
+            pair[0].task_ref or "",
+        ),
+    ):
+        lanes.append(
+            _unanchored_activity_lane_inputs(
+                activity,
+                execution_reason=(
+                    _RECORD_NOT_FOUND
+                    if execution_authority_readable
+                    else _PORT_UNAVAILABLE
+                ),
+            )
+        )
+        if collision:
+            lanes[-1] = replace(lanes[-1], activity_collision=True)
+    return tuple(lanes)
+
+
+def cockpit_fingerprint(snapshot: CockpitSnapshot) -> str:
+    """Deterministic SHA-256 fingerprint of one rendered snapshot."""
+    if not isinstance(snapshot, CockpitSnapshot):
+        raise CockpitFingerprintError("FINGERPRINT_REQUIRES_COCKPIT_SNAPSHOT")
+
+    def _encode(value):
+        if isinstance(value, Enum):
+            return value.value
+        return str(value)
+
+    payload = json.dumps(
+        asdict(snapshot), sort_keys=True, separators=(",", ":"), default=_encode
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

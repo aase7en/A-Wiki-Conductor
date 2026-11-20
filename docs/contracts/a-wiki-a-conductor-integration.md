@@ -1,8 +1,8 @@
 # A-Wiki ↔ A-Conductor Responsibility & Integration Contract
 
 Status: binding architecture contract
-Version: 1
-Last updated: 2026-08-20
+Version: 1.1
+Last updated: 2026-09-08
 
 ## 1. Decision
 
@@ -95,6 +95,46 @@ Do not begin a new A-Conductor planner, work-order system, claim system, memory 
 First inspect authoritative A-Wiki state, relevant protocols/ADRs/skills/scripts, active work orders/claims, and known parallel worktrees/branches when material. If authoritative state cannot be checked, record the verification gap and avoid overlapping architecture mutation.
 
 The repository boundary is **not** permission to duplicate orchestration.
+
+## 5.1 Operational authority map (binding, machine-checked)
+
+This table converts the responsibility prose into an execution invariant. Roles are closed:
+`OWNER`, `CONSUMER`, `ADAPTER`, or `COMPATIBILITY_FALLBACK`.
+
+**OWNER/OWNER is forbidden.** A capability may have exactly one owner across the two repos.
+`COMPATIBILITY_FALLBACK` requires an explicit `SUNSET: <condition>` in that row's boundary note; a fallback is never a second authority.
+A-Wiki procedures such as `a-flow` may define the development workflow, while A-Conductor may schedule
+runtime steps; scheduling does not transfer ownership of the workflow semantics.
+
+<!-- operational-authority-map:start -->
+| Capability key | A-Wiki role | A-Conductor role | Boundary / migration note |
+|---|---|---|---|
+| knowledge_memory | OWNER | CONSUMER | A-Conductor reads bounded context and returns evidence; it does not create a second memory system. |
+| planning_intelligence | OWNER | ADAPTER | A-Conductor executes/decomposes bounded runtime transactions without forking A-Wiki planning semantics. |
+| workflow_stage_state | OWNER | CONSUMER | A-Wiki a-flow owns ASK→DESIGN→PLAN→IMPLEMENT→REVIEW→DEBUG→TEST workflow/focus state; this is not A-Conductor live job/process state. |
+| work_order_contract | OWNER | ADAPTER | A-Wiki owns WO convention/schema; A-Conductor owns only the runtime instance derived from it. |
+| repo_coordination_claim | OWNER | ADAPTER | Durable cross-agent repo/work-order claim identity is A-Wiki coordination truth; the local TTL `a-claim` may only be a derived same-machine enforcement cache/accelerator and must not mint independent coordination ownership; A-Conductor binds the durable identity into runtime admission without creating a peer repo-claim store. |
+| runtime_task_instance | CONSUMER | OWNER | Live job state, attempts, checkpoints and completion are A-Conductor runtime truth. |
+| status | ADAPTER | OWNER | Live execution/status truth comes from A-Conductor; A-Wiki status surfaces may adapt/query it but must not create a second runtime-status authority. |
+| claim_policy | OWNER | ADAPTER | A-Wiki owns coordination policy/convention; A-Conductor enforces it at execution admission. |
+| mutation_gate | ADAPTER | OWNER | A-Wiki supplies repo/policy/claim inputs; A-Conductor owns the final live runtime mutation-admission decision and fail-closed enforcement. |
+| runtime_lease | CONSUMER | OWNER | WorkerLease/process mutation ownership is A-Conductor live runtime authority; it is not the same thing as an A-Wiki repo coordination claim. |
+| verification_policy | OWNER | ADAPTER | A-Wiki/repo contracts define required verification; A-Conductor consumes them and binds actual runtime evidence to the exact task/artifact. |
+| model_policy | OWNER | ADAPTER | Capability/cost/escalation policy comes from A-Wiki; no duplicate policy store in A-Conductor. |
+| runtime_model_selection | CONSUMER | OWNER | A-Conductor applies current policy to observed provider/runtime facts. |
+| review_lifecycle | OWNER | ADAPTER | A-Wiki ReviewBus remains review lifecycle authority; A-Conductor uses the review mailbox adapter. |
+| execution_verification | CONSUMER | OWNER | A-Conductor runs and binds runtime evidence to exact task/HEAD; repo policy remains upstream input. |
+| scheduler_ready_set | CONSUMER | OWNER | Runtime ready-set, worker assignment and dispatch belong to A-Conductor, not A-Wiki workflow state. |
+| retry_recovery | CONSUMER | OWNER | Runtime retry/recovery/idempotency belongs to A-Conductor; A-Wiki supplies policy/lessons only. |
+| next_ready_continuation | CONSUMER | OWNER | A-Conductor owns advancing accepted runtime work to the next READY task under existing scheduler/lease gates; A-Wiki remains planning/policy input, not a second continuation engine. |
+| handoff_convention | OWNER | ADAPTER | A-Wiki owns handoff convention; A-Conductor emits/consumes deterministic projections/evidence. |
+| execution_evidence | CONSUMER | OWNER | Runtime journal/evidence bundle is A-Conductor-owned and can be folded back into A-Wiki. |
+| defect_learning | OWNER | ADAPTER | A-Wiki owns durable learning/defect memory; A-Conductor records local defects and returns reusable evidence. |
+<!-- operational-authority-map:end -->
+
+Until the cross-repo dedup audit tied to A-Conductor Issue #233 and A-Wiki Issue #58 is reconciled,
+**P0-B5/P0-B6/ZRA mutation stays gated**. P0-B4 is exempt only in its already-authorized projection-only
+scope and must prove that it creates no factual claim/job/lease/review/scheduler authority.
 
 ## 6. Integration contracts
 

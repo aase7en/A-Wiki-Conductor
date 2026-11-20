@@ -2,6 +2,7 @@
 
 Status: binding architecture requirement
 Source: real Serena/MCP session-loss evidence from A-Wiki Phase 6
+Extended by: `docs/contracts/execution-admission-receipt-v1.md` (DEX cross-repo admission/receipt boundary; ADR-0002) — that contract governs the delegated-execution seam and is referenced here, not duplicated.
 
 ## Purpose
 
@@ -18,6 +19,7 @@ A Serena/MCP/agent connection can disappear while the underlying process is stil
 - **A-Wiki** owns durable knowledge, policy, architecture decisions, work-order/claim conventions, cross-project memory and orchestration intelligence.
 - **A-Conductor** owns operational execution identity, scheduling/routing enforcement, process supervision, durable runtime state, checkpoints, evidence, recovery and operator surfaces.
 - **Serena/Codex/local shell/future workers** are execution backends/hands. Their transport/session is not the source of truth for execution completion.
+- **Cross-repo delegated execution (DEX seam)**: when an execution is dispatched onto an external execution substrate (SunDayRemoteMCP), admission, reconciliation, receipt, and retry authorization remain A-Sunday Conductor authority; the substrate owns physical supervision and immutable collection evidence only, per `docs/contracts/execution-admission-receipt-v1.md`. The canonical worktree/repo path identity in the DEX binding tuple/digest is admission-owned by A-Conductor (OS final physical path resolution, not lexical normalization; see that contract) and is independently recomputed and verified — never redefined — by the substrate at the physical execution seam. Binding digest verification on this seam is attempt-scoped record-to-record equality: a boot-epoch change voids live-process identity and attach assumptions, but does not invalidate immutable pre-reboot evidence, the attempt's original accepted binding digest, or post-reboot collection/receipt of pre-reboot terminal evidence whose immutable evidence/digest chain verifies record-to-record (still subject to that contract's reconciliation/acceptance rules).
 
 This contract extends the existing durable-job/native-execution foundation. It does not authorize a second task engine, planner, work-order system or model router.
 
@@ -88,6 +90,8 @@ Before rerunning an interrupted substantial operation, classify the previous exe
 - completed with valid evidence;
 - partially completed;
 - unknown provenance/state.
+
+This classification is the replay-safety projection owned by `docs/agent-collab/EXECUTION_LIVENESS_PROTOCOL.md` (`NOT_STARTED` / `PARTIAL` / `COMPLETE_UNVERIFIED` / `COMPLETE_VERIFIED` / `UNKNOWN`); terminal-but-unreconciled results are `TERMINAL_UNHARVESTED` there and, on the cross-repo seam, per the admission/receipt contract.
 
 Default when uncertain: **do not retry**.
 

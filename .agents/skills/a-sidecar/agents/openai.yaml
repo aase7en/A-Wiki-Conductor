@@ -1,0 +1,13 @@
+# OpenAI-harness UI metadata and invocation policy for the repo-local
+# a-sidecar skill (WO-P1-568 Phase 0). Official skill metadata shape:
+# top-level `interface` + `policy` only. Explicit/manual invocation only:
+# ordinary-chat activation requires the operator clause "Use A-Sidecar" or
+# "Use A-Sidecar for codex://threads/<id>"; the skill never activates
+# implicitly from topic match. Grants no task, claim, mutation, review,
+# merge, or completion authority.
+interface:
+  display_name: "A-Sidecar"
+  short_description: "Companion chat for a running Codex execution — recover, watch, assist without owning"
+  default_prompt: "Use $a-sidecar as the ordinary-chat companion to the existing A-Conductor/Codex execution. Recover actual task/claim/repo/worktree/HEAD state from live durable evidence (never prior-chat memory), inspect the Codex Project/Thread/Goal/Schedule/current turn read-only through supported Desktop-managed App Server/native queue surfaces, do only non-conflicting read-only/review/research/CI/dependency/R&D work unless an exact canonical claim and non-overlap gate admits mutation, emit typed A-Relay receipts per docs/contracts/a-sidecar-relay-v1.md, classify idle as IDLE/WATCH rather than BLOCKED, and stop only at real gates with typed blockers."
+policy:
+  allow_implicit_invocation: false

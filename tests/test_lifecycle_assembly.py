@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import json
+import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
+from a_conductor import control_events as control_events_module
 from a_conductor.control_center import ControlCenterService
-from a_conductor.control_events import SQLiteControlEventLog
+from a_conductor.control_events import ControlEvent, SQLiteControlEventLog
+from a_conductor.control_hook_adapter import ControlHookContext
 from a_conductor.domain import WorkerState
 from a_conductor.lifecycle import LifecycleAction
 from a_conductor.lifecycle_assembly import (
     ControlCenterAssignmentService,
+    LifecycleAssemblyError,
     LocalLifecycleContextProvider,
     LocalSerenaBackendFactory,
     SQLiteLifecycleEvidenceService,
@@ -295,3 +302,364 @@ def test_local_coordinator_builder_refuses_unassigned_worker_without_backend(tmp
 
     assert result.state is LifecycleExecutionState.REFUSED
     assert result.reason_code == "ASSIGNMENT_MISSING"
+
+
+HOOK_CONTRACT_SCHEMA = (
+    Path(__file__).resolve().parents[1] / "docs" / "contracts" / "hook-contract-v1.schema.json"
+)
+
+
+@pytest.fixture(scope="module")
+def hook_contract_validator() -> Draft202012Validator:
+    return Draft202012Validator(json.loads(HOOK_CONTRACT_SCHEMA.read_text(encoding="utf-8")))
+
+
+def install_zulu_event_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    class ZuluDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            moment = datetime.now(timezone.utc)
+            return cls(
+                moment.year,
+                moment.month,
+                moment.day,
+                moment.hour,
+                moment.minute,
+                moment.second,
+                moment.microsecond,
+                tzinfo=timezone.utc,
+            )
+
+        def isoformat(self, sep: str = "T", timespec: str = "auto"):
+            return datetime.isoformat(self, sep=sep, timespec=timespec).replace("+00:00", "Z")
+
+    monkeypatch.setattr(control_events_module, "datetime", ZuluDatetime)
+
+
+class RecordingHookSink:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.envelopes: list[dict] = []
+        self.error = error
+
+    def __call__(self, envelope: dict) -> None:
+        if self.error is not None:
+            raise self.error
+        self.envelopes.append(dict(envelope))
+
+
+def hook_context_factory(**overrides: object):
+    def factory(event: ControlEvent) -> ControlHookContext:
+        fields: dict[str, object] = {
+            "occurred_at": event.recorded_at,
+            "source_version": "1.2.3",
+            "device_id": "device-01",
+            "host_os": "windows",
+        }
+        fields.update(overrides)
+        return ControlHookContext(**fields)
+
+    return factory
+
+
+def persisted_recorded_at(database_path: Path, event_id: str) -> str:
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute(
+            "SELECT recorded_at FROM control_events WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()
+    assert row is not None
+    return row[0]
+
+
+def degraded_result(event_id: str) -> SerenaOperationResult:
+    return SerenaOperationResult(
+        success=True,
+        evidence_ref=event_id,
+        error_code="OBSERVABILITY_DEGRADED",
+    )
+
+
+def test_hook_emit_delivers_validated_normalized_envelope_to_injected_sink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    hook_contract_validator: Draft202012Validator,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink()
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=hook_context_factory(),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    assert result.success is True
+    assert result.error_code is None
+    assert result.recovery_required is False
+    assert result.evidence_ref is not None
+    assert result.evidence_ref.startswith("event-")
+    assert len(sink.envelopes) == 1
+    envelope = sink.envelopes[0]
+    assert envelope["event_id"] == f"hk-{result.evidence_ref[len('event-'):]}"
+    assert envelope["event_type"] == "control.start.after"
+    assert envelope["hook_class"] == "OBSERVE"
+    assert envelope["phase"] == "after"
+    assert envelope["domain"] == "control"
+    assert envelope["action"] == "start"
+    assert envelope["source"] == "a-conductor"
+    assert envelope["privacy_class"] == "INTERNAL"
+    assert list(hook_contract_validator.iter_errors(envelope)) == []
+
+
+def test_hook_emit_occurred_at_equals_exact_persisted_recorded_at(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink()
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.RELEASE,
+        hook_context_factory=hook_context_factory(),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    persisted = persisted_recorded_at(log.database_path, result.evidence_ref)
+    assert persisted.endswith("Z")
+    assert len(sink.envelopes) == 1
+    assert sink.envelopes[0]["occurred_at"] == persisted
+    fetched = log.get(result.evidence_ref)
+    assert fetched is not None
+    assert fetched.recorded_at == persisted
+
+
+def test_hook_emit_context_timestamp_drift_never_emitted_degrades_only(
+    tmp_path: Path,
+) -> None:
+    sink = RecordingHookSink()
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=hook_context_factory(occurred_at="2026-09-19T07:48:08Z"),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    assert result == degraded_result(result.evidence_ref)
+    assert sink.envelopes == []
+    assert log.get(result.evidence_ref) is not None
+
+
+def test_hook_emit_normalization_failure_never_emitted_degrades_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink()
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=hook_context_factory(device_id="-device-01"),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    assert result == degraded_result(result.evidence_ref)
+    assert sink.envelopes == []
+    assert log.get(result.evidence_ref) is not None
+
+
+def test_hook_emit_throwing_sink_degrades_only_and_preserves_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink(error=RuntimeError("hook sink unavailable"))
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.STOP,
+        hook_context_factory=hook_context_factory(),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    assert result == degraded_result(result.evidence_ref)
+    assert sink.envelopes == []
+    assert log.get(result.evidence_ref) is not None
+
+
+def test_hook_emit_throwing_context_factory_degrades_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink()
+
+    def throwing_factory(event: ControlEvent) -> ControlHookContext:
+        raise RuntimeError("context factory unavailable")
+
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=throwing_factory,
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    assert result == degraded_result(result.evidence_ref)
+    assert sink.envelopes == []
+    assert log.get(result.evidence_ref) is not None
+
+
+def test_hook_emit_rejects_fake_secret_context_before_sink_delivery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink()
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=hook_context_factory(
+            summary="leaked sk-FAKE0000000000000000000000000000000000 token"
+        ),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    assert result == degraded_result(result.evidence_ref)
+    assert sink.envelopes == []
+    assert log.get(result.evidence_ref) is not None
+
+
+def test_hook_emit_real_store_clock_persists_z_and_delivers_single_envelope(
+    tmp_path: Path,
+) -> None:
+    sink = RecordingHookSink()
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=hook_context_factory(),
+        hook_observe_sink=sink,
+    )
+
+    result = service.emit("a-worker-01", "project-1")
+
+    persisted = persisted_recorded_at(log.database_path, result.evidence_ref)
+    assert persisted.endswith("Z")
+    assert not persisted.endswith("+00:00")
+    assert result.success is True
+    assert result.error_code is None
+    assert result.recovery_required is False
+    assert result.evidence_ref is not None
+    assert result.evidence_ref.startswith("event-")
+    assert len(sink.envelopes) == 1
+    envelope = sink.envelopes[0]
+    assert envelope["occurred_at"] == persisted
+    assert envelope["event_id"] == f"hk-{result.evidence_ref[len('event-'):]}"
+    assert envelope["event_type"] == "control.start.after"
+    assert envelope["hook_class"] == "OBSERVE"
+    assert envelope["phase"] == "after"
+    assert envelope["domain"] == "control"
+    assert envelope["action"] == "start"
+    assert envelope["source"] == "a-conductor"
+    assert envelope["privacy_class"] == "INTERNAL"
+
+
+def test_hook_emit_append_failure_keeps_failure_and_recovery_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    sink = RecordingHookSink()
+    duplicate_event_id = "event-0123456789abcdef0123456789abcdef"
+    log = SQLiteControlEventLog(
+        tmp_path / "hook-control.sqlite",
+        event_id_factory=lambda: duplicate_event_id,
+    )
+    service = SQLiteLifecycleEvidenceService(
+        log,
+        LifecycleAction.START,
+        hook_context_factory=hook_context_factory(),
+        hook_observe_sink=sink,
+    )
+
+    first = service.emit("a-worker-01", "project-1")
+    second = service.emit("a-worker-01", "project-1")
+
+    assert first == SerenaOperationResult(success=True, evidence_ref=duplicate_event_id)
+    assert len(sink.envelopes) == 1
+    assert second == SerenaOperationResult(
+        success=False,
+        error_code="EVENT_ID_CONFLICT",
+        recovery_required=True,
+    )
+    assert len(sink.envelopes) == 1
+
+
+def test_partial_hook_collaborators_are_rejected_at_construction(
+    tmp_path: Path,
+) -> None:
+    log = SQLiteControlEventLog(tmp_path / "hook-control.sqlite")
+    with pytest.raises(LifecycleAssemblyError) as exc_info:
+        SQLiteLifecycleEvidenceService(
+            log,
+            LifecycleAction.START,
+            hook_observe_sink=RecordingHookSink(),
+        )
+    assert exc_info.value.code == "HOOK_COLLABORATORS_INCOMPLETE"
+    with pytest.raises(LifecycleAssemblyError) as exc_info:
+        SQLiteLifecycleEvidenceService(
+            log,
+            LifecycleAction.START,
+            hook_context_factory=hook_context_factory(),
+        )
+    assert exc_info.value.code == "HOOK_COLLABORATORS_INCOMPLETE"
+
+
+def test_lifecycle_release_stays_complete_when_hook_sink_alone_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_zulu_event_clock(monkeypatch)
+    database, service, config_store, project, _, _ = setup_configured_service(tmp_path)
+    sink = RecordingHookSink(error=RuntimeError("hook sink unavailable"))
+    coordinator = build_local_lifecycle_coordinator(
+        database,
+        service=service,
+        config_store=config_store,
+        observer=FakeObserver(),
+        project_identity_service=FakeIdentityVerifier(),
+        process_controller=FakeProcessController(),
+        preflight_service=FakePreflight(),
+        hook_context_factory=hook_context_factory(),
+        hook_observe_sink=sink,
+    )
+
+    result = coordinator.execute("a-worker-01", LifecycleAction.RELEASE)
+
+    assert result.state is LifecycleExecutionState.COMPLETE
+    assert result.reason_code == "COMPLETE"
+    assert result.evidence_refs
+    persisted_recorded_at(database, result.evidence_refs[-1])
+    row = next(w for w in service.snapshot().workers if w.worker_id == "a-worker-01")
+    assert row.state is WorkerState.STOPPED
+    assert row.assignment_id is None
+    assert sink.envelopes == []

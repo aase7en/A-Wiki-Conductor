@@ -449,3 +449,1070 @@ def test_policy_validates_callables_and_agent_ref(tmp_path):
             derive_operation_ref=lambda a: "x", command_summary=lambda a: "s",
             agent_ref=" ",
         )
+
+
+# ---------------- WO-P1-246: author-attempt provenance mint/stamp ------------
+
+import dataclasses as _dataclasses
+
+from a_conductor.supervised_run_coordinator import mint_author_attempt_id
+from a_conductor.zero_relay_author_provenance import (
+    AuthorProvenanceError,
+    classify_author_provenance,
+)
+
+
+def _binding(repo: Path):
+    return classify_author_provenance(
+        task_contract_ref=IDENTITY["work_order_ref"],
+        packet_sha256="c" * 64,
+    )
+
+
+def _provenanced_harness(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance=_binding(repo),
+            **IDENTITY,
+        ),
+        poll_interval_seconds=0.01,
+    )
+    return repo, store, supervised, coordinator
+
+
+def test_wo246_generic_native_run_gets_no_author_provenance(tmp_path):
+    """Test 15 / 33: a binding-less identity never stamps a pair."""
+    repo, store, supervised, runner, coordinator = _harness(tmp_path)
+    result = coordinator.run(ARGV, timeout_seconds=30)
+    assert result.exit_code == 0
+    record = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))[0]
+    assert record.author_attempt_id is None
+    assert record.author_generation is None
+
+
+def test_wo246_identity_rejects_provenance_shaped_non_binding(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    with pytest.raises(ValueError):
+        SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance="author-attempt-v1:00000000000000000000000000000000",
+            **IDENTITY,
+        )
+    with pytest.raises(ValueError):
+        SupervisedRunIdentity(repo_root=str(repo), author_provenance=0, **IDENTITY)
+
+
+def test_wo246_author_eligible_run_mints_generation0_pair(tmp_path):
+    """Test 9 (coordinator seam): SAFE_TO_LAUNCH mints exactly one pair,
+    persisted on the artifact-owning record before any external effect."""
+    repo, store, supervised, coordinator = _provenanced_harness(tmp_path)
+    result = coordinator.run(ARGV, timeout_seconds=30)
+    assert result.exit_code == 0
+    record = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))[0]
+    assert record.author_generation == 0
+    import re as _re
+
+    assert _re.fullmatch(r"author-attempt-v1:[0-9a-f]{32}", record.author_attempt_id)
+    # reopen: the persisted pair is the durable one
+    reopened = SQLiteExecutionStore(tmp_path / "control.sqlite").get(record.execution_id)
+    assert reopened.author_attempt_id == record.author_attempt_id
+    assert reopened.author_generation == 0
+
+
+def test_wo246_mint_failure_and_reuse_paths_never_mint_twice(tmp_path, monkeypatch):
+    """Tests 19/20/21: REUSE_COMPLETED / ATTACH_RUNNING reuse the persisted
+    pair; the mint is not called again; re-open reads the exact same pair."""
+    import a_conductor.supervised_run_coordinator as coord_module
+
+    repo, store, supervised, coordinator = _provenanced_harness(tmp_path)
+    calls = []
+
+    def counted_mint():
+        calls.append(1)
+        return mint_author_attempt_id()
+
+    monkeypatch.setattr(coord_module, "mint_author_attempt_id", counted_mint)
+
+    coordinator.run(ARGV, timeout_seconds=30)  # SAFE_TO_LAUNCH: mint once
+    first = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))[0]
+    assert len(calls) == 1
+
+    coordinator.run(ARGV, timeout_seconds=30)  # REUSE_COMPLETED: no mint
+    records = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))
+    assert len(records) == 1
+    assert len(calls) == 1
+    assert records[0].author_attempt_id == first.author_attempt_id
+
+    # re-open/restart reads the exact same pair
+    reopened = SQLiteExecutionStore(tmp_path / "control.sqlite").get(first.execution_id)
+    assert reopened.author_attempt_id == first.author_attempt_id
+    assert reopened.author_generation == 0
+
+
+def test_wo246_attach_running_reuses_persisted_pair_without_mint(tmp_path, monkeypatch):
+    import a_conductor.supervised_run_coordinator as coord_module
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RunningThenResult(ScriptedSupervised):
+        def launch(self, plan):
+            outcome = super().launch(plan)
+            with self._lock:
+                record = self.records[outcome.record.execution_id]
+                # leave the durable record in a live state -> ATTACH_RUNNING
+                stored = store.set_execution_state(
+                    record.execution_id,
+                    ExecutionProcessState.RUNNING,
+                    expected_version=record.version,
+                )
+                self.records[record.execution_id] = stored
+            return outcome
+
+    supervised = RunningThenResult(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo), author_provenance=_binding(repo), **IDENTITY
+        ),
+        poll_interval_seconds=0.01,
+    )
+    calls = []
+    monkeypatch.setattr(
+        coord_module, "mint_author_attempt_id",
+        lambda: (calls.append(1), mint_author_attempt_id())[1],
+    )
+
+    first = coordinator.run(ARGV, timeout_seconds=30)
+    assert len(calls) == 1
+    record = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))[0]
+    assert record.execution_state is ExecutionProcessState.RUNNING
+
+    second = coordinator.run(ARGV, timeout_seconds=30)  # ATTACH_RUNNING
+    assert len(calls) == 1  # no new mint
+    records = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))
+    assert len(records) == 1
+    assert records[0].author_attempt_id == record.author_attempt_id
+    assert second.exit_code == 0
+
+
+def test_wo246_predelegation_check_blocks_absent_or_malformed_pair(tmp_path, monkeypatch):
+    """Test 16: a binding-carrying launch whose constructed record pair is
+    absent or malformed fails closed BEFORE supervised.launch() — no
+    external effect, controller.start never reached."""
+    import a_conductor.supervised_run_coordinator as coord_module
+
+    original_new_record = coord_module.new_execution_record
+
+    def strip_pair(*args, **kwargs):
+        record = original_new_record(*args, **kwargs)
+        return _dataclasses.replace(record, author_attempt_id=None, author_generation=None)
+
+    def mangle_pair(*args, **kwargs):
+        record = original_new_record(*args, **kwargs)
+        return _dataclasses.replace(record, author_attempt_id="not-the-minted-format")
+
+    for patch in (strip_pair, mangle_pair):
+        repo, store, supervised, coordinator = _provenanced_harness(tmp_path / "lane")
+        monkeypatch.setattr(coord_module, "new_execution_record", patch)
+        result = coordinator.run(ARGV, timeout_seconds=30)
+        assert result.exit_code is None
+        assert "SUPERVISOR_PROVENANCE_PAIR_INVALID" in result.stderr
+        assert supervised.launch_calls == 0  # plan never handed to launch
+        assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+    monkeypatch.setattr(coord_module, "new_execution_record", original_new_record)
+
+
+def test_wo246_binding_contract_mismatch_fails_before_persistence(tmp_path):
+    """§3.6: the binding's contract must equal the identity work_order_ref
+    at mint, or the launch fails closed before the record exists."""
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance=classify_author_provenance(
+                task_contract_ref="WO-SOME-OTHER-CONTRACT",  # != identity ref
+                packet_sha256="c" * 64,
+            ),
+            **IDENTITY,
+        ),
+        poll_interval_seconds=0.01,
+    )
+    result = coordinator.run(ARGV, timeout_seconds=30)
+    assert result.exit_code is None
+    assert "SUPERVISOR_PROVENANCE_AUTHORITY_INVALID" in result.stderr
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo246_spawn_failure_retains_same_pair(tmp_path):
+    """Test 18: launch recovery after durable create keeps the pair."""
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class FailingLaunch(ScriptedSupervised):
+        def launch(self, plan):
+            with self._lock:
+                self.launch_calls += 1
+                stored = self.store.create(plan.record)  # durable create happens
+            return SupervisedLaunchOutcome(
+                record=stored,
+                supervisor_pid=None,
+                child_pid=None,
+                recovery_required=True,
+                error_code="SPAWN_REFUSED",
+            )
+
+    supervised = FailingLaunch(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo), author_provenance=_binding(repo), **IDENTITY
+        ),
+        poll_interval_seconds=0.01,
+    )
+    result = coordinator.run(ARGV, timeout_seconds=30)
+    assert result.exit_code is None
+    assert "SUPERVISED_LAUNCH_FAILED:SPAWN_REFUSED" in result.stderr
+    record = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))[0]
+    assert record.author_attempt_id is not None
+    assert record.author_generation == 0
+
+
+def test_wo246_real_service_observes_stamped_pair_before_spawn(tmp_path):
+    """Test 17: through the UNCHANGED SupervisedExecutionService.launch(),
+    the record persisted by ExecutionStore.create() already carries the pair
+    by the time controller.start(...) is reached."""
+    from a_conductor.supervised_execution import (
+        SupervisedExecutionService,
+        SupervisedHelperKind,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "runs").mkdir()
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    observed: dict[str, object] = {}
+
+    class ObservingController:
+        def start(self, spec):
+            execution_id = spec.expected_profile_marker
+            record = store.get(execution_id)  # what has the store persisted?
+            observed["attempt"] = record.author_attempt_id
+            observed["generation"] = record.author_generation
+            raise RuntimeError("spawn refused by test controller")
+
+    class UnusedObserver:
+        pass
+
+    service = SupervisedExecutionService(
+        store=store,
+        controller=ObservingController(),
+        observer=UnusedObserver(),
+        allowed_target_executables=(PYTHON_NAME,),
+        python_executable=RUNTIME_PYTHON,
+        startup_poll_attempts=1,
+        helper_kinds={SupervisedHelperKind.GENERIC_NATIVE},
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=service,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo), author_provenance=_binding(repo), **IDENTITY
+        ),
+        poll_interval_seconds=0.01,
+    )
+    result = coordinator.run(ARGV, timeout_seconds=30)
+    assert result.exit_code is None
+    assert "SUPERVISED_LAUNCH_FAILED:SUPERVISOR_START_EXCEPTION" in result.stderr
+    import re as _re
+
+    assert _re.fullmatch(
+        r"author-attempt-v1:[0-9a-f]{32}", observed["attempt"]
+    ), observed
+    assert observed["generation"] == 0
+
+    # and the persisted record retains the same pair after the failure
+    record = store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))[0]
+    assert record.author_attempt_id == observed["attempt"]
+    assert record.author_generation == 0
+
+
+def test_wo246_fingerprint_bytes_unchanged_by_provenance(tmp_path):
+    """Test 29: the canonical fingerprint ignores the new provenance field."""
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    plain = _identity(repo)
+    provenanced = SupervisedRunIdentity(
+        repo_root=str(repo), author_provenance=_binding(repo), **IDENTITY
+    )
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    def coordinator_for(identity):
+        return SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=ScriptedSupervised(repo, store),
+            identity=identity,
+            poll_interval_seconds=0.01,
+        )
+
+    argv = ("C:/ZCode/ZCode.exe", "zcode.cjs", "app-server", "--stdio")
+    assert (
+        coordinator_for(plain).fingerprint_for_argv(argv)
+        == coordinator_for(provenanced).fingerprint_for_argv(argv)
+    )
+
+
+def test_wo246_no_bare_generation_or_required_trust_surface():
+    """Test 13: the only provenance surface on identity/coordinator/assembly
+    signatures is the proof-carrying binding."""
+    import inspect
+
+    from a_conductor import supervised_run_coordinator as coord_module
+    from a_conductor import zcode_production_assembly as assembly_module
+
+    for module in (coord_module, assembly_module):
+        source = inspect.getsource(module)
+        assert "author_provenance_required" not in source, module.__name__
+
+    for function in (
+        coord_module.SupervisedRunCoordinator.__init__,
+        assembly_module.assemble_zcode_execution,
+        assembly_module.assemble_zcode_review_execution,
+        assembly_module._assemble_zcode_execution_impl,
+    ):
+        parameters = inspect.signature(function).parameters
+        assert "author_generation" not in parameters, function
+        assert "author_provenance_required" not in parameters, function
+
+    fields = _dataclasses.fields(coord_module.SupervisedRunIdentity)
+    provenance_fields = [f.name for f in fields if "author" in f.name or "provenance" in f.name]
+    assert provenance_fields == ["author_provenance"]
+
+
+# ---------------- WO-P1-205 Phase D exact execution handle ----------------
+
+def test_phase_d_run_with_outcome_fresh_exposes_exact_durable_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, store, _, _, coordinator = _harness(tmp_path)
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert outcome.native.exit_code == 0
+    # Existing API remains behavior-compatible and returns only NativeCommandResult.
+    legacy = coordinator.run(ARGV, timeout_seconds=30)
+    assert legacy.exit_code == 0
+    assert not hasattr(legacy, "execution_id")
+
+
+def test_phase_d_run_with_outcome_reuse_preserves_exact_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, _, supervised, _, coordinator = _harness(tmp_path)
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    launches = supervised.launch_calls
+    second = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert first.kind is SupervisedRunOutcomeKind.FRESH
+    assert second.kind is SupervisedRunOutcomeKind.REUSE_COMPLETED
+    assert second.execution_id == first.execution_id
+    assert supervised.launch_calls == launches
+
+
+def test_phase_d_blocked_unknown_exposes_no_execution_id(tmp_path):
+    from a_conductor.execution_deduplication import (
+        DuplicateExecutionAssessment,
+        DuplicateExecutionDecision,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, _, _, _, coordinator = _harness(tmp_path)
+    fingerprint = coordinator.fingerprint_for_argv(ARGV)
+
+    class BlockedGuard:
+        def assess(self, _spec):
+            return DuplicateExecutionAssessment(
+                decision=DuplicateExecutionDecision.BLOCKED_UNKNOWN,
+                fingerprint=fingerprint,
+                record=None,
+                reason_code="AMBIGUOUS_HISTORY",
+            )
+
+    coordinator._guard = BlockedGuard()
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.BLOCKED_UNKNOWN
+    assert outcome.execution_id is None
+    assert outcome.native.exit_code is None
+    assert outcome.native.stderr == "SUPERVISED_DUPLICATE_BLOCKED"
+
+
+def test_phase_d_pre_persistence_provenance_failure_exposes_no_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    bad_binding = classify_author_provenance(
+        task_contract_ref="different-contract",
+        packet_sha256="c" * 64,
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance=bad_binding,
+            **IDENTITY,
+        ),
+        poll_interval_seconds=0.01,
+    )
+
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert "SUPERVISOR_PROVENANCE_AUTHORITY_INVALID" in outcome.native.stderr
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_phase_d_timeout_after_persistence_retains_exact_nonaccepted_id(tmp_path):
+    import time as _time
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class NeverResolves(ScriptedSupervised):
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.SUPERVISOR_RUNNING,
+                supervisor_pid=None,
+                result_available=False,
+                recovery_required=False,
+            )
+
+    supervised = NeverResolves(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        poll_interval_seconds=0.001,
+        clock_fn=_time.monotonic,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=1)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.TIMED_OUT
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert outcome.native.timed_out is True
+
+
+def test_phase_d_attach_running_propagates_existing_exact_id(tmp_path):
+    from a_conductor.execution_deduplication import (
+        DuplicateExecutionAssessment,
+        DuplicateExecutionDecision,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    _, store, supervised, _, coordinator = _harness(tmp_path)
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    record = store.get(first.execution_id)
+    fingerprint = coordinator.fingerprint_for_argv(ARGV)
+
+    class AttachGuard:
+        def assess(self, _spec):
+            return DuplicateExecutionAssessment(
+                decision=DuplicateExecutionDecision.ATTACH_RUNNING,
+                fingerprint=fingerprint,
+                record=record,
+                reason_code="EXISTING_ACTIVE_EXECUTION",
+            )
+
+    coordinator._guard = AttachGuard()
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.ATTACH_RUNNING
+    assert outcome.execution_id == first.execution_id
+
+
+def test_phase_d_recovery_after_persistence_retains_exact_nonaccepted_id(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RecoveryRequired(ScriptedSupervised):
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RECOVERY_REQUIRED,
+                supervisor_pid=None,
+                result_available=False,
+                recovery_required=True,
+                error_code="CHILD_DIED",
+            )
+
+    supervised = RecoveryRequired(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        poll_interval_seconds=0.001,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert "SUPERVISOR_RECOVERY_REQUIRED:CHILD_DIED" in outcome.native.stderr
+
+
+# ---------------- WO-P1-498 / 498A: lease-bound PRE_DISPATCH GUARD ----------
+
+
+def test_wo498_guard_required_missing_fails_closed_before_effects(tmp_path):
+    """A FRESH route declared guard-required with no guard wired fails
+    closed BEFORE execution-id mint, record persistence, or launch."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        pre_dispatch_guard=None,
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_REQUIRED"
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_guard_denies_fresh_before_persistence_or_launch(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+    from a_conductor.pre_dispatch_guard import (
+        PreDispatchGuardDecision,
+        PreDispatchGuardDecisionKind,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+
+    class DenyingGuard:
+        def check(self):
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.DENY, "LEASE_STALE"
+            )
+
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        pre_dispatch_guard=DenyingGuard(),
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == "SUPERVISED_PRE_DISPATCH_GUARD_DENIED:LEASE_STALE"
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_reuse_completed_and_attach_skip_guard(tmp_path):
+    """ATTACH_RUNNING / REUSE_COMPLETED are dedupe-owned: the injected
+    fresh-launch guard is consulted exactly once (the original FRESH)."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    from a_conductor.execution_record import ExecutionProcessState
+    from a_conductor.pre_dispatch_guard import (
+        PreDispatchGuardDecision,
+        PreDispatchGuardDecisionKind,
+    )
+    from a_conductor.supervised_execution import (
+        SupervisedInspection,
+        SupervisedInspectionState,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RunningThenResult(ScriptedSupervised):
+        def launch(self, plan):
+            outcome = super().launch(plan)
+            with self._lock:
+                record = self.records[outcome.record.execution_id]
+                stored = store.set_execution_state(
+                    record.execution_id,
+                    ExecutionProcessState.RUNNING,
+                    expected_version=record.version,
+                )
+                self.records[record.execution_id] = stored
+            return outcome
+
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RESULT_AVAILABLE,
+                supervisor_pid=None,
+                result_available=True,
+                recovery_required=False,
+            )
+
+    supervised = RunningThenResult(repo, store)
+    calls: list[str] = []
+
+    class CountingGuard:
+        def check(self):
+            calls.append("guard")
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.ALLOW, "PRE_DISPATCH_ALLOWED"
+            )
+
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        pre_dispatch_guard=CountingGuard(),
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert first.kind is SupervisedRunOutcomeKind.FRESH
+    launches = supervised.launch_calls
+    assert calls == ["guard"]
+
+    attach = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert attach.kind is SupervisedRunOutcomeKind.ATTACH_RUNNING
+    assert supervised.launch_calls == launches
+    assert calls == ["guard"]  # no second guard invocation on attach
+
+
+def test_wo498_guard_configuration_leaves_fingerprint_bytes_unchanged(tmp_path):
+    from a_conductor.pre_dispatch_guard import (
+        PreDispatchGuardDecision,
+        PreDispatchGuardDecisionKind,
+    )
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class AllowGuard:
+        def check(self):
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.ALLOW, "PRE_DISPATCH_ALLOWED"
+            )
+
+    plain = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        poll_interval_seconds=0.01,
+    )
+    guarded = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        pre_dispatch_guard=AllowGuard(),
+        pre_dispatch_guard_required=True,
+        poll_interval_seconds=0.01,
+    )
+    assert plain.fingerprint_for_argv(ARGV) == guarded.fingerprint_for_argv(ARGV)
+
+
+def test_wo498_no_new_durable_authority_in_coordinator():
+    """The guard seam adds no store/scheduler/lease registry surface."""
+    import inspect
+
+    from a_conductor import supervised_run_coordinator as module
+
+    source = inspect.getsource(module)
+    assert "SQLiteWorkerLeaseStore" not in source
+    assert "create_table" not in source
+    assert "CREATE INDEX" not in source
+
+
+# ------- WO-P1-498 generation-3: live Git identity at the fresh-launch seam -------
+
+
+class _ScriptedObserver:
+    """Deterministic live-identity observer double (records invocations)."""
+
+    def __init__(self, results):
+        self._results = list(results)
+        self.calls: list[str] = []
+
+    def observe(self, repo_root):
+        self.calls.append(repo_root)
+        result = self._results.pop(0) if self._results else None
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _live_identity(repo: Path, *, branch=None, head=None, root=None):
+    from a_conductor.pre_dispatch_guard import LiveWorktreeIdentity
+
+    return LiveWorktreeIdentity(
+        repo_root=str(root if root is not None else repo),
+        branch=branch if branch is not None else IDENTITY["branch"],
+        head=head if head is not None else IDENTITY["head_before"],
+    )
+
+
+def test_wo498_live_observer_allow_permits_exactly_one_fresh_launch(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    observer = _ScriptedObserver([_live_identity(repo), _live_identity(repo)])
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        live_worktree_observer=observer,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.native.exit_code == 0
+    assert supervised.launch_calls == 1
+    assert len(store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV))) == 1
+    # observed at the pre-mint check AND immediately before backend launch
+    assert observer.calls == [str(repo), str(repo)]
+
+
+def test_wo498_live_observer_root_branch_head_drift_deny_before_effects(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    for kw, expected in (
+        (dict(root=tmp_path / "other"), "WORKTREE_ROOT_MISMATCH"),
+        (dict(branch="docs/other"), "WORKTREE_BRANCH_MISMATCH"),
+        (dict(head="c" * 40), "WORKTREE_HEAD_MISMATCH"),
+    ):
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+        supervised = ScriptedSupervised(repo, store)
+        observer = _ScriptedObserver([_live_identity(repo, **kw)])
+        coordinator = SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=supervised,
+            identity=_identity(repo),
+            live_worktree_observer=observer,
+            poll_interval_seconds=0.01,
+        )
+        outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+        assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+        assert outcome.execution_id is None
+        assert outcome.native.stderr == f"SUPERVISED_LIVE_WORKTREE_DENIED:{expected}"
+        assert supervised.launch_calls == 0
+        assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_live_observer_unavailable_and_invalid_fail_closed(tmp_path):
+    from a_conductor.pre_dispatch_guard import LiveWorktreeObservationError
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    cases = [
+        (RuntimeError("git missing"), "SUPERVISED_LIVE_WORKTREE_UNAVAILABLE"),
+        (
+            LiveWorktreeObservationError("GIT_IDENTITY_UNAVAILABLE"),
+            "SUPERVISED_LIVE_WORKTREE_UNAVAILABLE:GIT_IDENTITY_UNAVAILABLE",
+        ),
+        ("not-an-identity", "SUPERVISED_LIVE_WORKTREE_INVALID"),
+        (None, "SUPERVISED_LIVE_WORKTREE_INVALID"),
+    ]
+    for observed, expected in cases:
+        repo = tmp_path / "repo"
+        repo.mkdir(parents=True, exist_ok=True)
+        store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+        supervised = ScriptedSupervised(repo, store)
+        coordinator = SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=supervised,
+            identity=_identity(repo),
+            live_worktree_observer=_ScriptedObserver([observed]),
+            poll_interval_seconds=0.01,
+        )
+        outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+        assert outcome.kind is SupervisedRunOutcomeKind.FAILED, expected
+        assert outcome.execution_id is None
+        assert outcome.native.stderr == expected
+        assert supervised.launch_calls == 0
+        assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_live_observer_effect_boundary_recheck_denies_before_launch(tmp_path):
+    """Identity may drift between the pre-mint check and the launch seam:
+    the SECOND observation happens immediately before backend launch and
+    denies before durable persistence/spawn."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    observer = _ScriptedObserver(
+        [_live_identity(repo), _live_identity(repo, head="d" * 40)]
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        live_worktree_observer=observer,
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == (
+        "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_HEAD_MISMATCH"
+    )
+    assert observer.calls == [str(repo), str(repo)]
+    assert supervised.launch_calls == 0
+    assert store.find_by_fingerprint(coordinator.fingerprint_for_argv(ARGV)) == ()
+
+
+def test_wo498_live_observer_ordering_after_dedupe_and_guard_before_launch(
+    tmp_path, monkeypatch
+):
+    """Exact fresh-branch ordering: dedupe assess -> lease guard -> live
+    identity (pre-mint) -> author-attempt mint -> live identity recheck at
+    the effect boundary -> backend launch (record persistence happens inside
+    the backend launch seam)."""
+    import a_conductor.supervised_run_coordinator as coord_module
+    from a_conductor.supervised_run_coordinator import SupervisedRunIdentity
+    from a_conductor.zero_relay_author_provenance import classify_author_provenance
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    events: list[str] = []
+
+    real_assess = coord_module.DuplicateExecutionGuard.assess
+
+    class LoggingDedup(coord_module.DuplicateExecutionGuard):
+        def assess(self, spec):
+            events.append("assess")
+            return real_assess(self, spec)
+
+    class LoggingLaunch(ScriptedSupervised):
+        def launch(self, plan):
+            events.append("launch")
+            return super().launch(plan)
+
+    class LoggingGuard:
+        def check(self):
+            events.append("guard")
+            from a_conductor.pre_dispatch_guard import (
+                PreDispatchGuardDecision,
+                PreDispatchGuardDecisionKind,
+            )
+
+            return PreDispatchGuardDecision(
+                PreDispatchGuardDecisionKind.ALLOW, "PRE_DISPATCH_ALLOWED"
+            )
+
+    class LoggingObserver:
+        def __init__(self):
+            self.calls = 0
+
+        def observe(self, repo_root):
+            self.calls += 1
+            events.append(f"live{self.calls}")
+            return _live_identity(Path(repo_root))
+
+    supervised = LoggingLaunch(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=SupervisedRunIdentity(
+            repo_root=str(repo),
+            author_provenance=classify_author_provenance(
+                task_contract_ref="docs/work-orders/WO-P1-158-zero-relay-zcode.md",
+                packet_sha256="c" * 64,
+            ),
+            job_id="job-001",
+            work_order_ref="docs/work-orders/WO-P1-158-zero-relay-zcode.md",
+            project_id="project-1",
+            worker_id="a-worker-01",
+            backend_id="supervised-native",
+            branch=IDENTITY["branch"],
+            head_before=IDENTITY["head_before"],
+            runtime_profile_ref="runtime:test",
+        ),
+        pre_dispatch_guard=LoggingGuard(),
+        pre_dispatch_guard_required=True,
+        live_worktree_observer=LoggingObserver(),
+        poll_interval_seconds=0.01,
+    )
+    coordinator._guard = LoggingDedup(store=store)
+
+    real_mint = coord_module.mint_author_attempt_id
+
+    def logging_mint():
+        events.append("mint")
+        return real_mint()
+
+    monkeypatch.setattr(coord_module, "mint_author_attempt_id", logging_mint)
+
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.native.exit_code == 0
+    assert events == ["assess", "guard", "live1", "mint", "live2", "launch"]
+
+
+def test_wo498_live_observer_skipped_on_attach_and_reuse(tmp_path):
+    from a_conductor.execution_record import ExecutionProcessState
+    from a_conductor.supervised_execution import (
+        SupervisedInspection,
+        SupervisedInspectionState,
+    )
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+
+    class RunningThenResult(ScriptedSupervised):
+        def launch(self, plan):
+            outcome = super().launch(plan)
+            with self._lock:
+                record = self.records[outcome.record.execution_id]
+                stored = store.set_execution_state(
+                    record.execution_id,
+                    ExecutionProcessState.RUNNING,
+                    expected_version=record.version,
+                )
+                self.records[record.execution_id] = stored
+            return outcome
+
+        def inspect(self, execution_id):
+            return SupervisedInspection(
+                execution_id=execution_id,
+                state=SupervisedInspectionState.RESULT_AVAILABLE,
+                supervisor_pid=None,
+                result_available=True,
+                recovery_required=False,
+            )
+
+    supervised = RunningThenResult(repo, store)
+    observer = _ScriptedObserver(
+        [_live_identity(repo), _live_identity(repo), _live_identity(repo)]
+    )
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        live_worktree_observer=observer,
+        poll_interval_seconds=0.01,
+    )
+    first = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert first.kind is SupervisedRunOutcomeKind.FRESH
+    attach = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert attach.kind is SupervisedRunOutcomeKind.ATTACH_RUNNING
+    # transition the durable record to a completed evidence state, then the
+    # same fingerprint maps to REUSE_COMPLETED — still dedupe-owned
+    current = store.get(first.execution_id)
+    store.set_execution_state(
+        first.execution_id,
+        ExecutionProcessState.SUCCEEDED,
+        expected_version=current.version,
+    )
+    reuse = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert reuse.kind is SupervisedRunOutcomeKind.REUSE_COMPLETED
+    # ATTACH/REUSE stay dedupe-owned: no observation beyond the FRESH pair
+    assert observer.calls == [str(repo), str(repo)]
+    assert supervised.launch_calls == 1
+
+
+def test_wo498_live_observer_leaves_fingerprint_bytes_unchanged(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    plain = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        poll_interval_seconds=0.01,
+    )
+    observed = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=ScriptedSupervised(repo, store),
+        identity=_identity(repo),
+        live_worktree_observer=_ScriptedObserver([_live_identity(repo)]),
+        poll_interval_seconds=0.01,
+    )
+    assert plain.fingerprint_for_argv(ARGV) == observed.fingerprint_for_argv(ARGV)
+    assert plain.fingerprint_spec(ARGV) == observed.fingerprint_spec(ARGV)
+
+
+def test_wo498_coordinator_rejects_non_observing_live_observer(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    with pytest.raises(ValueError):
+        SupervisedRunCoordinator(
+            execution_store=store,
+            supervised=ScriptedSupervised(repo, store),
+            identity=_identity(repo),
+            live_worktree_observer=object(),
+        )
+
+
+def test_wo498_route_without_live_observer_preserves_historical_behavior(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    store = SQLiteExecutionStore(tmp_path / "control.sqlite")
+    supervised = ScriptedSupervised(repo, store)
+    coordinator = SupervisedRunCoordinator(
+        execution_store=store,
+        supervised=supervised,
+        identity=_identity(repo),
+        poll_interval_seconds=0.01,
+    )
+    outcome = coordinator.run_with_outcome(ARGV, timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.native.exit_code == 0

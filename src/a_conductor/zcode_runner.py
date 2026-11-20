@@ -62,11 +62,17 @@ from .supervised_run_coordinator import (
     SupervisedLauncher,
     SupervisedRunCoordinator,
     SupervisedRunIdentity,
+    SupervisedRunOutcome,
+)
+from .execution_deduplication import (
+    ExecutionFingerprintSpec,
+    compute_execution_fingerprint,
 )
 from .zcode_protocol import (
     ZCODE_MAX_RESPONSE_BYTES,
     ZCodeProtocolDriver,
     ZCodeProtocolError,
+    ZCodeRuntimeModel,
 )
 from .zcode_supervised_helper import (
     ZCodeChildIdentity,
@@ -782,6 +788,7 @@ class ZCodeServiceLifecycleLauncher:
         selection_source: ZCodeSelectionSource,
         expected_binding: HarnessRuntimeBinding,
         expected_base_url: str,
+        runtime_model: ZCodeRuntimeModel,
         secret_resolver: ZCodeSecretResolver,
         secret_reference: str,
         packet: ZCodeTaskPacketIdentity,
@@ -803,6 +810,9 @@ class ZCodeServiceLifecycleLauncher:
         self._selection_source = selection_source
         self._expected_binding = expected_binding
         self._expected_base_url = expected_base_url
+        if not isinstance(runtime_model, ZCodeRuntimeModel):
+            raise ValueError("runtime_model must be a ZCodeRuntimeModel")
+        self._runtime_model = runtime_model
         self._secret_resolver = secret_resolver
         if not isinstance(secret_reference, str) or not secret_reference.startswith("secret-ref:"):
             raise ValueError("secret_reference must use the accepted secret-ref authority")
@@ -856,6 +866,7 @@ class ZCodeServiceLifecycleLauncher:
                 ("ZCODE_TASK_PACKET_MAX_BYTES", str(self._max_packet_bytes)),
                 ("ZCODE_OUTPUT_BUDGET", str(self._max_response_bytes)),
                 ("ZCODE_DEADLINE_SECONDS", repr(self._deadline)),
+                ("ZCODE_RUNTIME_MODEL_JSON", self._runtime_model.to_json()),
                 ("ZCODE_CREDENTIAL_DELIVERY_KEY", delivery_key),
                 (delivery_key, delivery_value),
             )
@@ -948,11 +959,20 @@ class SupervisedZCodeRunner:
         poll_interval_seconds: float = 0.05,
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
+        pre_dispatch_guard: object | None = None,
+        pre_dispatch_guard_required: bool = False,
+        live_worktree_observer: object | None = None,
     ) -> None:
         if identity.backend_id != ZCODE_BACKEND_ID:
             raise ValueError(f"identity.backend_id must be {ZCODE_BACKEND_ID}")
         if not isinstance(task_packet, ZCodeTaskPacketIdentity):
             raise ValueError("task_packet must be a ZCodeTaskPacketIdentity")
+        if not isinstance(pre_dispatch_guard_required, bool):
+            raise ValueError("pre_dispatch_guard_required must be bool")
+        if live_worktree_observer is not None and not callable(
+            getattr(live_worktree_observer, "observe", None)
+        ):
+            raise ValueError("live_worktree_observer must provide observe")
         self._executable = executable
         self._bundle_js = bundle_js
         self._adapter = adapter
@@ -967,29 +987,16 @@ class SupervisedZCodeRunner:
         self._poll = poll_interval_seconds
         self._sleep = sleep_fn
         self._clock = clock_fn
+        self._pre_dispatch_guard = pre_dispatch_guard
+        self._pre_dispatch_guard_required = pre_dispatch_guard_required
+        self._live_worktree_observer = live_worktree_observer
 
-    def argv(self) -> tuple[str, ...]:
-        argv = (self._executable, self._bundle_js, "app-server", "--stdio", "--surface", "desktop")
-        if not validate_app_server_argv(argv, executable=self._executable, bundle_js=self._bundle_js):
-            raise ValueError("ZCODE_ARGV_GRAMMAR_INVALID")
-        return argv
-
-    def run(self, *, operation_ref: str | None = None, timeout_seconds: int = 300) -> object:
-        """Execute through the coordinator: dedup → record → launch → poll →
-        collect/version-CAS. Returns the coordinator's native-style result
-        mapping; the canonical ZCode artifacts live in the run dir.
-
-        Operation identity is DERIVED from the verified task identity
-        (task_contract_ref + packet SHA). A caller ``operation_ref`` is
-        accepted only as a diagnostic label when it exactly matches the
-        derived identity; it can never choose a different dedup identity.
-        """
+    def _coordinator(self) -> SupervisedRunCoordinator:
+        """The canonical coordinator for this runner's next run(): the single
+        construction point for the dedup identity (WO-P1-226 public seam).
+        Constructing it is side-effect free — only validation happens."""
         derived = self._task_packet.canonical_operation_ref()
-        if operation_ref is not None and operation_ref != derived:
-            raise ValueError(
-                "operation_ref must match the derived task identity: " + derived
-            )
-        coordinator = SupervisedRunCoordinator(
+        return SupervisedRunCoordinator(
             execution_store=self._store,
             supervised=self._adapter,
             identity=self._identity,
@@ -998,12 +1005,54 @@ class SupervisedZCodeRunner:
             sleep_fn=self._sleep,
             clock_fn=self._clock,
             max_output_bytes=ZCODE_MAX_RESPONSE_BYTES,
+            pre_dispatch_guard=self._pre_dispatch_guard,
+            pre_dispatch_guard_required=self._pre_dispatch_guard_required,
+            live_worktree_observer=self._live_worktree_observer,
         )
-        # preparation-time selection authorization (1st check) — fail before
-        # any durable record exists when the selection is wrong
+
+    def execution_fingerprint_spec(self) -> "ExecutionFingerprintSpec":
+        """Public pure pre-effect identity: the exact
+        ``ExecutionFingerprintSpec`` the next ``run()`` dedups on.
+
+        WO-P1-226: callers derive the plan/fingerprint BEFORE any lease,
+        admission, process or secret-value effect through this same
+        construction — there is no second fingerprint implementation."""
+        return self._coordinator().fingerprint_spec(self.argv())
+
+    def execution_fingerprint(self) -> str:
+        return compute_execution_fingerprint(self.execution_fingerprint_spec())
+
+    def argv(self) -> tuple[str, ...]:
+        argv = (self._executable, self._bundle_js, "app-server", "--stdio", "--surface", "desktop")
+        if not validate_app_server_argv(argv, executable=self._executable, bundle_js=self._bundle_js):
+            raise ValueError("ZCODE_ARGV_GRAMMAR_INVALID")
+        return argv
+
+    def run_with_outcome(
+        self, *, operation_ref: str | None = None, timeout_seconds: int = 300
+    ) -> SupervisedRunOutcome:
+        """Execute one turn and expose the exact durable execution locator.
+
+        The operation identity and selection checks are identical to run().
+        The returned locator is evidence for exact store re-read only; it is
+        never acceptance or terminality authority by itself.
+        """
+        derived = self._task_packet.canonical_operation_ref()
+        if operation_ref is not None and operation_ref != derived:
+            raise ValueError(
+                "operation_ref must match the derived task identity: " + derived
+            )
+        coordinator = self._coordinator()
         self._adapter.authorized_selection_digest("PREP")
-        return coordinator.run(
+        return coordinator.run_with_outcome(
             self.argv(),
             environment_overrides=(),
             timeout_seconds=timeout_seconds,
         )
+
+    def run(self, *, operation_ref: str | None = None, timeout_seconds: int = 300) -> object:
+        """Preserve the historical native-result API exactly."""
+        return self.run_with_outcome(
+            operation_ref=operation_ref,
+            timeout_seconds=timeout_seconds,
+        ).native

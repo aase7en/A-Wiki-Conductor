@@ -795,3 +795,107 @@ Windows PowerShell 5.1 ต้องมี BOM ถึงอ่านเป็น 
 A later W4 control failure captured the same mechanism more precisely: MCP connection TTL reached -> stdio write file already closed -> tunnel shutdown -> Serena exit 120 / stdout-flush OSError 22 -> TUNNEL_START_FAILED. W1 on the checksum-verified 0.0.14 canary remained healthy through the same observation window, while W2/W3/W5 on 0.0.11 also remained alive.
 
 **Refined lesson:** do not model the legacy 0.0.11 defect as a fixed-uptime crash. Current evidence is consistent with a trigger-dependent deadline/session condition that exercises the old shared-stdio behavior. Version upgrade remains required because 0.0.11 is below the accepted safe floor, but causal testing must preserve negative controls and must not inject the trigger into a Worker with active/ambiguous work.
+
+
+---
+
+## #53: sibling repos can recreate the same authority under different names (2026-09-08)
+
+**Symptom:** the A-Wiki/A-Conductor roadmap began to look like both repos were implementing planning, claims, routing, review, continuity and completion. During P0-B4, concurrent GPT integrator sessions also published/reconciled multiple task-packet hashes for the same transition before exact-hash fencing converged.
+
+**Root cause:** the prose integration contract correctly said REUSE/WRAP/EXTEND, but it did not provide an executable per-capability owner invariant. A-Wiki already has `conductor`, `a-flow`, `a-claim`, ReviewBus and work-order conventions, while A-Conductor has durable runtime job/lease/scheduler/recovery surfaces. Similar vocabulary allowed adapters, policy and runtime authority to be mistaken for peer owners. The upstream A-Wiki claim surface also exposes both a TTL local claim store and a durable COLLAB writer under the same “claim” term.
+
+**Fix:** keep the existing integration contract as the single boundary SSoT and add a machine-checked operational authority table. Every capability has exactly one `OWNER`; the sibling may only be `CONSUMER`, `ADAPTER`, or a time-bounded `COMPATIBILITY_FALLBACK`. P0-B5/P0-B6/ZRA mutation is held until the cross-repo audit is reconciled. Upstream A-Wiki dual-claim convergence is tracked separately in Issue #58.
+
+**Lesson:** REUSE/WRAP prose alone is not enough when two repos evolve in parallel. Any cross-repo control-plane capability needs an executable “one owner” invariant before implementation. Different storage formats or names do not make two planners, claim systems, review lifecycles, schedulers or retry authorities independent.
+
+**Verify:** `tests/test_awiki_a_conductor_authority_contract.py` was RED 3/3 against the prior contract and GREEN 3/3 after the owner map. The test rejects missing required capabilities, duplicate keys, invalid roles, OWNER/OWNER pairs, missing migration notes, absent fallback sunset wording, and removal of the downstream dedup hold. This is Tier-1 executable defect memory; Issue #233 carries the cross-repo audit evidence.
+
+---
+
+## #54: Chat/session lifetime must never be used as delegated-execution lifetime (2026-09-17)
+
+**Symptom:** a normal ChatGPT turn/context ended while several Kilo/CoinTH GLM processes continued. A later session could see live process trees but no tracked source change or declared `result.md`; only planning artifacts existed. Without durable recovery, the integrator could forget to harvest a completed result, duplicate-dispatch mutable work, or ask the user to reconstruct the prior chat.
+
+**Root cause:** external execution was launched successfully, but the control path relied too much on the observing chat/session to remember dispatch identity and perform harvest. Chat/session lifetime is transport/observer lifetime, not execution lifetime. A live PID or heartbeat also proved only activity, not implementation progress.
+
+**Fix:** extend the existing execution-liveness/recovery contract so every material delegated dispatch leaves a recoverable pointer in existing task/job/evidence authorities; fresh-session entry reconciles process/session + bounded logs/result + Git/worktree + durable job state; `TERMINAL_UNHARVESTED` is harvested before redispatch/conflicting mutation; `STALLED`, `INTERRUPTED`, timeout, or transport loss never grant replay authority. Add DEX-0..DEX-6 to the master roadmap and, after the current A-FastTask hotspot is released, make A-FastTask automatically run `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY`.
+
+**Lesson:** `CHAT/TURN LOSS != EXECUTION FAILURE` and `NEW SESSION != NEW TASK`. Durable execution identity, result destinations, replay safety, and harvest/reconcile actions must survive the observer. Plain chat must not be described as self-waking; unattended completion belongs to the existing supervisor/reconciler plus supported operator/notification surfaces.
+
+**Verify:** Issue #339 records the 2026-09-17 reproduction: three SunDayRemoteMCP GLM lanes outlived the prior turn while Git remained unchanged and no result existed, proving heartbeat/process liveness was not progress. Phase-1 policy/roadmap verification is recorded under `runs/WO-P1-250/phase1/`; Phase 2 remains blocked until WO-P1-247 / PR #332 releases the A-FastTask hotspot, after which exact-SHA independent review and CI remain mandatory.
+
+## #55: Delegated-launch evidence must be structured, dir-bound, and share-private (2026-09-24)
+
+**Symptom:** WO-P1-517 bootstrap attempts exposed three orchestration defects before accepted authoring: quota admission was inferred by matching serialized command text after the real probe returned SECRET_SOURCE_UNAVAILABLE; Kilo was launched without an explicit `--dir` so its session inspected the protected root main instead of the bound worktree; and the operator's global Kilo config had `share=auto`, so delegated sessions emitted share links even though A-Faster never requested sharing. All invalid executions were cancelled and harvested, all four accidental session shares were explicitly revoked, and Git reconciliation proved no GLM-created scoped tracked side effects.
+
+**Root cause:** admission, worktree binding, and privacy were each inferred from ambient convenience — command-text resemblance, the harness's ambient Active Project, and user-level share config — instead of being explicit per-run delegation contract inputs.
+
+**Fix:** accepted enforcement consumes structured admission evidence only (serialized command text is never quota evidence and SECRET_SOURCE_UNAVAILABLE fails closed), requires an explicit `--dir` bound to the claimed worktree plus in-session repo/worktree/branch/HEAD proof before mutation, and runs delegated Kilo with a per-run `share=disabled` override unless sharing is separately authorized. The pure classifier `src/a_conductor/a_faster_utilization_guard.py` pins these as `DELEGATION_LAUNCH_PRECONDITIONS`, rejects serialized command text in `parse_quota_admission`, and computes FANOUT_TARGET / UNUSED_SAFE_CAPACITY / A_FASTER_UNDERUTILIZED / AUTO_REFILL_REQUIRED only from an `A_FASTER_ACTIVE` tasking receipt — explanation-only mentions never activate enforcement.
+
+**Lesson:** a delegated launch inherits nothing from ambient configuration. Admission truth, worktree binding, and privacy must be explicit per-run evidence; resemblance and ambient settings are never authority, and describing a profile in chat is never tasking it.
+
+**Verify:** `tests/test_a_faster_utilization_guard.py` pins the structured-evidence parser, launch preconditions, fail-closed quota states, and the activation/tasking boundary; `tests/test_a_faster_invocation_contract.py` pins the corresponding skill/roadmap contract markers.
+
+
+## #56: boot identity must be a stable per-boot primitive, and terminal evidence must reconcile with live process truth (2026-10-19)
+
+Issue #581 — folded 2026-10-19 from the merged+verified SRM repair; engineering was closed earlier at SunDayRemoteMCP `8546cce4`.
+
+**Symptom:** Incident execution `exec-murep77o-pa10qmf9` (2026-10-03; childPid 28727, shimPid 28712, `childCreatedAt` Sat Oct 3 03:19:17 2026) was terminalized as `TERMINAL_UNHARVESTED` by the SRM supervisor while its exact process tree was still alive. A microsecond-level divergence in the recorded Darwin boot identity made `status()` declare the execution stale before any process-liveness/creation reconciliation, and `cancel()` then honored the terminal evidence as already-terminal, so it could not stop the still-live process (`REAL PROCESS ALIVE != DURABLE STATE TERMINAL`).
+
+**Root cause:** Raw `sysctl kern.boottime` is not an immutable boot identifier. Apple's public `apple/darwin-xnu` source (`osfmk/kern/clock.c::clock_set_calendar_microtime()`) adjusts boottime whenever calendar time is corrected, so a wall-clock-derived boot timestamp can legally change within one actual boot. At SRM `41a566c8`, `supervisor-io-probe.ts::readBootIdentity()` stored the raw line as kind `darwin-kern.boottime`; `supervisor.ts::bootStale()/bootStaleAwaited()` exact-compared `kind + value`; any mismatch wrote `interrupt-observed.json` and returned terminal. The monitor path already held observer terminal evidence when the child was alive/unknown — the supervisor path lacked that reconciliation.
+
+**Missing invariant:** Boot-staleness must consume a stable per-boot identity primitive, and a terminal transition must reconcile durable terminal evidence against live-process/creation evidence instead of trusting the observer's stale verdict first.
+
+**Fix (merged, SRM):** New Darwin captures prefer `kern.bootsessionuuid` (stable across the affected Mac, 5/5 bounded samples; unknown boot identity fails closed rather than minting kill/attach authority); legacy `darwin-kern.boottime` records are reconciled fail-closed without mass false-stale; ambiguous-cancel outcomes are held nonterminal. Merged as SunDayRemoteMCP PR #5 at reviewed head `4d80a6c979679ddb3955b7cfa0c01367276dc17d` → main `8546cce4e9eaf1dd5738e68f64a08b6734527656`; post-main Codespell run `37245599505` SUCCESS. A round-1 P1 review finding (ambiguous-cancel dropping the writer fence) was repaired RED-first before merge.
+
+**Lesson:** Never derive boot identity from wall-clock-derived timestamps, and never "fix" divergence by merely ignoring microseconds. Unknown boot identity is `UNKNOWN`, not weak kill/attach authority. Durable terminal evidence and live-process truth must be reconciled before terminalization on every path, not only the monitor path.
+
+**Verify:** Merged SunDayRemoteMCP supervisor regression coverage at `8546cce4` (five-file aggregate scope, PR #5, post-main CI run `37245599505`) remains the executable guard. This fold made no SRM source/runtime change. Evidence trail: #581 comments `5982120850`, `5985831048`, `5986998473`.
+
+## #57: external-agent queues are append-oriented correlation, not idempotent task admission — bootstrap must dedupe before claim (2026-10-19)
+
+Issue #583 — folded 2026-10-19 from the merged+verified AWC guard; engineering was closed earlier at A-Wiki-Conductor `ece31453`.
+
+**Symptom:** Two docs-only governance bootstrap claims were created for a single task (#581's fold) after interrupted Codex turns and queued-submission recovery replayed the submission, producing duplicate bootstrap work that had to be reconciled by hand.
+
+**Root cause:** Upstream OpenAI Codex `rust-v0.159.0` `thread/queue/add` inserts a fresh UUIDv7 queued row on every enqueue; `client_user_message_id` is correlation data with no uniqueness/dedupe constraint, and interrupted active turns leave their queued submissions present so a later `thread/queue/start` can execute one when the thread goes idle (source audit: `request_processors/thread_queue_processor.rs`, `ext/queue/src/service.rs`, `state/src/runtime/queued_items.rs`). The AWC bootstrap path lacked a task-level dedupe guard, so a filesystem-only "no worktree yet" observation could authorize a second bootstrap while an equivalent queued/in-flight task could still execute.
+
+**Missing invariant:** Task-level admission/replay dedupe is the client's invariant. An append-oriented external queue must never be treated as an idempotent task store, and transport/queue state must not grant bootstrap authority without reconciling equivalent queued/in-flight submissions.
+
+**Fix (merged, AWC):** `src/a_conductor/codex_queue_submission_guard.py` + focused tests (WO-P1-583) with fail-closed `DUPLICATE_TASK_SUBMISSION_PENDING` / `RECONCILIATION_REQUIRED` semantics: duplicate/in-flight task evidence blocks a new governance bootstrap until reconciled. Merged as PR #590 from reviewed head `a08844f0a2fd3d1353bca6b3540a4e8dba50dfff` → main `ece314530a05f12bd1f7bc4517dd6e287197fb4d`; pre-merge CI `37298948386` and post-main CI `37300729945` SUCCESS; independent round-2 review PASS (P0/P1/P2=0). Guard module verified byte-present on current main during this fold's triage.
+
+**Lesson:** A delegated agent's queue carries correlation data, not idempotency. Before any bootstrap/claim that could overlap prior intent, reconcile queued and in-flight submissions for the same task and fail closed on ambiguity. Consumer-side wiring of the guard into lifecycle call sites remains separately claimed scope under the #580 family.
+
+**Verify:** `tests/test_codex_queue_submission_guard.py` pins the fail-closed semantics; evidence trail: #583 comments `5982737256`, `5993506599`.
+
+## #58: Structural authority must come from executable lines, not marker substrings (2026-09-12)
+Provenance: folded 2026-10-19 from branch fix/wo-p1-215-launcher-complete-classification@2d151da original numbering #15 (WO-P1-679 closeout serialized queue).
+
+**Symptom:** launcher hardening classification could treat hardening marker text inside comments, quoted strings, block comments, or here-strings as runtime structure. A comment-only block containing all expected markers could be classified `ALREADY_HARDENED`; quoted/non-executing markers could force `REFUSED_AMBIGUOUS` or suppress hardening of a real legacy seam.
+
+**Root cause:** `_is_runtime_forensics_hardened()` and `_has_runtime_forensics_structural_signal()` used broad substring/count checks. Line anchoring alone was also insufficient because PowerShell block comments and here-strings can contain marker-shaped text at column zero. Text that merely looked executable could therefore gain authority or suppress a real legacy seam.
+
+**Fix:** analyze a same-length executable view of the PowerShell source. Mask line comments, nested block comments, and here-string regions while preserving newlines/source offsets; recognize here-string closing delimiters conservatively at column zero; then require line-anchored executable forms for every structural marker. Generated hardened ordering and legacy-seam absence remain mandatory, and transformation slices still use the original source positions.
+
+**Lesson:** marker text, keywords, and quoted/commented examples are not execution evidence. Any parser/classifier that grants lifecycle, safety, migration, review, telemetry, or runtime authority must validate structural provenance appropriate to the source format and fail closed when provenance is ambiguous.
+
+**Verify:** `tests/test_instance_create.py` covers line comments, quoted markers, block/nested-block comments, here-strings including indented false terminators, marker-suppression attempts, true hardened output, ambiguous legacy seams, and operation-level preflight behavior.
+
+---
+
+## #59: Hardened-marker authority requires brace-ancestry and terminal-control-flow proof, not just executable lines (2026-10-16)
+Provenance: folded 2026-10-19 from branch fix/wo-p1-215-launcher-complete-classification@2d151da original numbering #56 (WO-P1-679 closeout serialized queue).
+
+**Symptom:** WO-P1-215 repair-2 independent review (PR #293) proved three reachability bypasses of `_is_runtime_forensics_hardened()`: (P2, round 3) PowerShell bare `break` / `continue` — including `BREAK` casing — before the forensic body or between markers terminates the script outside loops yet still classified `ALREADY_HARDENED`; (P2, round 2) an `exit 0` / `throw` / `return` before the forensic body — including after the first marker — left the complete canonical shape classified `ALREADY_HARDENED` while the body was unreachable; (round 1) wrapping the complete generated forensics shape in `if ($false) { ... }` (full or partial wrap of `exit $RuntimeExitCode`) also granted `ALREADY_HARDENED`. All bypass `REFUSED_AMBIGUOUS`, and `create_instance()` could materialize a target from an unreachable launcher.
+
+**Root cause:** the executable-view repair masked comments/here-strings but proved no enclosing-block provenance and no terminal-control-flow provenance. Marker lines inside unknown block headers, terminal statements ahead of the evidence, and bare loop-control tokens (which terminate a PowerShell script when reached outside a loop) were still line-anchored and executable-view-visible, so the verifier could not distinguish the generated canonical structure from dead or truncated code.
+
+**Fix:** add a quote-aware brace scan over the same executable view. Every structural marker's enclosing header stack must exactly equal its generated canonical context (top level; `try {` for the runtime-exit sequence; `if ($RuntimeExitCode -eq 0) {` / `} else {` for the exit logs; `foreach ($RuntimeLog in ...)` + `if (Test-Path ...)` for the archive Move-Item); every block header opened anywhere in the view must belong to the canonical generated set (`try`/`finally`/runtime-exit if/else/foreach/Test-Path); the whole view must stay brace-balanced and quote-terminated; the only terminal statement (`exit`/`throw`/`return`, case-insensitive token) allowed in the entire view is the canonical `exit $RuntimeExitCode` marker line; and no `break`/`continue` token may appear anywhere in the view, since the generated grammar contains none and any occurrence is either script-terminating loop control or non-canonical structure. Unknown or unprovable ancestry, non-canonical blocks (including `catch`-weakened try shapes), unbalanced braces, any other terminal statement, or any loop-control token fail closed into the existing structural-signal path → `REFUSED_AMBIGUOUS` → `create_instance` raises `REFERENCE_START_SCRIPT_UNSAFE` before materializing. The here-string opener (`@"`/`@'`) is masked in the executable view like block-comment delimiters so the scanner cannot see a phantom unterminated quote. Also repaired the pre-existing POSIX-only kwarg mismatch at the `render_sh_scripts` call site (`health_port=` vs `port=`, present since base `f7d23c9`), which crashed every `create_instance` call on macOS/Linux and hid this boundary plus related floor failures from cross-platform runs.
+
+**Lesson:** reachability is part of structural authority. Line-anchored executable text proves syntax, not runtime context; a verifier that grants lifecycle/idempotency authority must prove the enclosing ancestry of its evidence lines, that no terminal statement short-circuits the evidence, that no bare loop-control token can terminate the script early, that every block belongs to the generated grammar, and that the whole view is balanced — failing closed whenever any of those proofs is missing.
+
+**Verify:** `tests/test_instance_create.py` WO-215 repair-2 sections cover full/partial `if ($false)` wraps (both generator variants), `exit 0`/`throw`/`return` prefixes and post-first-marker `exit 0` (both variants), bare `break`/`BREAK`/`continue` prefixes and between-marker inserts (both variants), operation-level no-target refusals for terminal and loop-control shapes (both variants), `catch`-weakened and replaced-`finally` try shapes, unbalanced braces (prefix and suffix), unclosed trailing block, non-canonical truthy guard, and canonical positive controls with idempotency. In-memory prior-vs-current probes showed all 8 rev-2 and all 5 rev-3 adversarial shapes flipped `True→False` while canonical controls stayed accepted. Floor: instance_create 79 passed; related floor 74 passed with 2 pre-existing macOS environment failures proven identical at base `525f5ff`. (Entry numbered #56: origin/main already carries #54/#55; this branch's local file had not seen them.)
+
+---

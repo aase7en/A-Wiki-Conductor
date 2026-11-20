@@ -5,6 +5,9 @@ Owner: GPT integrator / A-Sunday Conductor coordination layer
 Introduced by: `WO-P1-154`
 Goal: increase effective delivery throughput without reducing final assurance.
 
+Practical application: use the [Cost-First Delivery Runbook](../runbooks/cost-first-delivery.md)
+to execute this policy with bounded premium-model use and existing WO evidence.
+
 ## 0. Universal entry + GLM-first execution
 
 Every non-trivial lane begins with the binding startup path in `00-AGENT-ENTRY.md` and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md`:

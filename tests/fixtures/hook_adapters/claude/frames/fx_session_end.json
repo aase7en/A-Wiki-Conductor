@@ -1,0 +1,12 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxSessionEnd",
+    "session_ref": "fx-session-0001",
+    "occurred_at": "2026-09-19T08:45:00Z",
+    "duration_ms": 45000,
+    "transcript_path": "C:\\FXBAIT-TRANSCRIPT-PATH\\t.jsonl"
+  }
+}

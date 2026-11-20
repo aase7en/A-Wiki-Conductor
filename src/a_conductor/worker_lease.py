@@ -3,11 +3,22 @@
 This module extends existing worker/scheduler identity and conflict seams. It
 owns runtime-capacity leases only; it is not a scheduler, task store, lifecycle,
 dispatch system, retry loop, or replacement for A-Wiki work-order claims.
+
+MSP-2A (WO-P1-500) extends mutation admission with a canonical physical Git
+repository hotspot fence: within one accepted local WorkerLease SQLite
+authority, two worktrees/sessions that resolve to the same physical Git
+repository hotspot and overlapping mutable scope admit at most one active
+mutation lease. The claim is deliberately local-store-only: it does not cover
+cross-device/global convergence, foreign-session takeover, or old binaries
+that predate the hotspot fence. The hotspot identity reuses the accepted DEX
+physical identity semantics (:mod:`a_conductor.dex_identity`) and is resolved
+by an injectable resolver before the SQLite write transaction opens.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -18,6 +29,11 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
+from .dex_identity import (
+    DexIdentityError,
+    canonical_root_digest,
+    canonicalize_existing_root,
+)
 from .domain import RecoveryClassification
 from .graph.analyze import write_sets_overlap
 from .registry import windows_worktree_key
@@ -64,6 +80,112 @@ class WorkerProvisioningReservationKind(str, Enum):
     EXISTING = "EXISTING"
     LIMIT_WAIT = "LIMIT_WAIT"
     RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+class HotspotFenceKind(str, Enum):
+    """Observable local-store hotspot fence compatibility state.
+
+    ``LOCAL_FENCE_ENFORCED`` means only that this store currently holds no
+    active mutation row with missing hotspot identity; it does NOT certify
+    that every mutation writer binary understands the fence, so consumers
+    (e.g. #498) must not project it as a global ``GUARD_ENFORCED`` claim.
+    """
+
+    LOCAL_FENCE_ENFORCED = "LOCAL_FENCE_ENFORCED"
+    LOCAL_FENCE_RECONCILIATION_REQUIRED = "LOCAL_FENCE_RECONCILIATION_REQUIRED"
+
+
+@dataclass(frozen=True, slots=True)
+class HotspotFenceStatus:
+    kind: HotspotFenceKind
+    active_mutation_leases: int
+    active_mutation_leases_missing_hotspot: int
+
+
+def _current_platform_tag() -> str:
+    return "win32" if os.name == "nt" else "posix"
+
+
+def _read_git_pointer(path: Path) -> str:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, ValueError) as exc:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
+    text = raw.strip()
+    if not text or "\x00" in text or "\n" in text or "\r" in text:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED")
+    return text
+
+
+def _resolve_relative(base: Path, value: str) -> Path:
+    raw = Path(value)
+    if raw.is_absolute():
+        return raw
+    return Path(os.path.normpath(str(base / raw)))
+
+
+def _hotspot_canonical_root(worktree: Path) -> Path:
+    """Return the physical canonicalization root for one existing worktree.
+
+    The root is the Git common directory when the worktree belongs to one
+    (linked worktrees share it with their main repository), otherwise the
+    existing directory itself. Missing, non-directory, or unprobeable paths
+    fail closed because mutation admission cannot prove physical hotspot
+    identity from a legacy path spelling.
+    """
+
+    try:
+        if not worktree.exists() or not worktree.is_dir():
+            raise DexIdentityError("PROJECT_IDENTITY_FAILED")
+    except OSError as exc:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
+    dot = worktree / ".git"
+    try:
+        if not dot.exists():
+            return worktree
+        if dot.is_dir():
+            admin = dot
+        else:
+            pointer = _read_git_pointer(dot)
+            if not pointer.startswith("gitdir:"):
+                raise DexIdentityError("PROJECT_IDENTITY_FAILED")
+            gitdir = pointer[len("gitdir:"):].strip()
+            if not gitdir:
+                raise DexIdentityError("PROJECT_IDENTITY_FAILED")
+            admin = _resolve_relative(worktree, gitdir)
+        commondir = admin / "commondir"
+        if commondir.is_file():
+            return _resolve_relative(admin, _read_git_pointer(commondir))
+        return admin
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
+
+
+def default_hotspot_resolver(worktree: str) -> str:
+    """Derive the canonical physical Git repository hotspot key.
+
+    Resolution order (deterministic, fail-closed on physical ambiguity):
+
+    1. existing worktree with Git metadata: digest of the canonicalized Git
+       common directory (DEX final-path semantics), converging linked
+       worktrees of one repository;
+    2. existing directory without Git metadata: digest of the canonicalized
+       directory itself;
+    3. absent path: digest of the accepted legacy ``worktree_key`` spelling,
+       preserving historical admission equivalence classes exactly.
+    """
+
+    try:
+        text = _text(worktree, "worktree")
+    except ValueError as exc:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
+    try:
+        candidate = Path(text).expanduser()
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise DexIdentityError("PROJECT_IDENTITY_FAILED") from exc
+    root = _hotspot_canonical_root(candidate)
+    canonical = canonicalize_existing_root(root)
+    return canonical_root_digest(canonical, platform_tag=_current_platform_tag())
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,6 +428,7 @@ class WorkerLease:
     recovery_classification: RecoveryClassification | None = None
     recovery_evidence_ref: str | None = None
     reconciled_at: str | None = None
+    hotspot_key: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,10 +535,16 @@ def _lease_from_row(row: sqlite3.Row) -> WorkerLease:
         quarantined_at=row["quarantined_at"], quarantine_code=row["quarantine_code"],
         recovery_classification=recovery, recovery_evidence_ref=row["recovery_evidence_ref"],
         reconciled_at=row["reconciled_at"],
+        hotspot_key=row["hotspot_key"],
     )
 
 
-def _request_matches_lease(request: WorkerLeaseRequest, lease: WorkerLease) -> bool:
+def _request_matches_lease(
+    request: WorkerLeaseRequest,
+    lease: WorkerLease,
+    *,
+    hotspot_key: str | None = None,
+) -> bool:
     return (
         lease.worker_id in request.ordered_worker_ids
         and lease.project_id == request.project_id
@@ -429,11 +558,17 @@ def _request_matches_lease(request: WorkerLeaseRequest, lease: WorkerLease) -> b
         and frozenset(lease.mutable_scope) == frozenset(request.mutable_scope)
         and lease.lease_ttl_seconds == request.lease_ttl_seconds
         and (request.required_runtime_id is None or lease.runtime_id == request.required_runtime_id)
+        and (hotspot_key is None or lease.hotspot_key is None or lease.hotspot_key == hotspot_key)
     )
 
 
-def _require_matching_request(request: WorkerLeaseRequest, lease: WorkerLease) -> WorkerLease:
-    if not _request_matches_lease(request, lease):
+def _require_matching_request(
+    request: WorkerLeaseRequest,
+    lease: WorkerLease,
+    *,
+    hotspot_key: str | None = None,
+) -> WorkerLease:
+    if not _request_matches_lease(request, lease, hotspot_key=hotspot_key):
         raise WorkerLeaseError("LEASE_REQUEST_CONFLICT")
     return lease
 
@@ -494,9 +629,82 @@ def _reconciliation_quarantine_reason(
 class SQLiteWorkerLeaseStore:
     """Atomic worker-capacity leases in one SQLite database."""
 
-    def __init__(self, database_path: str | Path) -> None:
+    def __init__(
+        self,
+        database_path: str | Path,
+        *,
+        hotspot_resolver: Callable[[str], str] | None = None,
+    ) -> None:
         self.database_path = Path(database_path)
+        self._hotspot_resolver: Callable[[str], str] = (
+            hotspot_resolver if hotspot_resolver is not None else default_hotspot_resolver
+        )
+        if not callable(self._hotspot_resolver):
+            raise ValueError("hotspot_resolver must be callable")
         self.initialize()
+
+    @property
+    def store_identity(self) -> str:
+        """Stable read-only identity of this lease store's database file.
+
+        Derived deterministically from the canonical database path via the
+        accepted DEX digest; two instances over the same physical database
+        observe the same identity. This is bindable evidence, not a new
+        authority: it never claims cross-store or cross-device convergence.
+        """
+
+        real = os.path.realpath(os.fspath(self.database_path))
+        return canonical_root_digest(
+            os.path.normcase(real), platform_tag=_current_platform_tag()
+        )
+
+    def resolve_mutation_hotspot(self, worktree: str) -> str:
+        """Resolve the canonical mutation hotspot key before any transaction.
+
+        Fail closed with a typed error whenever the resolver outcome is
+        missing, ambiguous, or malformed; never authorize mutation admission
+        on an unresolvable hotspot.
+        """
+
+        try:
+            hotspot = self._hotspot_resolver(worktree)
+        except Exception as exc:  # noqa: BLE001 - any resolver failure fails closed
+            raise WorkerLeaseError("HOTSPOT_IDENTITY_FAILED") from exc
+        if not isinstance(hotspot, str):
+            raise WorkerLeaseError("HOTSPOT_IDENTITY_FAILED")
+        try:
+            return _text(hotspot, "hotspot_key", max_length=128)
+        except ValueError as exc:
+            raise WorkerLeaseError("HOTSPOT_IDENTITY_FAILED") from exc
+
+    def hotspot_fence_status(self) -> HotspotFenceStatus:
+        """Observe this store's local hotspot fence compatibility state.
+
+        Read-only evidence for consumers such as #498: an active mutation row
+        with a missing hotspot key is legacy/pre-fence truth that blocks new
+        mutation admission until reconciled. ``LOCAL_FENCE_ENFORCED`` does not
+        prove mixed old/new writer binaries are globally safe.
+        """
+
+        with self._connect() as connection:
+            try:
+                row = connection.execute(
+                    "SELECT COUNT(*), "
+                    "COALESCE(SUM(CASE WHEN hotspot_key IS NULL THEN 1 ELSE 0 END), 0) "
+                    "FROM worker_leases "
+                    "WHERE released_at IS NULL AND mutation_intent = ?",
+                    (LeaseMutationIntent.MUTATION.value,),
+                ).fetchone()
+                total = int(row[0])
+                missing = int(row[1])
+            except sqlite3.Error as exc:
+                raise WorkerLeaseError("LEASE_STORE_READ_FAILED") from exc
+        kind = (
+            HotspotFenceKind.LOCAL_FENCE_ENFORCED
+            if missing == 0
+            else HotspotFenceKind.LOCAL_FENCE_RECONCILIATION_REQUIRED
+        )
+        return HotspotFenceStatus(kind, total, missing)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -508,6 +716,28 @@ class SQLiteWorkerLeaseStore:
             yield connection
         finally:
             connection.close()
+
+    @staticmethod
+    def _add_column_if_missing(
+        connection: sqlite3.Connection, table: str, name: str, sql_type: str
+    ) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute(f"PRAGMA table_info({table})")
+        }
+        if name in columns:
+            return
+        try:
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}")
+        except sqlite3.OperationalError as exc:
+            if "duplicate column" not in str(exc).lower():
+                raise
+            columns = {
+                row["name"]
+                for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+            if name not in columns:
+                raise
 
     def initialize(self) -> None:
         with self._connect() as connection:
@@ -537,7 +767,8 @@ class SQLiteWorkerLeaseStore:
                     quarantine_code TEXT,
                     recovery_classification TEXT,
                     recovery_evidence_ref TEXT,
-                    reconciled_at TEXT
+                    reconciled_at TEXT,
+                    hotspot_key TEXT
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS ux_worker_leases_active_worker
                     ON worker_leases(worker_id) WHERE released_at IS NULL;
@@ -565,60 +796,58 @@ class SQLiteWorkerLeaseStore:
                     WHERE state != 'RELEASED' AND worker_id IS NOT NULL;
                 """
             )
-            reservation_columns = {
-                row["name"]
-                for row in connection.execute(
-                    "PRAGMA table_info(worker_provisioning_reservations)"
-                )
-            }
-            reservation_migrations = {
-                "project_id": "TEXT",
-                "worktree_key": "TEXT",
-                "mutable_scope_json": "TEXT NOT NULL DEFAULT '[]'",
-            }
-            for name, sql_type in reservation_migrations.items():
-                if name not in reservation_columns:
-                    connection.execute(
-                        f"ALTER TABLE worker_provisioning_reservations "
-                        f"ADD COLUMN {name} {sql_type}"
+            # BEGIN IMMEDIATE serializes concurrent initializers so the
+            # check-then-alter migration is deterministic across processes.
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                reservation_migrations = {
+                    "project_id": "TEXT",
+                    "worktree_key": "TEXT",
+                    "mutable_scope_json": "TEXT NOT NULL DEFAULT '[]'",
+                }
+                for name, sql_type in reservation_migrations.items():
+                    self._add_column_if_missing(
+                        connection, "worker_provisioning_reservations", name, sql_type
                     )
-            columns = {row["name"] for row in connection.execute("PRAGMA table_info(worker_leases)")}
-            migrations = {
-                "heartbeat_at": "TEXT",
-                "lease_ttl_seconds": "INTEGER",
-                "quarantined_at": "TEXT",
-                "quarantine_code": "TEXT",
-                "recovery_classification": "TEXT",
-                "recovery_evidence_ref": "TEXT",
-                "reconciled_at": "TEXT",
-            }
-            for name, sql_type in migrations.items():
-                if name not in columns:
-                    connection.execute(f"ALTER TABLE worker_leases ADD COLUMN {name} {sql_type}")
-            connection.execute(
-                "UPDATE worker_leases SET heartbeat_at = acquired_at WHERE heartbeat_at IS NULL"
-            )
-            legacy_rows = connection.execute(
-                "SELECT lease_id, acquired_at, expires_at FROM worker_leases "
-                "WHERE lease_ttl_seconds IS NULL"
-            ).fetchall()
-            for row in legacy_rows:
-                ttl = 300
-                if row["expires_at"] is not None:
-                    try:
-                        delta = int(
-                            (_timestamp_datetime(row["expires_at"], "expires_at") -
-                             _timestamp_datetime(row["acquired_at"], "acquired_at")).total_seconds()
-                        )
-                        if 1 <= delta <= 86400:
-                            ttl = delta
-                    except ValueError:
-                        pass
+                migrations = {
+                    "heartbeat_at": "TEXT",
+                    "lease_ttl_seconds": "INTEGER",
+                    "quarantined_at": "TEXT",
+                    "quarantine_code": "TEXT",
+                    "recovery_classification": "TEXT",
+                    "recovery_evidence_ref": "TEXT",
+                    "reconciled_at": "TEXT",
+                    "hotspot_key": "TEXT",
+                }
+                for name, sql_type in migrations.items():
+                    self._add_column_if_missing(connection, "worker_leases", name, sql_type)
                 connection.execute(
-                    "UPDATE worker_leases SET lease_ttl_seconds = ? WHERE lease_id = ?",
-                    (ttl, row["lease_id"]),
+                    "UPDATE worker_leases SET heartbeat_at = acquired_at WHERE heartbeat_at IS NULL"
                 )
-            connection.commit()
+                legacy_rows = connection.execute(
+                    "SELECT lease_id, acquired_at, expires_at FROM worker_leases "
+                    "WHERE lease_ttl_seconds IS NULL"
+                ).fetchall()
+                for row in legacy_rows:
+                    ttl = 300
+                    if row["expires_at"] is not None:
+                        try:
+                            delta = int(
+                                (_timestamp_datetime(row["expires_at"], "expires_at") -
+                                 _timestamp_datetime(row["acquired_at"], "acquired_at")).total_seconds()
+                            )
+                            if 1 <= delta <= 86400:
+                                ttl = delta
+                        except ValueError:
+                            pass
+                    connection.execute(
+                        "UPDATE worker_leases SET lease_ttl_seconds = ? WHERE lease_id = ?",
+                        (ttl, row["lease_id"]),
+                    )
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
 
     @staticmethod
     def _provisioning_record_from_row(
@@ -977,6 +1206,11 @@ class SQLiteWorkerLeaseStore:
             expiry = _timestamp_add_seconds(acquired, request.lease_ttl_seconds, "expires_at")
         else:
             _timestamp_datetime(expiry, "expires_at")
+        # MSP-2A: resolve the canonical physical hotspot BEFORE the write
+        # transaction opens; an unresolvable hotspot never reaches admission.
+        hotspot_key: str | None = None
+        if request.mutation_intent is LeaseMutationIntent.MUTATION:
+            hotspot_key = self.resolve_mutation_hotspot(request.worktree)
         lease = WorkerLease(
             lease_id=lease_id, worker_id=candidate.worker_id,
             session_id=request.session_id, task_id=request.task_id,
@@ -987,6 +1221,7 @@ class SQLiteWorkerLeaseStore:
             forbidden_scope=request.forbidden_scope, mutable_scope=request.mutable_scope,
             mutation_intent=request.mutation_intent, acquired_at=acquired, heartbeat_at=acquired,
             lease_ttl_seconds=request.lease_ttl_seconds, expires_at=expiry,
+            hotspot_key=hotspot_key,
         )
         with self._connect() as connection:
             try:
@@ -997,7 +1232,9 @@ class SQLiteWorkerLeaseStore:
                     (lease.session_id, lease.task_id),
                 ).fetchone()
                 if active_owner is not None:
-                    existing = _require_matching_request(request, _lease_from_row(active_owner))
+                    existing = _require_matching_request(
+                        request, _lease_from_row(active_owner), hotspot_key=hotspot_key
+                    )
                     connection.rollback()
                     return LeaseStoreAcquireResult(existing, created=False)
                 active_worker = connection.execute(
@@ -1022,10 +1259,23 @@ class SQLiteWorkerLeaseStore:
                     connection.rollback()
                     return LeaseStoreAcquireResult(None, created=False)
                 if lease.mutation_intent is LeaseMutationIntent.MUTATION:
+                    # A legacy active mutation row without hotspot identity can
+                    # never be treated as independent; it blocks every new
+                    # mutation admission until reconciled (released/quarantined
+                    # through accepted recovery authority).
+                    legacy_row = connection.execute(
+                        "SELECT lease_id FROM worker_leases "
+                        "WHERE released_at IS NULL AND mutation_intent = ? "
+                        "AND hotspot_key IS NULL",
+                        (LeaseMutationIntent.MUTATION.value,),
+                    ).fetchone()
+                    if legacy_row is not None:
+                        connection.rollback()
+                        raise WorkerLeaseError("HOTSPOT_RECONCILIATION_REQUIRED")
                     rows = connection.execute(
                         "SELECT mutable_scope_json FROM worker_leases "
-                        "WHERE released_at IS NULL AND worktree_key = ? AND mutation_intent = ?",
-                        (lease.worktree_key, LeaseMutationIntent.MUTATION.value),
+                        "WHERE released_at IS NULL AND hotspot_key = ? AND mutation_intent = ?",
+                        (hotspot_key, LeaseMutationIntent.MUTATION.value),
                     ).fetchall()
                     for row in rows:
                         if write_sets_overlap(lease.mutable_scope, _decode_scope(row["mutable_scope_json"])):
@@ -1036,8 +1286,9 @@ class SQLiteWorkerLeaseStore:
                     "project_id, runtime_id, worktree_key, branch, expected_head, "
                     "required_capabilities_json, allowed_scope_json, forbidden_scope_json, mutable_scope_json, "
                     "mutation_intent, acquired_at, heartbeat_at, lease_ttl_seconds, expires_at, released_at, "
-                    "quarantined_at, quarantine_code, recovery_classification, recovery_evidence_ref, reconciled_at) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL)",
+                    "quarantined_at, quarantine_code, recovery_classification, recovery_evidence_ref, "
+                    "reconciled_at, hotspot_key) "
+                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?)",
                     (
                         lease.lease_id, lease.worker_id, lease.session_id, lease.task_id,
                         lease.project_id, lease.runtime_id, lease.worktree_key, lease.branch,
@@ -1045,7 +1296,7 @@ class SQLiteWorkerLeaseStore:
                         json.dumps(lease.allowed_scope),
                         json.dumps(lease.forbidden_scope), json.dumps(lease.mutable_scope),
                         lease.mutation_intent.value, lease.acquired_at, lease.heartbeat_at,
-                        lease.lease_ttl_seconds, lease.expires_at,
+                        lease.lease_ttl_seconds, lease.expires_at, lease.hotspot_key,
                     ),
                 )
                 connection.commit()
@@ -1371,11 +1622,18 @@ class WorkerLeaseBroker:
         if not isinstance(request, WorkerLeaseRequest):
             raise ValueError("request must be WorkerLeaseRequest")
         now = self._clock()
+        hotspot_key: str | None = None
+        if request.mutation_intent is LeaseMutationIntent.MUTATION:
+            # Duck-typed stores predating MSP-2A keep their legacy behaviour;
+            # real WorkerLease stores fail closed on ambiguous hotspot identity.
+            resolver = getattr(self._store, "resolve_mutation_hotspot", None)
+            if callable(resolver):
+                hotspot_key = resolver(request.worktree)
         existing = self._store.find_active_owner_task(request.session_id, request.task_id)
         if existing is not None:
-            matching = _require_matching_request(request, existing)
+            matching = _require_matching_request(request, existing, hotspot_key=hotspot_key)
             health = self._store.inspect_health(matching.lease_id, now=now)
-            latest = _require_matching_request(request, health.lease)
+            latest = _require_matching_request(request, health.lease, hotspot_key=hotspot_key)
             if health.kind is LeaseHealthKind.ACTIVE:
                 return WorkerLeaseOutcome(LeaseOutcomeKind.EXISTING, latest, ())
             return WorkerLeaseOutcome(LeaseOutcomeKind.RECOVERY_REQUIRED, latest, ())

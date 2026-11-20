@@ -25,6 +25,18 @@ class ConnectorRecoveryState(str, Enum):
     DEGRADED = "DEGRADED"
 
 
+class RecoveryHistoryEventKind(str, Enum):
+    SUPPRESSED = "SUPPRESSED"
+    MANUAL_START = "MANUAL_START"
+    READY_OBSERVED = "READY_OBSERVED"
+    UNKNOWN_OBSERVED = "UNKNOWN_OBSERVED"
+    OUTAGE_OBSERVED = "OUTAGE_OBSERVED"
+    RECOVERY_STARTED = "RECOVERY_STARTED"
+    RECOVERY_READY = "RECOVERY_READY"
+    RECOVERY_FAILED = "RECOVERY_FAILED"
+    RECOVERY_CANCELLED = "RECOVERY_CANCELLED"
+
+
 def _name(value: str) -> str:
     if not isinstance(value, str) or not value.strip() or "\x00" in value:
         raise ValueError("instance_name is invalid")
@@ -81,6 +93,50 @@ class ConnectorRecoveryStore(Protocol):
     def clear_connector_recovery(self, instance_name: str) -> None: ...
 
 
+class ConnectorRecoveryHistoryWriter(Protocol):
+    """Optional store seam: persist history events atomically with the snapshot.
+
+    Stores that implement this method let the coordinator record lifecycle
+    evidence in the same durable write as the recovery snapshot. Stores without
+    it keep working exactly as before; no history is fabricated for them.
+    """
+
+    def save_connector_recovery_history(
+        self,
+        record: ConnectorRecoveryRecord,
+        events: Sequence[ConnectorRecoveryHistoryEvent],
+    ) -> ConnectorRecoveryRecord: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectorRecoveryHistoryEvent:
+    instance_name: str
+    kind: RecoveryHistoryEventKind
+    from_state: ConnectorRecoveryState
+    to_state: ConnectorRecoveryState
+    observed_at: float
+    reason_code: str | None = None
+    restart_count: int = 0
+    sequence: int = 0
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "instance_name", _name(self.instance_name))
+        if not isinstance(self.kind, RecoveryHistoryEventKind):
+            object.__setattr__(self, "kind", RecoveryHistoryEventKind(self.kind))
+        for field_name in ("from_state", "to_state"):
+            value = getattr(self, field_name)
+            if not isinstance(value, ConnectorRecoveryState):
+                object.__setattr__(self, field_name, ConnectorRecoveryState(value))
+        value = self.observed_at
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise ValueError("observed_at is invalid")
+        object.__setattr__(self, "reason_code", _reason(self.reason_code))
+        for field_name in ("restart_count", "sequence"):
+            value = getattr(self, field_name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"{field_name} is invalid")
+
+
 class ConnectorRecoveryCoordinator:
     def __init__(
         self,
@@ -98,6 +154,9 @@ class ConnectorRecoveryCoordinator:
                 raise ValueError(f"store must provide {method}")
         if not callable(autostart_check) or not callable(start_instance) or not callable(clock_fn):
             raise ValueError("recovery callbacks must be callable")
+        history_writer = getattr(store, "save_connector_recovery_history", None)
+        if history_writer is not None and not callable(history_writer):
+            raise ValueError("save_connector_recovery_history must be callable")
         backoff = tuple(float(value) for value in backoff_seconds)
         if not backoff or any(value <= 0 for value in backoff):
             raise ValueError("backoff_seconds is invalid")
@@ -106,6 +165,7 @@ class ConnectorRecoveryCoordinator:
         if failure_window_seconds <= 0:
             raise ValueError("failure_window_seconds is invalid")
         self._store = store
+        self._history_writer = history_writer
         self._autostart_check = autostart_check
         self._start_instance = start_instance
         self._clock = clock_fn
@@ -132,38 +192,82 @@ class ConnectorRecoveryCoordinator:
             raise ValueError("recovery store returned invalid record")
         return record
 
-    def _save(self, record: ConnectorRecoveryRecord) -> ConnectorRecoveryRecord:
-        saved = self._store.save_connector_recovery(record)
+    def _save(
+        self,
+        record: ConnectorRecoveryRecord,
+        events: Sequence[ConnectorRecoveryHistoryEvent] = (),
+    ) -> ConnectorRecoveryRecord:
+        if events and self._history_writer is not None:
+            saved = self._history_writer(record, events)
+        else:
+            saved = self._store.save_connector_recovery(record)
         if not isinstance(saved, ConnectorRecoveryRecord):
             raise ValueError("recovery store returned invalid saved record")
         return saved
 
+    def _event(
+        self,
+        *,
+        current: ConnectorRecoveryRecord,
+        record: ConnectorRecoveryRecord,
+        kind: RecoveryHistoryEventKind,
+        observed_at: float,
+        reason_code: str | None = None,
+    ) -> ConnectorRecoveryHistoryEvent:
+        return ConnectorRecoveryHistoryEvent(
+            instance_name=record.instance_name,
+            kind=kind,
+            from_state=current.state,
+            to_state=record.state,
+            observed_at=observed_at,
+            reason_code=reason_code,
+            restart_count=record.restart_count,
+        )
+
     def suppress(self, instance_name: str) -> ConnectorRecoveryRecord:
         now = self._now()
         current = self._current(instance_name, now)
+        record = replace(
+            current,
+            state=ConnectorRecoveryState.STOPPED,
+            recovery_suppressed=True,
+            next_retry_at=None,
+            updated_at=now,
+        )
         return self._save(
-            replace(
-                current,
-                state=ConnectorRecoveryState.STOPPED,
-                recovery_suppressed=True,
-                next_retry_at=None,
-                updated_at=now,
-            )
+            record,
+            events=(
+                self._event(
+                    current=current,
+                    record=record,
+                    kind=RecoveryHistoryEventKind.SUPPRESSED,
+                    observed_at=now,
+                ),
+            ),
         )
 
     def manual_start(self, instance_name: str) -> ConnectorRecoveryRecord:
         now = self._now()
         current = self._current(instance_name, now)
+        record = replace(
+            current,
+            state=ConnectorRecoveryState.STOPPED,
+            recovery_suppressed=False,
+            failure_count=0,
+            failure_window_started_at=None,
+            next_retry_at=None,
+            updated_at=now,
+        )
         return self._save(
-            replace(
-                current,
-                state=ConnectorRecoveryState.STOPPED,
-                recovery_suppressed=False,
-                failure_count=0,
-                failure_window_started_at=None,
-                next_retry_at=None,
-                updated_at=now,
-            )
+            record,
+            events=(
+                self._event(
+                    current=current,
+                    record=record,
+                    kind=RecoveryHistoryEventKind.MANUAL_START,
+                    observed_at=now,
+                ),
+            ),
         )
 
     def _ready(self, current: ConnectorRecoveryRecord, now: float) -> ConnectorRecoveryRecord:
@@ -174,15 +278,24 @@ class ConnectorRecoveryCoordinator:
             and current.next_retry_at is None
         ):
             return current
+        record = replace(
+            current,
+            state=ConnectorRecoveryState.READY,
+            failure_count=0,
+            failure_window_started_at=None,
+            next_retry_at=None,
+            updated_at=now,
+        )
         return self._save(
-            replace(
-                current,
-                state=ConnectorRecoveryState.READY,
-                failure_count=0,
-                failure_window_started_at=None,
-                next_retry_at=None,
-                updated_at=now,
-            )
+            record,
+            events=(
+                self._event(
+                    current=current,
+                    record=record,
+                    kind=RecoveryHistoryEventKind.READY_OBSERVED,
+                    observed_at=now,
+                ),
+            ),
         )
 
     def _failed_attempt(
@@ -204,17 +317,27 @@ class ConnectorRecoveryCoordinator:
             state = ConnectorRecoveryState.RECOVERING
             delay = self._backoff[min(failures - 1, len(self._backoff) - 1)]
             next_retry = now + delay
+        record = replace(
+            current,
+            state=state,
+            failure_count=failures,
+            failure_window_started_at=window_start,
+            last_exit_reason=_reason(reason_code),
+            last_exit_at=now,
+            next_retry_at=next_retry,
+            updated_at=now,
+        )
         return self._save(
-            replace(
-                current,
-                state=state,
-                failure_count=failures,
-                failure_window_started_at=window_start,
-                last_exit_reason=_reason(reason_code),
-                last_exit_at=now,
-                next_retry_at=next_retry,
-                updated_at=now,
-            )
+            record,
+            events=(
+                self._event(
+                    current=current,
+                    record=record,
+                    kind=RecoveryHistoryEventKind.RECOVERY_FAILED,
+                    observed_at=now,
+                    reason_code=reason_code,
+                ),
+            ),
         )
 
     def observe(
@@ -236,7 +359,17 @@ class ConnectorRecoveryCoordinator:
             return self._ready(current, now)
         if health is InstanceHealthState.UNKNOWN:
             if self._store.get_connector_recovery(current.instance_name) is None:
-                return self._save(current)
+                return self._save(
+                    current,
+                    events=(
+                        self._event(
+                            current=current,
+                            record=current,
+                            kind=RecoveryHistoryEventKind.UNKNOWN_OBSERVED,
+                            observed_at=now,
+                        ),
+                    ),
+                )
             return current
         if current.recovery_suppressed:
             if (
@@ -244,13 +377,23 @@ class ConnectorRecoveryCoordinator:
                 and current.next_retry_at is None
             ):
                 return current
+            record = replace(
+                current,
+                state=ConnectorRecoveryState.STOPPED,
+                next_retry_at=None,
+                updated_at=now,
+            )
             return self._save(
-                replace(
-                    current,
-                    state=ConnectorRecoveryState.STOPPED,
-                    next_retry_at=None,
-                    updated_at=now,
-                )
+                record,
+                events=(
+                    self._event(
+                        current=current,
+                        record=record,
+                        kind=RecoveryHistoryEventKind.OUTAGE_OBSERVED,
+                        observed_at=now,
+                        reason_code=reason_code,
+                    ),
+                ),
             )
         if not self._autostart_check(current.instance_name):
             normalized_reason = _reason(reason_code)
@@ -260,15 +403,25 @@ class ConnectorRecoveryCoordinator:
                 and current.last_exit_reason == normalized_reason
             ):
                 return current
+            record = replace(
+                current,
+                state=ConnectorRecoveryState.STOPPED,
+                next_retry_at=None,
+                last_exit_reason=normalized_reason,
+                last_exit_at=now,
+                updated_at=now,
+            )
             return self._save(
-                replace(
-                    current,
-                    state=ConnectorRecoveryState.STOPPED,
-                    next_retry_at=None,
-                    last_exit_reason=normalized_reason,
-                    last_exit_at=now,
-                    updated_at=now,
-                )
+                record,
+                events=(
+                    self._event(
+                        current=current,
+                        record=record,
+                        kind=RecoveryHistoryEventKind.OUTAGE_OBSERVED,
+                        observed_at=now,
+                        reason_code=normalized_reason,
+                    ),
+                ),
             )
         if current.state is ConnectorRecoveryState.DEGRADED:
             return current
@@ -277,15 +430,25 @@ class ConnectorRecoveryCoordinator:
         if cancelled():
             return current
 
+        recovering_record = replace(
+            current,
+            state=ConnectorRecoveryState.RECOVERING,
+            last_exit_reason=_reason(reason_code),
+            last_exit_at=now,
+            next_retry_at=None,
+            updated_at=now,
+        )
         recovering = self._save(
-            replace(
-                current,
-                state=ConnectorRecoveryState.RECOVERING,
-                last_exit_reason=_reason(reason_code),
-                last_exit_at=now,
-                next_retry_at=None,
-                updated_at=now,
-            )
+            recovering_record,
+            events=(
+                self._event(
+                    current=current,
+                    record=recovering_record,
+                    kind=RecoveryHistoryEventKind.RECOVERY_STARTED,
+                    observed_at=now,
+                    reason_code=reason_code,
+                ),
+            ),
         )
         try:
             if cancel_check is None:
@@ -299,27 +462,46 @@ class ConnectorRecoveryCoordinator:
         if not isinstance(outcome, InstanceOrchestrationOutcome):
             return self._failed_attempt(recovering, now, "RECOVERY_RESULT_INVALID")
         if outcome.result_code is InstanceResultCode.START_CANCELLED:
+            cancelled_record = replace(
+                recovering,
+                state=ConnectorRecoveryState.STOPPED,
+                next_retry_at=None,
+                updated_at=now,
+            )
             return self._save(
-                replace(
-                    recovering,
-                    state=ConnectorRecoveryState.STOPPED,
-                    next_retry_at=None,
-                    updated_at=now,
-                )
+                cancelled_record,
+                events=(
+                    self._event(
+                        current=recovering,
+                        record=cancelled_record,
+                        kind=RecoveryHistoryEventKind.RECOVERY_CANCELLED,
+                        observed_at=now,
+                    ),
+                ),
             )
         if outcome.result_code in {
             InstanceResultCode.RUNNING,
             InstanceResultCode.ALREADY_RUNNING,
         }:
+            finished = self._now()
+            ready_record = replace(
+                recovering,
+                state=ConnectorRecoveryState.READY,
+                failure_count=0,
+                failure_window_started_at=None,
+                restart_count=recovering.restart_count + 1,
+                next_retry_at=None,
+                updated_at=finished,
+            )
             return self._save(
-                replace(
-                    recovering,
-                    state=ConnectorRecoveryState.READY,
-                    failure_count=0,
-                    failure_window_started_at=None,
-                    restart_count=recovering.restart_count + 1,
-                    next_retry_at=None,
-                    updated_at=now,
-                )
+                ready_record,
+                events=(
+                    self._event(
+                        current=recovering,
+                        record=ready_record,
+                        kind=RecoveryHistoryEventKind.RECOVERY_READY,
+                        observed_at=finished,
+                    ),
+                ),
             )
         return self._failed_attempt(recovering, now, outcome.result_code.value)

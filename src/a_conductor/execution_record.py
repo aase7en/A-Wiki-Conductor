@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
+import json
 import re
 
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _MAX_SUMMARY_CHARS = 256
 _MAX_TEXT_CHARS = 1024
+
+RECEIPT_IDENTITY_SCHEMA = "execution.receipt.v1"
 
 
 class TransportState(str, Enum):
@@ -79,6 +84,29 @@ def _require_optional_exit_code(value: int | None) -> int | None:
     return value
 
 
+def _require_optional_author_pair(
+    attempt_id: str | None, generation: int | None
+) -> None:
+    """WO-P1-246: the author provenance pair is one atomic semantic unit.
+
+    Both present or both ``None``. When present the attempt id is non-blank
+    single-line bounded opaque text and the generation is exactly 0 or 1.
+    """
+    if attempt_id is None and generation is None:
+        return
+    if attempt_id is None or generation is None:
+        raise ValueError(
+            "author provenance pair must be both present or both None"
+        )
+    _require_text(attempt_id, "author_attempt_id")
+    if (
+        isinstance(generation, bool)
+        or not isinstance(generation, int)
+        or generation not in (0, 1)
+    ):
+        raise ValueError("author_generation must be exactly 0 or 1")
+
+
 @dataclass(frozen=True, slots=True)
 class DurableExecutionRecord:
     execution_id: str
@@ -107,6 +135,8 @@ class DurableExecutionRecord:
     started_at: str | None = None
     finished_at: str | None = None
     version: int = 1
+    author_attempt_id: str | None = None
+    author_generation: int | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.execution_id, "execution_id")
@@ -144,6 +174,7 @@ class DurableExecutionRecord:
         _require_optional_text(self.started_at, "started_at")
         _require_optional_text(self.finished_at, "finished_at")
         _require_positive_int(self.version, "version")
+        _require_optional_author_pair(self.author_attempt_id, self.author_generation)
 
 
 def new_execution_record(
@@ -173,6 +204,8 @@ def new_execution_record(
     exit_code: int | None = None,
     started_at: str | None = None,
     finished_at: str | None = None,
+    author_attempt_id: str | None = None,
+    author_generation: int | None = None,
 ) -> DurableExecutionRecord:
     return DurableExecutionRecord(
         execution_id=execution_id,
@@ -200,5 +233,121 @@ def new_execution_record(
         exit_code=exit_code,
         started_at=started_at,
         finished_at=finished_at,
+        author_attempt_id=author_attempt_id,
+        author_generation=author_generation,
         version=1,
+    )
+
+
+class ReceiptDisposition(str, Enum):
+    ACCEPTED = "ACCEPTED"
+    QUARANTINED = "QUARANTINED"
+
+
+def _require_sha256(value: object, field_name: str) -> str:
+    if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
+        raise ValueError(f"{field_name} must be lowercase SHA-256 hex")
+    return value
+
+
+def _require_git_sha(value: object, field_name: str) -> str:
+    if not isinstance(value, str) or not _GIT_SHA_RE.fullmatch(value):
+        raise ValueError(f"{field_name} must be a 40-character lowercase Git SHA")
+    return value
+
+
+def compute_receipt_id(
+    *,
+    execution_id: str,
+    attempt_id: str,
+    result_digest: str,
+    binding_digest: str,
+) -> str:
+    """Deterministically derive receipt identity from the contract identity."""
+    _require_text(execution_id, "execution_id")
+    _require_text(attempt_id, "attempt_id")
+    _require_sha256(result_digest, "result_digest")
+    _require_sha256(binding_digest, "binding_digest")
+    payload = {
+        "attempt_id": attempt_id,
+        "binding_digest": binding_digest,
+        "execution_id": execution_id,
+        "result_digest": result_digest,
+        "schema": RECEIPT_IDENTITY_SCHEMA,
+    }
+    raw = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class DurableExecutionReceipt:
+    receipt_id: str
+    execution_id: str
+    attempt_id: str
+    result_digest: str
+    binding_digest: str
+    claim_generation: int
+    authority_sha: str
+    execution_sha: str
+    disposition: ReceiptDisposition
+    evidence_ref: str | None = None
+    recorded_at: str | None = None
+
+    def __post_init__(self) -> None:
+        _require_sha256(self.receipt_id, "receipt_id")
+        _require_text(self.execution_id, "execution_id")
+        _require_text(self.attempt_id, "attempt_id")
+        _require_sha256(self.result_digest, "result_digest")
+        _require_sha256(self.binding_digest, "binding_digest")
+        _require_positive_int(self.claim_generation, "claim_generation")
+        _require_git_sha(self.authority_sha, "authority_sha")
+        _require_git_sha(self.execution_sha, "execution_sha")
+        if not isinstance(self.disposition, ReceiptDisposition):
+            raise ValueError("disposition must be a ReceiptDisposition")
+        _require_optional_text(self.evidence_ref, "evidence_ref")
+        _require_optional_text(self.recorded_at, "recorded_at")
+        expected = compute_receipt_id(
+            execution_id=self.execution_id,
+            attempt_id=self.attempt_id,
+            result_digest=self.result_digest,
+            binding_digest=self.binding_digest,
+        )
+        if self.receipt_id != expected:
+            raise ValueError("receipt_id must match the contract identity")
+
+
+def new_execution_receipt(
+    *,
+    execution_id: str,
+    attempt_id: str,
+    result_digest: str,
+    binding_digest: str,
+    claim_generation: int,
+    authority_sha: str,
+    execution_sha: str,
+    disposition: ReceiptDisposition,
+    evidence_ref: str | None = None,
+) -> DurableExecutionReceipt:
+    return DurableExecutionReceipt(
+        receipt_id=compute_receipt_id(
+            execution_id=execution_id,
+            attempt_id=attempt_id,
+            result_digest=result_digest,
+            binding_digest=binding_digest,
+        ),
+        execution_id=execution_id,
+        attempt_id=attempt_id,
+        result_digest=result_digest,
+        binding_digest=binding_digest,
+        claim_generation=claim_generation,
+        authority_sha=authority_sha,
+        execution_sha=execution_sha,
+        disposition=disposition,
+        evidence_ref=evidence_ref,
+        recorded_at=None,
     )

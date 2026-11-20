@@ -1,0 +1,63 @@
+{
+  "schema_version": "jev-typesafe.questions.v1",
+  "families": {
+    "task_classification": {
+      "type": "choice",
+      "instructions": "Classify the requested repository task by its primary delivery intent.",
+      "criteria": {
+        "bugfix": "Restore existing behavior that is broken, regressed, or producing an incorrect result.",
+        "feature": "Add a new product capability or behavior that did not previously exist.",
+        "docs": "Change documentation, governance, plans, or explanatory text without product behavior mutation.",
+        "review": "Inspect or evaluate an existing candidate and report findings without implementing the change."
+      }
+    },
+    "skill_suggestion": {
+      "type": "choice",
+      "instructions": "Select the one specialized workflow that best matches the requested work.",
+      "criteria": {
+        "repo_semantic": "Navigate repository code semantically: symbols, references, call graph, definitions, or code structure.",
+        "pdf": "Create, edit, transform, or analyze a PDF artifact.",
+        "slides": "Create or edit a slide presentation or PowerPoint artifact.",
+        "spreadsheet": "Create, edit, transform, or analyze a spreadsheet or workbook artifact.",
+        "none": "No specialized workflow above is needed."
+      }
+    },
+    "failure_classification": {
+      "type": "choice",
+      "instructions": "Classify the observed failure by its primary failure class.",
+      "criteria": {
+        "CODE_FAILURE": "Production or implementation code is invalid or behaves incorrectly.",
+        "TEST_FAILURE": "A test assertion, test setup, or test execution reports a failing expected behavior.",
+        "TRANSPORT_FAILURE": "A connection, session, tunnel, or transport path failed without proving the underlying execution failed.",
+        "RATE_LIMITED": "The provider rejected or delayed work because a quota or request/token rate limit was reached.",
+        "AUTH_FAILURE": "Authentication or authorization failed because credentials or permissions are missing, invalid, expired, or denied."
+      }
+    },
+    "review_severity": {
+      "type": "score",
+      "instructions": "Rate the most severe review finding in the supplied state.",
+      "criteria": [
+        "No material defect.",
+        "Minor or P3 hardening, clarity, maintainability, or test-coverage issue.",
+        "Material or P2 defect requiring repair before acceptance.",
+        "Critical P1/P0 safety, authority, security, data-loss, or destructive-operation defect."
+      ]
+    },
+    "evidence_relevance": {
+      "type": "noul",
+      "instructions": "Does the supplied evidence directly support the stated claim?",
+      "criteria": {
+        "true": "The evidence directly demonstrates the claim under the relevant identity, scope, or artifact.",
+        "false": "The evidence is missing, indirect, from the wrong artifact/population, or does not establish the claim."
+      }
+    },
+    "escalation_decision": {
+      "type": "noul",
+      "instructions": "Should this case escalate to stronger reasoning, the integrator, or a human because authority, risk, ambiguity, or evidence remains unresolved?",
+      "criteria": {
+        "true": "The case has unresolved authority, consequential risk, conflicting evidence, or material ambiguity that bounded deterministic handling cannot safely resolve.",
+        "false": "The case has a clear deterministic/local handling path and no unresolved consequential authority or ambiguity."
+      }
+    }
+  }
+}

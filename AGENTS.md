@@ -2,7 +2,13 @@
 
 A-Wiki Conductor is the project/repository name. **A-Sunday Conductor** is the product display name (chosen 2026-08-22; supersedes "A-Conductor" as the public name). The internal Python package remains `a_conductor` and the data folder remains `%LOCALAPPDATA%\A-Conductor\` — do not rename those without an explicit migration decision.
 
+**SundayFamily UI/UX visual direction (operator decision 2026-11-17):** For every **SundayFamily Web/PWA/production-management** UI design, new module, UI review or proposed frontend work, agents MUST consult `docs/design/sunday-family-design-system.md` through the `PROJECT-GRAPH.yaml` `ui_design` node. Use **muted Color E-Ink, warm paper, crisp charcoal ink, hand-drawn manga/halftone accents**, Thai-first bilingual labels and accessible evidence-first statuses; avoid neon/glass and dense texture behind data. This supersedes monochrome-only/dark-web *visual proposals* for SundayFamily. `DESIGN.md` dark/Tk rules remain authoritative for the **existing desktop Tk application** until separately migrated. Neither this design decision nor generated mock screenshots authorize actual UX-2 code changes, bypass the Command Gateway or Work Order/claim/review/CI gates, modify security policies, fabricate runtime status, or retire Tk. See Issues #743/#769 and WO-P1-769; the existing UX-1 seven-domain IA remains the baseline until unresolved navigation/behavior decisions are explicitly accepted.
+
+**SundayFamily AI architecture discovery (accepted requirements via #771 / PR #772, 2026-11-18):** For SundayFamily AI frontend integration, native MCP/API/CLI clients, model/provider routing or configuration, bounded agent workforce, browser companion, installation or production readiness tasks, agents MUST read the task-conditional `sunday_family_architecture` node in `PROJECT-GRAPH.yaml` and its **accepted planning references** (`docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md` and `docs/plans/2026-11-17-sundayfamily-ai-edge-production-requirements.md`). Those documents describe requirements and evaluated gaps, **not proof that features are deployed or that a browser/model can execute**. Reverify current GitHub, Work Orders, claims, runtime, client-specific permissions and security/approval gates before any implementation; do not create parallel control-plane/claim stores, or bypass the Command Gateway. This conditional reference does not change GPT integrator, reviewer, owner, merge or release authority or the accepted Color E-Ink/Tk visual split.
+
 **Important/secret files live in the private Drive layer** `L:\My Drive\A-Wiki-Data` (junction `drive/` from A-Wiki): Tunnel IDs → `secrets/a-conductor-tunnels.md`, connector-deletion zip backups → `backups/a-conductor-instances/` (the app writes there automatically when the folder exists). Read that layer's `AGENTS.md` + `LAYOUT.md` before touching it; never copy secrets into this repo.
+
+**macOS SundayMCP recovery:** if the ChatGPT `SundayMCP Mac` connector is unavailable after a Mac restart, read `docs/runbooks/sundaymcp-mac-restart.md` before trying alternate transports. `npm run device:start` is the separate Desktop Commander remote-device path, not the OpenAI Secure MCP Tunnel runtime used by that connector.
 
 Before any non-trivial work, every ChatGPT session, GPT Work/Codex task, A-Worker, Serena/SunDay Worker session, ZCode/GLM goal, local model, or external coding agent must use the same startup path:
 
@@ -19,6 +25,8 @@ Before any non-trivial work, every ChatGPT session, GPT Work/Codex task, A-Worke
 If a new task has no work order yet, product/source mutation remains blocked. A bounded docs-only governance bootstrap may create the initial work order/claim in a clean isolated scope, after which the full mutation gate must be rerun immediately.
 
 `PROJECT-PLAN.md` and `DESIGN.md` are no longer mandatory large reads for every task. They remain authoritative and become mandatory when the project graph selects architecture/roadmap or UI/UX nodes. This reduces repeated startup cost without weakening continuity or safety.
+
+For bounded agent reads and reusable cross-project context reduction, apply `docs/runbooks/agent-context-economy.md` as a **soft evidence-preserving heuristic**; never skip mandatory Work Order, safety, full-source or verification evidence solely to save tokens.
 
 Default delivery model:
 
@@ -65,9 +73,22 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 - Do not expose or commit secrets/API keys.
 - Do not initialize or publish a GitHub repository without an explicit repository/visibility decision.
 
+## Repo map & developer commands
+
+- Layout: `src/a_conductor/` is a mostly flat module layout (the only subpackage is `graph/`, the DAG engine). Real entrypoints: `a_conductor.desktop_app:main` (Tk GUI) and `a_conductor.web_api:main` (HTTP), both exposed as console scripts; `python -m a_conductor` reaches the GUI. Module families cover supervised execution, worker leases, provider admission, harness adapters (Serena/ZCode/Claude Code), zero-relay, and orchestration. `tests/` is flat `test_*.py` files — no `conftest.py`, no pytest markers, no unit/integration split. `scripts/` holds build/installer/verify tooling plus `diagnose_zcode_config_lock.ps1`. Work orders live in `docs/work-orders/`. `web/sunday-family/` is a React + Vite subapp.
+- Install: `python -m pip install -e .[test]` (Python >=3.11; CI pins 3.11; no lockfile). There is no lint, typecheck, or format tooling in this repo — do not hunt for it or add it silently.
+- Run: `a-conductor` (desktop), `a-conductor-web` (HTTP), or `python -m a_conductor`. Smoke test: `python -m a_conductor --smoke --database <temp path>.sqlite` — always pass `--database`; the default targets the live `%LOCALAPPDATA%\A-Conductor\control-center.sqlite`.
+- Tests: `python -m pytest tests/ -q` (full) or `python -m pytest tests/test_<name>.py -q` (per file — the repo convention, matching CI). Tests are self-contained: plain `monkeypatch` + `tmp_path`, `LOCALAPPDATA` redirected, no live data touched; Tk/GUI tests skip headless-safe; supervised-process tests are Windows-only; a few tests opt in only when an installed CLI is present.
+- CI (`.github/workflows/ci.yml`) deliberately runs one pytest process per file: subprocess-heavy tests sharing a single long-lived process trigger 0x80000003 faulthandler/GC noise on hosted Windows runners. If a full local run dies oddly, mirror CI's per-file loop before diagnosing a real defect.
+- Headless/hosted Windows: set `A_CONDUCTOR_GPU_PARTICLES=0` (WGL access-violates under ModernGL).
+- Known Windows-machine quirks: bare `python` can resolve to an instrumented venv that breaks env-sensitive tests — use a clean interpreter (e.g. `py -3.13`) for local pytest runs. PowerShell also mangles inline quoting in `gh --jq` / `python -c`; prefer `--json` piped through `Out-String` or a temp script file.
+- Build: `python -m pip install pyinstaller==6.22.2` (exact pin), then `python scripts/build_portable.py` and `python scripts/build_installer.py`; verify frozen artifacts with `python scripts/verify_frozen_installer_e2e.py`.
+- Web subapp: root `npm run web:dev` / `npm run web:build` delegate to `web/sunday-family`; run its tests with `npm --prefix web/sunday-family run test`.
+
 ## Development discipline
 
 - Binding delivery policy: `docs/agent-collab/FAST_EXECUTION_PROTOCOL.md`. Classify work R0/R1/R2/R3 and use the shortest assurance loop that truthfully matches blast radius; repository/ownership/secret/destructive-operation gates never weaken.
+- Delivery gate sequence: exact reviewed head -> CI run ID on that exact head -> merge the expected head only -> post-main CI run ID -> checkpoint recorded on the driving issue.
 - Current P0 delivery accelerator: `docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md` / `WO-P1-155`. Until ZRA-4 bounded-parallel acceptance is complete, prefer eliminating human GPT↔external-agent relay before starting broad ODP feature lanes that are not required by the zero-relay path. ODP reconciliation/readiness may still proceed in parallel when it does not consume a required mutable lane or violate ownership/dependency gates.
 - Every multi-step implementation chunk must have a work order.
 - Keep tasks bounded and resumable.
@@ -82,3 +103,7 @@ A local worktree alone is never sufficient evidence that equivalent work does no
 - **Worker** is runtime-neutral; Serena is the first runtime implementation, not the definition of Worker.
 - **A-Wiki** — brain, policies, reusable protocols, memory/knowledge.
 - **Serena** — semantic coding/tooling engine and execution hand, not the whole orchestrator.
+
+## Shared prompt placement protocol
+
+When handing a prompt/instruction to the user for another AI agent, session, Goal, CLI, or UI surface, follow the canonical A-Wiki protocol at `aase7en/A-Wiki:docs/protocols/prompt-placement-protocol.md`. Before the prompt, state exact `PLACEMENT`, `MODE`, `PURPOSE`, whether it replaces/appends/interrupts/queues, and `WHEN TO SEND`. This placement contract changes no A-Sunday Conductor task/claim/routing/review/acceptance authority.

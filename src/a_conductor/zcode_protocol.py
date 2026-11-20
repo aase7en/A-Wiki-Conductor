@@ -44,6 +44,155 @@ class ZCodeProtocolTransport(Protocol):
     def alive(self) -> bool: ...
 
 
+_RUNTIME_MODEL_REVISION_RE = re.compile(r"^zcode-runtime-v1:[0-9a-f]{64}$")
+_RUNTIME_ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_RUNTIME_MODEL_MAX_JSON_BYTES = 8192
+
+
+@dataclass(frozen=True, slots=True)
+class ZCodeRuntimeModel:
+    """Narrow, non-secret projection of Conductor provider authority.
+
+    This is intentionally not a second provider configuration model. It is the
+    minimum create-time ZCode 0.16.5 runtime projection needed to bind the
+    actual app-server turn to the already-authorized Conductor provider/model/
+    endpoint. Only the currently-proven Anthropic Messages shape is accepted;
+    unsupported protocol families must fail closed in production assembly.
+    """
+
+    revision: str
+    provider_id: str
+    model_id: str
+    base_url: str
+    api_key_env: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.revision, str) or not _RUNTIME_MODEL_REVISION_RE.fullmatch(self.revision):
+            raise ValueError("runtime model revision is invalid")
+        for field_name in ("provider_id", "model_id"):
+            value = getattr(self, field_name)
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or value != value.strip()
+                or len(value) > 128
+                or "\x00" in value
+            ):
+                raise ValueError(f"{field_name} is invalid")
+        if not isinstance(self.base_url, str) or not self.base_url.strip() or self.base_url != self.base_url.strip():
+            raise ValueError("base_url is invalid")
+        from urllib.parse import urlsplit
+        try:
+            parsed = urlsplit(self.base_url)
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError("base_url is invalid") from exc
+        if parsed.scheme.lower() not in {"http", "https"} or parsed.hostname is None:
+            raise ValueError("base_url is invalid")
+        if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
+            raise ValueError("base_url is invalid")
+        if parsed.scheme.lower() == "http":
+            host = parsed.hostname.casefold()
+            loopback = host == "localhost"
+            if not loopback:
+                try:
+                    import ipaddress
+                    loopback = ipaddress.ip_address(host).is_loopback
+                except ValueError:
+                    loopback = False
+            if not loopback:
+                raise ValueError("external runtime model endpoints require HTTPS")
+        if not isinstance(self.api_key_env, str) or not _RUNTIME_ENV_RE.fullmatch(self.api_key_env):
+            raise ValueError("api_key_env is invalid")
+
+    @property
+    def model_ref(self) -> dict[str, str]:
+        return {"providerId": self.provider_id, "modelId": self.model_id}
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "revision": self.revision,
+            "generatedAt": 0,
+            "model": self.model_ref,
+            "provider": {
+                "providerId": self.provider_id,
+                "kind": "anthropic",
+                "apiFormat": "anthropic-messages",
+                "source": "ephemeral",
+                "baseURL": self.base_url,
+                "apiKey": {"source": "env", "name": self.api_key_env},
+                "apiKeyRequired": True,
+                "models": [{"modelId": self.model_id}],
+            },
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(self.as_dict(), sort_keys=True, separators=(",", ":"))
+
+    @classmethod
+    def from_json(cls, text: str) -> "ZCodeRuntimeModel":
+        if (
+            not isinstance(text, str)
+            or not text
+            or "\x00" in text
+            or len(text.encode("utf-8")) > _RUNTIME_MODEL_MAX_JSON_BYTES
+        ):
+            raise ValueError("runtime model metadata is invalid")
+        def _unique_object(pairs):
+            obj = {}
+            for key, value in pairs:
+                if key in obj:
+                    raise ValueError("duplicate runtime model metadata key")
+                obj[key] = value
+            return obj
+
+        try:
+            doc = json.loads(text, object_pairs_hook=_unique_object)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ValueError("runtime model metadata is invalid") from exc
+        if not isinstance(doc, dict) or set(doc) != {"revision", "generatedAt", "model", "provider"}:
+            raise ValueError("runtime model metadata is invalid")
+        if doc.get("generatedAt") != 0:
+            raise ValueError("runtime model metadata is invalid")
+        model = doc.get("model")
+        provider = doc.get("provider")
+        if not isinstance(model, dict) or set(model) != {"providerId", "modelId"}:
+            raise ValueError("runtime model metadata is invalid")
+        if not isinstance(provider, dict) or set(provider) != {
+            "providerId", "kind", "apiFormat", "source", "baseURL",
+            "apiKey", "apiKeyRequired", "models",
+        }:
+            raise ValueError("runtime model metadata is invalid")
+        api_key = provider.get("apiKey")
+        models = provider.get("models")
+        base_url = provider.get("baseURL")
+        if (
+            provider.get("providerId") != model.get("providerId")
+            or provider.get("kind") != "anthropic"
+            or provider.get("apiFormat") != "anthropic-messages"
+            or provider.get("source") != "ephemeral"
+            or provider.get("apiKeyRequired") is not True
+            or not isinstance(base_url, str)
+            or not isinstance(api_key, dict)
+            or set(api_key) != {"source", "name"}
+            or api_key.get("source") != "env"
+            or not isinstance(api_key.get("name"), str)
+            or not isinstance(models, list)
+            or len(models) != 1
+            or not isinstance(models[0], dict)
+            or set(models[0]) != {"modelId"}
+            or models[0].get("modelId") != model.get("modelId")
+        ):
+            raise ValueError("runtime model metadata is invalid")
+        return cls(
+            revision=doc["revision"],
+            provider_id=model["providerId"],
+            model_id=model["modelId"],
+            base_url=base_url,
+            api_key_env=api_key["name"],
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class ZCodeProtocolTurn:
     response_text: str
@@ -97,6 +246,7 @@ class ZCodeProtocolDriver:
         workspace: str,
         mode: str = "plan",
         thought_level: str | None = None,
+        runtime_model: ZCodeRuntimeModel | None = None,
         deadline_seconds: float = 300.0,
     ) -> ZCodeProtocolTurn:
         if not isinstance(prompt, str) or not prompt.strip():
@@ -105,6 +255,8 @@ class ZCodeProtocolDriver:
             raise ValueError("mode is invalid")
         if thought_level not in (None, "min", "low", "medium", "high", "max"):
             raise ValueError("thought_level is invalid")
+        if runtime_model is not None and not isinstance(runtime_model, ZCodeRuntimeModel):
+            raise ValueError("runtime_model must be a ZCodeRuntimeModel or None")
         if deadline_seconds <= 0:
             raise ValueError("deadline is invalid")
 
@@ -117,13 +269,20 @@ class ZCodeProtocolDriver:
         import time as _time
 
         deadline = _time.monotonic() + deadline_seconds
+        create_params: dict[str, object] = {
+            "workspace": {"workspacePath": workspace, "workspaceKey": workspace},
+            "mode": mode,
+        }
+        if runtime_model is not None:
+            # The full ephemeral provider definition removes ambient ZCode
+            # provider/default-model authority. The API-key VALUE is absent:
+            # ZCode resolves only the accepted env-var name in the child.
+            create_params["runtimeModel"] = runtime_model.as_dict()
+            create_params["model"] = runtime_model.model_ref
         self._send({
             "id": 1,
             "method": "session/create",
-            "params": {
-                "workspace": {"workspacePath": workspace, "workspaceKey": workspace},
-                "mode": mode,
-            },
+            "params": create_params,
         })
         while True:
             if _time.monotonic() >= deadline:
@@ -157,6 +316,17 @@ class ZCodeProtocolDriver:
                 session = result.get("session") if isinstance(result, dict) else None
                 if not (isinstance(session, dict) and isinstance(session.get("sessionId"), str)):
                     raise ZCodeProtocolError("SESSION_CREATE_FAILED")
+                if runtime_model is not None:
+                    settings = result.get("settings") if isinstance(result, dict) else None
+                    model_settings = settings.get("model") if isinstance(settings, dict) else None
+                    current_model = model_settings.get("current") if isinstance(model_settings, dict) else None
+                    if not isinstance(current_model, dict):
+                        raise ZCodeProtocolError("SESSION_MODEL_ATTESTATION_MISSING")
+                    if (
+                        current_model.get("providerId") != runtime_model.provider_id
+                        or current_model.get("modelId") != runtime_model.model_id
+                    ):
+                        raise ZCodeProtocolError("SESSION_MODEL_MISMATCH")
                 session_id = session["sessionId"]
                 self._send({
                     "id": 2,

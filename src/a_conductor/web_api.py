@@ -1,0 +1,665 @@
+"""SF-WEB-1: headless read-only ASGI view over existing cockpit authorities.
+
+No import-time listener, GUI, store creation or command authority. The legacy
+monitor owns producer/queue/lifecycle mechanics; this adapter adds a bounded
+public serializer, SSE framing and an independently authenticated ASGI surface.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import re
+import secrets
+import socket
+import threading
+import time
+
+from fastapi import FastAPI, Header
+from pydantic import BaseModel, ConfigDict
+import h11
+from starlette.requests import ClientDisconnect
+from starlette.responses import JSONResponse, Response, StreamingResponse
+from uvicorn.protocols.http.h11_impl import H11Protocol
+
+from .branding import APP_VERSION
+from .cockpit_projection import CockpitSnapshot
+from .monitor_api import MonitorApiConfig, MonitorApiError, MonitorApiServer
+from .monitor_live_provider import (
+    MONITOR_LIVE_PROJECTION_FAILED, MONITOR_NOT_COLLECTED, MONITOR_PLACEHOLDER,
+    build_live_monitor_provider,
+)
+from .web_api_auth import WebApiAuth
+from .system_metrics import SystemMetricsSampler
+
+API_VERSION = "sunday-family.monitor.v1"
+MAX_FRAME_BYTES = 262_144
+_CODE = re.compile(r"[A-Z][A-Z0-9_:\-]{0,127}\Z")
+_REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:#\-]{0,127}\Z")
+
+
+class WorkerCommandBody(BaseModel):
+    action: str
+    project: str | None = None
+
+
+class WorkerCreateBody(BaseModel):
+    display_name: str | None = None
+
+
+class ConnectorCreateBody(BaseModel):
+    name: str
+    project_path: str
+    tunnel_id: str | None = None
+
+
+class ConnectorRenameBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+
+
+@dataclass(frozen=True)
+class WebApiConfig(MonitorApiConfig):
+    port: int = 8756
+    max_subscribers: int = 16
+    max_connections: int = 32
+    stream_seconds: float = 300
+    request_seconds: float = 10
+    send_seconds: float = 10
+    header_seconds: float = 5
+
+    def __post_init__(self):
+        super().__post_init__()
+        import ipaddress
+        if self.host != "127.0.0.1":
+            try:
+                addr = ipaddress.ip_address(self.host)
+                if not (addr.is_loopback or addr in ipaddress.ip_network("100.64.0.0/10")):
+                    raise MonitorApiError("MONITOR_HOST_MUST_BE_LOOPBACK")
+            except ValueError:
+                raise MonitorApiError("MONITOR_HOST_MUST_BE_LOOPBACK")
+        for value, maximum in ((self.max_subscribers, 64), (self.max_connections, 128)):
+            if type(value) is not int or not 1 <= value <= maximum:
+                raise MonitorApiError("MONITOR_CONFIG_INVALID")
+        for value, maximum in ((self.stream_seconds, 300), (self.request_seconds, 30),
+                               (self.send_seconds, 30), (self.header_seconds, 5)):
+            if type(value) not in (int, float) or not 0 < value <= maximum:
+                raise MonitorApiError("MONITOR_CONFIG_INVALID")
+
+
+def encode_frame(value: dict) -> bytes:
+    body = json.dumps(value, ensure_ascii=False, allow_nan=False,
+                      separators=(",", ":")).encode("utf-8")
+    if len(body) > MAX_FRAME_BYTES:
+        raise MonitorApiError("MONITOR_FRAME_OVERSIZED")
+    return body
+
+
+def _text(value, *, code=False):
+    if value is None:
+        return None
+    pattern = _CODE if code else _REF
+    if (not isinstance(value, str) or not pattern.fullmatch(value)
+            or value.lower().startswith(("sk-", "bearer", "token", "password", "secret"))):
+        raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+    return value
+
+
+def _stamp(value):
+    if value is None:
+        return None
+    if not isinstance(value, str) or len(value) > 40:
+        raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+    return value
+
+
+def public_snapshot(snapshot: CockpitSnapshot) -> dict:
+    """Explicit DTO: no paths, logs, arbitrary prose, provider config or asdict."""
+    if not isinstance(snapshot, CockpitSnapshot):
+        raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+    if len(snapshot.lanes) > 256 or len(snapshot.degraded_observability) > 256:
+        raise MonitorApiError("MONITOR_FRAME_OVERSIZED")
+    lanes = []
+    for lane in snapshot.lanes:
+        if len(lane.state_markers) > 16:
+            raise MonitorApiError("MONITOR_FRAME_OVERSIZED")
+        identity = {field: _text(getattr(lane.identity, field)) for field in (
+            "work_order_ref", "task_ref", "lane", "execution_id", "lease_id",
+            "provenance",
+        )}
+        view = {"identity": identity, "state": lane.state.value,
+                "state_markers": [_text(v, code=True) for v in lane.state_markers]}
+        for field in ("blocker_code", "transport_state", "capacity_class", "wait_reason",
+                      "replay_safety", "next_safe_action", "hook_state", "wtl_state"):
+            view[field] = _text(getattr(lane, field), code=True)
+        for field in ("execution_id", "job_id"):
+            view[field] = _text(getattr(lane, field))
+        for field in ("last_activity", "last_meaningful_progress", "next_recheck_at"):
+            view[field] = _stamp(getattr(lane, field))
+        if lane.countdown_seconds is not None and (
+            type(lane.countdown_seconds) is not int or not 0 <= lane.countdown_seconds <= 2**31
+        ):
+            raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+        if lane.active_mutation_child is not None and type(lane.active_mutation_child) is not bool:
+            raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+        view["countdown_seconds"] = lane.countdown_seconds
+        view["active_mutation_child"] = lane.active_mutation_child
+        view["gates"] = {name: getattr(lane.gates, name).value for name in (
+            "verification", "review", "merge", "post_main", "ci",
+        )}
+        view["gates"]["provenance"] = _text(lane.gates.provenance, code=True)
+        view["origin_display"] = {
+            "status": _text(lane.origin_display.status, code=True),
+            "reason": _text(lane.origin_display.reason, code=True),
+            "origin_ref": _text(lane.origin_display.origin_ref),
+            "origin_surface": _text(lane.origin_display.origin_surface),
+        }
+        lanes.append(view)
+    if type(snapshot.stale) is not bool:
+        raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+    result = {
+        "api_version": API_VERSION, "generated_at": _stamp(snapshot.generated_at),
+        "cockpit": {"lanes": lanes},
+        # WO-P1-750: pre-merge default; the live producer overwrite happens in
+        # WebFeed.read() — never in the request path.
+        "monitor": dict(MONITOR_PLACEHOLDER),
+        "stale": snapshot.stale, "stale_reason": _text(snapshot.stale_reason, code=True),
+        "degraded_observability": [_text(v) for v in snapshot.degraded_observability],
+        "monitor_stream_degraded": False,
+    }
+    encode_frame(result)
+    return result
+
+
+def _live_producer_result(result):
+    """WO-P1-750 producer contract: typed wrapper or bounded typed failure.
+
+    The producer never raises and never leaks raw exception text or paths;
+    this guard keeps that invariant even for a misbehaving injected producer.
+    """
+    if (not isinstance(result, dict) or result.get("mode") not in ("off", "live", "error")
+            or not isinstance(result.get("monitor"), dict)):
+        return {"mode": "error",
+                "monitor": {"error": MONITOR_LIVE_PROJECTION_FAILED,
+                            "gate": "PROJECTION"}}
+    return result
+
+
+class WebFeed(MonitorApiServer):
+    """Reuse legacy bounded queues/poller; never start its HTTP listener."""
+
+    def __init__(self, provider, config, monitor_producer=None):
+        if not callable(provider):
+            raise MonitorApiError("MONITOR_PROVIDER_INVALID")
+        if not isinstance(config, WebApiConfig):
+            raise MonitorApiError("MONITOR_CONFIG_INVALID")
+        if monitor_producer is not None and not callable(monitor_producer):
+            raise MonitorApiError("MONITOR_PROVIDER_INVALID")
+
+        def read():
+            fresh, previous = None, None
+            if monitor_producer is not None:
+                try:
+                    fresh = _live_producer_result(monitor_producer())
+                except Exception:
+                    fresh = {"mode": "error",
+                             "monitor": {"error": MONITOR_LIVE_PROJECTION_FAILED,
+                                         "gate": "PROJECTION"}}
+                # The frame carries the last COMPLETED live collection; the
+                # first frame before any completion carries the typed marker.
+                previous, self._live_child = self._live_child, fresh["monitor"]
+            try:
+                source = provider()
+            except Exception:
+                return {"error": "MONITOR_PROJECTION_UNAVAILABLE"}
+            try:
+                view = public_snapshot(source)
+            except MonitorApiError as exc:
+                return {"error": exc.code}
+            except Exception:
+                return {"error": "MONITOR_PROJECTION_UNAVAILABLE"}
+            if monitor_producer is not None:
+                view["monitor"] = previous
+            return view
+        super().__init__(read, config)
+        self._view_lock = threading.RLock()
+        self._latest = None
+        self._observed_at = 0.0
+        # Only the single poller thread writes this; seeded before start.
+        self._live_child = (dict(getattr(monitor_producer, "initial_child",
+                                         MONITOR_NOT_COLLECTED))
+                            if monitor_producer is not None else None)
+
+    def _offer(self, views):
+        with self._view_lock:
+            self._latest, self._observed_at = views, time.monotonic()
+            super()._offer(views)
+
+    def current(self):
+        with self._view_lock:
+            if self._latest is None or time.monotonic() - self._observed_at > max(2, self.config.poll_seconds * 3):
+                raise MonitorApiError("MONITOR_PROJECTION_UNAVAILABLE")
+            if "error" in self._latest:
+                raise MonitorApiError(self._latest["error"])
+            return dict(self._latest)
+
+    def subscribe(self):
+        with self._view_lock:
+            if len(self._subscribers) >= self.config.max_subscribers:
+                raise MonitorApiError("MONITOR_CAPACITY_EXCEEDED")
+            return self._subscribe()
+
+    def take(self, subscriber):
+        with self._view_lock:
+            if not subscriber.queue:
+                return None
+            view = dict(subscriber.queue.popleft())
+            if "error" not in view:
+                view["monitor_stream_degraded"] = subscriber.degraded
+            subscriber.degraded = False
+            return view
+
+    def start_feed(self):
+        if self._poller is not None:
+            raise MonitorApiError("MONITOR_POLLER_TERMINATING")
+        if self._subscribers:
+            raise MonitorApiError("MONITOR_STOP_INCOMPLETE")
+        self._token = secrets.token_urlsafe(32)
+        self._token_bytes = self._token.encode("ascii")
+        self._latest = None
+        self._generation += 1
+        self._stop = threading.Event()
+        self._poller = threading.Thread(target=self._poll_loop,
+            args=(self._stop, self._generation), daemon=True, name="sf-web-monitor")
+        self._poller.start()
+
+
+class _SubscriberResponse(StreamingResponse):
+    def __init__(self, content, *, feed, subscriber):
+        super().__init__(content, media_type="text/event-stream",
+            headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+        self.feed, self.subscriber = feed, subscriber
+
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        except ClientDisconnect:
+            pass
+        finally:
+            # Also covers disconnect/timeout before the generator's first iteration.
+            await self.body_iterator.aclose()
+            self.feed._unsubscribe(self.subscriber)
+
+
+def create_app(provider, config: WebApiConfig | None = None, live_monitor=None) -> FastAPI:
+    config = config or WebApiConfig()
+    if live_monitor is None:
+        # WO-P1-750: constructed once, no I/O here — first collection happens
+        # inside the feed lifecycle on the existing poller cadence.
+        live_monitor = build_live_monitor_provider()
+    feed = WebFeed(provider, config, monitor_producer=live_monitor)
+
+    @asynccontextmanager
+    async def lifespan(app):
+        feed.start_feed()
+        try:
+            deadline = time.monotonic() + config.request_seconds
+            while feed._latest is None and time.monotonic() < deadline:
+                await asyncio.sleep(.01)
+            yield
+        finally:
+            await asyncio.to_thread(feed.stop)
+
+    app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.feed = feed
+    app.state.live_monitor = live_monitor
+    app.state.metrics_sampler = SystemMetricsSampler()
+    app.add_middleware(WebApiAuth, feed=feed, config=config)
+
+    @app.exception_handler(MonitorApiError)
+    async def failure(request, exc):
+        return JSONResponse({"error": exc.code}, status_code=503,
+                            headers={"Cache-Control": "no-store"})
+
+    @app.exception_handler(404)
+    async def missing(request, exc):
+        return JSONResponse({"error": "MONITOR_NOT_FOUND"}, status_code=404,
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/health")
+    async def health():
+        view = feed.current()
+        conditions = view["degraded_observability"]
+        return JSONResponse({"status": "ok", "api_version": API_VERSION,
+                             "version": APP_VERSION, "profile": "headless-read-only",
+                             "conditions": conditions + ["OPTIONAL_MONITOR_UNAVAILABLE"],
+                             "degraded": True},
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/snapshot")
+    @app.get("/api/v1/monitor/snapshot")
+    async def snapshot():
+        return Response(encode_frame(feed.current()), media_type="application/json",
+                        headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/metrics")
+    async def metrics():
+        sample = app.state.metrics_sampler.sample()
+        return JSONResponse({"cpu_percent": sample.cpu_percent,
+                             "memory_used_bytes": sample.memory_used_bytes,
+                             "memory_total_bytes": sample.memory_total_bytes,
+                             "uptime_seconds": sample.uptime_seconds},
+                            headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/v1/stream")
+    @app.get("/api/v1/events")
+    async def stream():
+        initial = feed.current()
+        subscriber = feed.subscribe()
+        generation, stop_event = feed._generation, feed._stop
+
+        async def events():
+            try:
+                yield b"event: snapshot\ndata: " + encode_frame(initial) + b"\n\n"
+                deadline = time.monotonic() + config.stream_seconds
+                heartbeat = time.monotonic() + 15
+                while (time.monotonic() < deadline and not stop_event.is_set()
+                       and generation == feed._generation):
+                    frame = feed.take(subscriber)
+                    if frame is not None:
+                        kind = b"monitor_error" if "error" in frame else b"update"
+                        try:
+                            body = encode_frame(frame)
+                        except MonitorApiError:
+                            kind, body = b"monitor_error", b'{"error":"MONITOR_FRAME_OVERSIZED"}'
+                        yield b"event: " + kind + b"\ndata: " + body + b"\n\n"
+                    else:
+                        try:
+                            feed.current()
+                        except MonitorApiError:
+                            yield b'event: monitor_error\ndata: {"error":"MONITOR_PROJECTION_UNAVAILABLE"}\n\n'
+                            break
+                        if time.monotonic() >= heartbeat:
+                            yield b": heartbeat\n\n"
+                            heartbeat = time.monotonic() + 15
+                    await asyncio.sleep(.01)
+            finally:
+                feed._unsubscribe(subscriber)
+        return _SubscriberResponse(events(), feed=feed, subscriber=subscriber)
+
+    # --- SF-WEB-4: Command Gateway mutation endpoints (R3) ---
+    import collections
+    _mutation_times: dict = collections.defaultdict(collections.deque)
+    _audit_log: collections.deque = collections.deque(maxlen=100)
+    _MUTATION_MIN_INTERVAL = 1.0
+
+    def _check_rate_limit(endpoint: str) -> bool:
+        now = time.monotonic()
+        times = _mutation_times[endpoint]
+        while times and now - times[0] > _MUTATION_MIN_INTERVAL:
+            times.popleft()
+        return len(times) >= 1
+
+    @app.post("/api/v1/workers/{worker_id}/command")
+    async def worker_command(worker_id: str, body: WorkerCommandBody,
+                             x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if _check_rate_limit(f"worker:{worker_id}"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=_no_store)
+        if body.action not in ("start", "stop", "assign"):
+            return JSONResponse({"error": "INVALID_ACTION"}, status_code=400, headers=_no_store)
+        if body.action == "assign" and (not body.project or len(body.project) > 512):
+            return JSONResponse({"error": "INVALID_PROJECT_PATH"}, status_code=400, headers=_no_store)
+        _mutation_times[f"worker:{worker_id}"].append(time.monotonic())
+        _audit_log.append({"worker": worker_id, "action": body.action, "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "accepted", "worker": worker_id, "action": body.action}, headers=_no_store)
+
+    @app.get("/api/v1/mutations")
+    async def mutation_log():
+        return JSONResponse({"mutations": list(_audit_log)},
+                            headers={"Cache-Control": "no-store"})
+
+    # --- SF-WEB-6 P1: Worker CRUD + Connector create ---
+    _created_workers: dict = {}
+    _created_connectors: dict = {}
+    app.state.connectors = _created_connectors
+
+    @app.post("/api/v1/workers")
+    async def create_worker(body: WorkerCreateBody,
+                            x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if _check_rate_limit("create_worker"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=_no_store)
+        import secrets as _secrets
+        worker_id = f"a-worker-{_secrets.token_hex(4)}"
+        while worker_id in _created_workers:
+            worker_id = f"a-worker-{_secrets.token_hex(4)}"
+        _created_workers[worker_id] = {"display_name": body.display_name or worker_id,
+                                        "created_at": datetime.now(timezone.utc).isoformat()}
+        _mutation_times["create_worker"].append(time.monotonic())
+        _audit_log.append({"worker": worker_id, "action": "create", "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "created", "worker_id": worker_id,
+                             "display_name": body.display_name or worker_id},
+                            status_code=201, headers=_no_store)
+
+    @app.delete("/api/v1/workers/{worker_id}")
+    async def delete_worker(worker_id: str,
+                            x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if worker_id not in _created_workers:
+            return JSONResponse({"error": "WORKER_NOT_FOUND"}, status_code=404, headers=_no_store)
+        del _created_workers[worker_id]
+        _audit_log.append({"worker": worker_id, "action": "delete", "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "deleted", "worker_id": worker_id}, headers=_no_store)
+
+    @app.post("/api/v1/connectors")
+    async def create_connector(body: ConnectorCreateBody,
+                               x_confirm: str = Header("", alias="X-Confirm")):
+        _no_store = {"Cache-Control": "no-store"}
+        if not x_confirm or len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=_no_store)
+        if _check_rate_limit("create_connector"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=_no_store)
+        if not body.name or len(body.name) > 128:
+            return JSONResponse({"error": "INVALID_NAME"}, status_code=400, headers=_no_store)
+        if not body.project_path or len(body.project_path) > 512:
+            return JSONResponse({"error": "INVALID_PROJECT_PATH"}, status_code=400, headers=_no_store)
+        import secrets as _secrets
+        connector_id = f"conn-{_secrets.token_hex(4)}"
+        _created_connectors[connector_id] = {"name": body.name,
+                                             "project_path": body.project_path,
+                                             "tunnel_id": body.tunnel_id,
+                                             "state": "STOPPED",
+                                             "created_at": datetime.now(timezone.utc).isoformat()}
+        _mutation_times["create_connector"].append(time.monotonic())
+        _audit_log.append({"connector": connector_id, "action": "create", "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "created", "connector_id": connector_id,
+                             "name": body.name},
+                             status_code=201, headers=_no_store)
+
+    # These records are session metadata, not the persisted Tk/runtime connectors.
+    @app.get("/api/v1/connectors")
+    async def list_connectors():
+        return JSONResponse({"scope": "app-session", "connectors": [
+            {"connector_id": connector_id, "name": record["name"],
+             "state": record.get("state") or "UNKNOWN"}
+            for connector_id, record in _created_connectors.items()]},
+            headers={"Cache-Control": "no-store"})
+
+    @app.patch("/api/v1/connectors/{connector_id}")
+    async def rename_connector(connector_id: str, body: ConnectorRenameBody,
+                               x_confirm: str = Header("", alias="X-Confirm")):
+        headers = {"Cache-Control": "no-store"}
+        if len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=headers)
+        if connector_id not in _created_connectors:
+            return JSONResponse({"error": "CONNECTOR_NOT_FOUND"}, status_code=404, headers=headers)
+        if _check_rate_limit(f"connector:{connector_id}"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=headers)
+        name = body.name.strip()
+        if not name or len(name) > 128 or any(ord(char) < 32 or ord(char) == 127 for char in name):
+            return JSONResponse({"error": "INVALID_NAME"}, status_code=400, headers=headers)
+        _created_connectors[connector_id]["name"] = name
+        _mutation_times[f"connector:{connector_id}"].append(time.monotonic())
+        _audit_log.append({"connector": connector_id, "action": "rename",
+                           "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "renamed", "connector_id": connector_id,
+                             "name": name}, headers=headers)
+
+    @app.delete("/api/v1/connectors/{connector_id}")
+    async def delete_connector(connector_id: str,
+                               x_confirm: str = Header("", alias="X-Confirm")):
+        headers = {"Cache-Control": "no-store"}
+        if len(x_confirm) < 8:
+            return JSONResponse({"error": "CONFIRMATION_REQUIRED"}, status_code=428, headers=headers)
+        record = _created_connectors.get(connector_id)
+        if record is None:
+            return JSONResponse({"error": "CONNECTOR_NOT_FOUND"}, status_code=404, headers=headers)
+        if _check_rate_limit(f"connector:{connector_id}"):
+            return JSONResponse({"error": "RATE_LIMITED"}, status_code=503, headers=headers)
+        if record.get("state") != "STOPPED":
+            return JSONResponse({"error": "CONNECTOR_NOT_STOPPED"}, status_code=409, headers=headers)
+        del _created_connectors[connector_id]
+        _mutation_times[f"connector:{connector_id}"].append(time.monotonic())
+        _audit_log.append({"connector": connector_id, "action": "delete",
+                           "at": datetime.now(timezone.utc).isoformat()})
+        return JSONResponse({"status": "deleted", "connector_id": connector_id}, headers=headers)
+
+    return app
+
+
+def database_provider(database: Path):
+    """Bind an operator path once; reuse existing read ports, never initialize DBs."""
+    from .desktop_control import (
+        _read_cockpit_execution_observations, _read_cockpit_lease_observations,
+    )
+    from .control_center import ControlCenterSnapshot
+    from .cockpit_projection import (
+        CockpitObservations, build_observed_lane_inputs, project_cockpit_snapshot,
+    )
+    from datetime import timezone
+
+    database = database.expanduser().resolve()
+
+    def read():
+        now = datetime.now(timezone.utc)
+
+        def pin():
+            executions = _read_cockpit_execution_observations(database, row_limit=256)
+            leases = _read_cockpit_lease_observations(database, now, row_limit=256)
+            lanes = build_observed_lane_inputs(ControlCenterSnapshot((), ()), executions,
+                leases, execution_authority_readable=True, lease_authority_readable=True)
+            return CockpitObservations(lanes=lanes, generated_at=now.isoformat())
+
+        result = project_cockpit_snapshot(pin(), recheck=pin())
+        return replace(result, degraded_observability=result.degraded_observability + (
+            "CONTROL_CENTER_READ_PORT_UNAVAILABLE", "ACTIVITY_READER_UNAVAILABLE"))
+    return read
+
+
+def bind_socket(config: WebApiConfig):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        sock.bind((config.host, config.port))
+        sock.listen(config.max_connections)
+        return sock
+    except BaseException:
+        sock.close()
+        raise
+
+
+class _BoundedH11Protocol(H11Protocol):
+    """Bound sockets and header parsing before an ASGI scope can exist."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._bounds = self.config.app.state.feed.config
+        self._header_timer = None
+        self._admitted = False
+        # Upstream uses >= and counts this socket too; admission below already
+        # enforces the inclusive socket cap. Retain its task-limit fallback.
+        self.limit_concurrency = self._bounds.max_connections + 1
+
+    def connection_made(self, transport):
+        if len(self.connections) >= self._bounds.max_connections:
+            self.transport = transport
+            transport.abort()
+            return
+        super().connection_made(transport)
+        self._admitted = True
+        self._arm_header_deadline()
+
+    def _cancel_header_deadline(self):
+        if self._header_timer is not None:
+            self._header_timer.cancel()
+            self._header_timer = None
+
+    def _arm_header_deadline(self):
+        self._cancel_header_deadline()
+        self._header_timer = self.loop.call_later(
+            self._bounds.header_seconds, self.transport.abort)
+
+    def data_received(self, data):
+        if self._admitted and not self.transport.is_closing():
+            super().data_received(data)
+
+    def handle_events(self):
+        super().handle_events()
+        if self.conn.their_state is not h11.IDLE:
+            self._cancel_header_deadline()
+
+    def on_response_complete(self):
+        # Also cover partial headers on reused connections: upstream cancels its
+        # keep-alive timer on the first byte, not when headers finish parsing.
+        self._arm_header_deadline()
+        super().on_response_complete()
+
+    def connection_lost(self, exc):
+        self._cancel_header_deadline()
+        super().connection_lost(exc)
+
+    def shutdown(self):
+        self._cancel_header_deadline()
+        super().shutdown()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Read-only loopback Monitor API")
+    parser.add_argument("command", choices=("web",))
+    parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument("--port", type=int, default=8756)
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Bind address (127.0.0.1 loopback or Tailscale 100.x.x.x)")
+    args = parser.parse_args(argv)
+    import uvicorn
+
+    config = WebApiConfig(port=args.port)
+    with bind_socket(config) as sock:
+        config = replace(config, port=sock.getsockname()[1])
+        app = create_app(database_provider(args.database), config)
+        # Token retrieval is deliberately in-process only; no stdout, URL or file handoff.
+        server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=config.port,
+            http=_BoundedH11Protocol, ws="none",
+            workers=1, reload=False, access_log=False, log_level="critical",
+            proxy_headers=False, server_header=False, limit_concurrency=config.max_connections,
+            timeout_keep_alive=5, timeout_graceful_shutdown=10))
+        server.run(sockets=[sock])
+
+
+if __name__ == "__main__":
+    main()

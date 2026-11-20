@@ -28,7 +28,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .claude_code_harness import TaskPacketFile
-from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy
+from .pre_dispatch_guard import WorkerLeasePreDispatchGuard
+from .provider_configuration import HarnessRuntimeBinding, HarnessStrategy, ProtocolFamily
+from .zero_relay_author_provenance import (
+    AuthorProvenanceBinding,
+    AuthorProvenanceError,
+    classify_author_provenance,
+)
+from .zcode_protocol import ZCodeRuntimeModel
 from .zcode_runner import (
     ZCODE_BACKEND_ID,
     SupervisedZCodeRunner,
@@ -109,6 +116,8 @@ class ZCodeExecutionAuthorities:
     python_executable: str = ""                    # REQUIRED for the real helper
     lease_evidence: object | None = None   # accepted canonical WorkerLease (REQUIRED)
     admission_evidence: object | None = None  # accepted canonical ProviderAdmissionRecord (REQUIRED)
+    lease_health_reader: object | None = None  # accepted read-only lease-health authority (defines the guarded 498A writer route when present)
+    live_worktree_observer: object | None = None  # accepted read-only live Git-identity observation authority (REQUIRED on the guarded 498A writer route)
     dispatch_batch_id: str = ""                    # independently-derived dispatch batch identity (REQUIRED)
     dispatch_execution_id: str | None = None       # REQUIRED execution binding from the dispatch context
     project_id: str = ""                           # REQUIRED dispatch-context project identity (vs lease)
@@ -166,7 +175,9 @@ def assemble_zcode_execution(
     bundle_js: str,
     deadline_seconds: float = 300.0,
 ) -> SupervisedZCodeRunner:
-    """Compose one authorized ZCode execution; fail closed before any spawn.
+    """Compose one authorized MUTATION-capable ZCode execution; fail closed
+    before any spawn. Behavior is unchanged: a READ_ONLY lease can never
+    authorize it (use ``assemble_zcode_review_execution`` for review).
 
     Every gate below must pass or NO child exists: observed dirty state →
     provider generation CAS → ZCODE strategy + per-model runtime binding →
@@ -181,6 +192,71 @@ def assemble_zcode_execution(
     the derived runtime execution identity (``zcode-runtime-v1:<full sha>``)
     → REAL supervised-service authorities → the specialized-helper lifecycle.
     """
+    return _assemble_zcode_execution_impl(
+        authorities=authorities,
+        packet=packet,
+        model_id=model_id,
+        expected_generation=expected_generation,
+        expected_base_url=expected_base_url,
+        secret_reference=secret_reference,
+        workspace=workspace,
+        executable=executable,
+        bundle_js=bundle_js,
+        deadline_seconds=deadline_seconds,
+        review_only=False,
+    )
+
+
+def assemble_zcode_review_execution(
+    *,
+    authorities: ZCodeExecutionAuthorities,
+    packet: TaskPacketFile,
+    model_id: str,
+    expected_generation: int,
+    expected_base_url: str,
+    secret_reference: str,
+    workspace: str,
+    executable: str,
+    bundle_js: str,
+    deadline_seconds: float = 300.0,
+) -> SupervisedZCodeRunner:
+    """Compose one authorized READ-ONLY reviewer ZCode execution (WO-P1-226).
+
+    Shares every authority gate with the mutation assembly; the ONLY
+    difference is lease gate 5: the lease must carry mutation intent
+    ``READ_ONLY`` with an EMPTY mutable scope, and the requested mutable
+    scope must also be empty. No write authority is upgraded and no
+    mutation-path gate is weakened.
+    """
+    return _assemble_zcode_execution_impl(
+        authorities=authorities,
+        packet=packet,
+        model_id=model_id,
+        expected_generation=expected_generation,
+        expected_base_url=expected_base_url,
+        secret_reference=secret_reference,
+        workspace=workspace,
+        executable=executable,
+        bundle_js=bundle_js,
+        deadline_seconds=deadline_seconds,
+        review_only=True,
+    )
+
+
+def _assemble_zcode_execution_impl(
+    *,
+    authorities: ZCodeExecutionAuthorities,
+    packet: TaskPacketFile,
+    model_id: str,
+    expected_generation: int,
+    expected_base_url: str,
+    secret_reference: str,
+    workspace: str,
+    executable: str,
+    bundle_js: str,
+    deadline_seconds: float,
+    review_only: bool,
+) -> SupervisedZCodeRunner:
 
     from datetime import datetime, timezone as _tz
 
@@ -202,9 +278,20 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_PROVIDER_GENERATION_DRIFT")
 
     # 3. runtime binding + strategy authorization
+    if profile is None:
+        raise ZCodeAssemblyError("ZCODE_PROVIDER_UNAVAILABLE")
     binding = _binding_for_model(snapshot, model_id)
     if binding.harness_strategy is not HarnessStrategy.ZCODE_APP_SERVER:
         raise ZCodeAssemblyError("ZCODE_STRATEGY_MISMATCH")
+    # ZCode runtimeModel materialization currently has one unambiguous
+    # production mapping: Anthropic Messages. CUSTOM cannot be guessed into
+    # a provider kind/API format at this trust boundary.
+    if profile.protocol_family is not ProtocolFamily.ANTHROPIC_MESSAGES:
+        raise ZCodeAssemblyError("ZCODE_RUNTIME_PROTOCOL_UNSUPPORTED")
+    # The caller may assert the secret reference but never redefine the
+    # provider profile's canonical credential authority.
+    if secret_reference != profile.credential_ref:
+        raise ZCodeAssemblyError("ZCODE_CREDENTIAL_REFERENCE_UNAUTHORIZED")
 
     # 4. verified task packet intake (confined path/size/hash — TOCTOU base)
     packet_identity = ZCodeTaskPacketIdentity.from_task_packet_file(
@@ -245,30 +332,41 @@ def assemble_zcode_execution(
         raise ZCodeAssemblyError("ZCODE_LEASE_TASK_MISMATCH")
     if authorities.project_id != lease.project_id:
         raise ZCodeAssemblyError("ZCODE_PROJECT_MISMATCH")
-    # this production path executes a mutation-capable agent task: a
-    # READ_ONLY lease can never authorize it
-    if lease.mutation_intent is not LeaseMutationIntent.MUTATION:
-        raise ZCodeAssemblyError("ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT")
-    # declared mutation targets must be within the lease's allowed scope and
-    # must never overlap its forbidden scope (existing overlap authority)
-    from fnmatch import fnmatchcase
+    if review_only:
+        # WO-P1-226 reviewer path: the ONLY authorized shape is an exact
+        # READ_ONLY lease with an empty lease mutable scope AND an empty
+        # requested mutable scope. Nothing here upgrades write authority.
+        if lease.mutation_intent is not LeaseMutationIntent.READ_ONLY:
+            raise ZCodeAssemblyError("ZCODE_REVIEW_LEASE_INTENT_MISMATCH")
+        if tuple(lease.mutable_scope or ()):
+            raise ZCodeAssemblyError("ZCODE_REVIEW_LEASE_SCOPE_NOT_EMPTY")
+        if tuple(authorities.requested_mutable_scope or ()):
+            raise ZCodeAssemblyError("ZCODE_REVIEW_REQUESTED_SCOPE_NOT_EMPTY")
+    else:
+        # this production path executes a mutation-capable agent task: a
+        # READ_ONLY lease can never authorize it
+        if lease.mutation_intent is not LeaseMutationIntent.MUTATION:
+            raise ZCodeAssemblyError("ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT")
+        # declared mutation targets must be within the lease's allowed scope and
+        # must never overlap its forbidden scope (existing overlap authority)
+        from fnmatch import fnmatchcase
 
-    from .worker_lease import _mutable_scope_is_authorized
+        from .worker_lease import _mutable_scope_is_authorized
 
-    # the mutation-capable path REQUIRES an explicit non-empty requested
-    # scope — an omitted scope can never bypass the write-set authority
-    requested_scope = tuple(authorities.requested_mutable_scope or ())
-    if not requested_scope:
-        raise ZCodeAssemblyError("ZCODE_MUTABLE_SCOPE_REQUIRED")
-    if not _mutable_scope_is_authorized(lease.allowed_scope, requested_scope):
-        raise ZCodeAssemblyError("ZCODE_SCOPE_NOT_AUTHORIZED")
-    if not _mutable_scope_is_authorized(lease.mutable_scope, requested_scope):
-        raise ZCodeAssemblyError("ZCODE_SCOPE_OUTSIDE_MUTABLE")
-    for expression in requested_scope:
-        if expression in lease.forbidden_scope or any(
-            fnmatchcase(expression, pattern) for pattern in lease.forbidden_scope
-        ):
-            raise ZCodeAssemblyError("ZCODE_SCOPE_FORBIDDEN")
+        # the mutation-capable path REQUIRES an explicit non-empty requested
+        # scope — an omitted scope can never bypass the write-set authority
+        requested_scope = tuple(authorities.requested_mutable_scope or ())
+        if not requested_scope:
+            raise ZCodeAssemblyError("ZCODE_MUTABLE_SCOPE_REQUIRED")
+        if not _mutable_scope_is_authorized(lease.allowed_scope, requested_scope):
+            raise ZCodeAssemblyError("ZCODE_SCOPE_NOT_AUTHORIZED")
+        if not _mutable_scope_is_authorized(lease.mutable_scope, requested_scope):
+            raise ZCodeAssemblyError("ZCODE_SCOPE_OUTSIDE_MUTABLE")
+        for expression in requested_scope:
+            if expression in lease.forbidden_scope or any(
+                fnmatchcase(expression, pattern) for pattern in lease.forbidden_scope
+            ):
+                raise ZCodeAssemblyError("ZCODE_SCOPE_FORBIDDEN")
     if lease.released_at is not None or lease.quarantined_at is not None:
         raise ZCodeAssemblyError("ZCODE_LEASE_NOT_ACTIVE")
     if lease.expires_at is not None:
@@ -340,6 +438,16 @@ def assemble_zcode_execution(
         runtime_model_ref=binding.runtime_model_ref,
         generation=int(generation),
     )
+    try:
+        runtime_model = ZCodeRuntimeModel(
+            revision=runtime_profile_ref,
+            provider_id=profile.provider_id,
+            model_id=model_id,
+            base_url=endpoint_base_url,
+            api_key_env="ANTHROPIC_API_KEY",
+        )
+    except ValueError as exc:
+        raise ZCodeAssemblyError("ZCODE_RUNTIME_MODEL_INVALID") from exc
 
     # 8. REAL production supervised lifecycle: the specialized helper through
     #    SupervisedExecutionService + ZCODE_APP_SERVER_V1. The service
@@ -373,6 +481,7 @@ def assemble_zcode_execution(
         selection_source=selection,
         expected_binding=binding,
         expected_base_url=endpoint_base_url,  # snapshot endpoint authority
+        runtime_model=runtime_model,
         secret_resolver=authorities.secret_resolver,
         secret_reference=secret_reference,
         packet=packet_identity,
@@ -382,6 +491,25 @@ def assemble_zcode_execution(
         execution_store=authorities.execution_store,
         child_observer=ZCodeProcessTruthChildObserver(),
     )
+
+    # 9. AUTHOR PROVENANCE classification (WO-P1-246 §3.3): the ONLY
+    #    producer of AuthorProvenanceBinding, after packet + lease authority
+    #    are verified and before SupervisedRunIdentity is constructed.
+    #    Original verified packets classify generation 0; any zra2-repair-
+    #    family contract enters the repair-proof path and fails closed at
+    #    this base (no durable Phase-D rejected-review lineage predecessor
+    #    exists) — NEVER a silent downgrade to generation 0. Reviewer
+    #    executions carry no author provenance at all.
+    author_provenance: AuthorProvenanceBinding | None = None
+    if not review_only:
+        try:
+            author_provenance = classify_author_provenance(
+                task_contract_ref=packet.task_contract_ref,
+                packet_sha256=packet_identity.packet_sha256,
+            )
+        except AuthorProvenanceError as exc:
+            raise ZCodeAssemblyError(f"ZCODE_{exc.code}") from exc
+
     identity = SupervisedRunIdentity(
         job_id=f"job:{packet.task_contract_ref}",
         work_order_ref=packet.task_contract_ref,
@@ -392,7 +520,52 @@ def assemble_zcode_execution(
         head_before=authorities.head,
         runtime_profile_ref=runtime_profile_ref,  # derived runtime identity
         repo_root=authorities.repo_root,
+        author_provenance=author_provenance,
     )
+
+    # 10. 498A PRE_DISPATCH GUARD — launch-time revalidation of the accepted
+    #     lease binding on the mutation-capable writer route ONLY, after every
+    #     historical gate above has passed so their typed codes keep firing
+    #     first. The guard consumes the SAME accepted read-only lease-health
+    #     authority the Conductor injected (never a second SQLite path). The
+    #     injection is ADDITIVE: a mutation assembly without a health reader
+    #     preserves the historical unguarded behavior (POLICY_ONLY), and one
+    #     with a reader binds a REQUIRED guard to the accepted baseline lease
+    #     + declared requested mutable scope. The review-only route stays
+    #     POLICY_ONLY here and receives no mutation guard authority in 498A.
+    pre_dispatch_guard = None
+    if not review_only and authorities.lease_health_reader is not None:
+        if not callable(getattr(authorities.lease_health_reader, "inspect_health", None)):
+            raise ZCodeAssemblyError("ZCODE_PRE_DISPATCH_GUARD_INVALID")
+        try:
+            pre_dispatch_guard = WorkerLeasePreDispatchGuard(
+                health_reader=authorities.lease_health_reader,
+                baseline_lease=lease,
+                requested_mutable_scope=tuple(authorities.requested_mutable_scope or ()),
+            )
+        except (ValueError, TypeError):
+            raise ZCodeAssemblyError("ZCODE_PRE_DISPATCH_GUARD_INVALID") from None
+
+    # 11. 498A generation-3 LIVE GIT IDENTITY — the guarded production
+    #     writer route is exactly: review_only == False AND a lease-health
+    #     reader authority is present. On THAT route the live observer is
+    #     REQUIRED: an omitted observer fails closed here with a stable
+    #     typed code BEFORE any runnable writer exists, so a writer-route
+    #     caller that injects the reader can never leave the live identity
+    #     protection dormant. A supplied observer must expose a callable
+    #     observe. A legacy mutation assembly with NO reader remains the
+    #     historical POLICY_ONLY route (observer stays optional/additive,
+    #     never silently upgraded); the review-only route never receives
+    #     and never wires the live observer.
+    live_worktree_observer = None
+    if not review_only:
+        if authorities.live_worktree_observer is None:
+            if authorities.lease_health_reader is not None:
+                raise ZCodeAssemblyError("ZCODE_LIVE_IDENTITY_OBSERVER_MISSING")
+        elif not callable(getattr(authorities.live_worktree_observer, "observe", None)):
+            raise ZCodeAssemblyError("ZCODE_LIVE_IDENTITY_OBSERVER_INVALID")
+        else:
+            live_worktree_observer = authorities.live_worktree_observer
     return SupervisedZCodeRunner(
         execution_store=authorities.execution_store,
         identity=identity,
@@ -400,6 +573,9 @@ def assemble_zcode_execution(
         executable=executable,
         bundle_js=bundle_js,
         task_packet=packet_identity,
+        pre_dispatch_guard=pre_dispatch_guard,
+        pre_dispatch_guard_required=pre_dispatch_guard is not None,
+        live_worktree_observer=live_worktree_observer,
     )
 
 

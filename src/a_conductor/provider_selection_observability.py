@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from .provider_config_store import ProviderAdmissionRecord
+from .provider_fallback_policy import ProviderFallbackSelectionResult
 
 SELECTION_REASON_UNKNOWN = "UNKNOWN"
 FALLBACK_REASON_NOT_EVALUATED = "NOT_EVALUATED"
@@ -103,6 +104,22 @@ class AdmissionEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class SelectionCandidateEvidence:
+    """One selection-result candidate row projected for this provider (WO-P1-752).
+
+    Verbatim per-candidate reason evidence from the pure selection policy;
+    no admission or fallback authority is inferred from it.
+    """
+
+    provider_id: str
+    model_id: str
+    stage: str
+    eligible: bool
+    reason_code: str
+    expected_configuration_generation: int
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderSelectionEvidence:
     """One provider's selection/fallback evidence without invented authority."""
 
@@ -111,6 +128,43 @@ class ProviderSelectionEvidence:
     fallback_reason: str
     current_configuration_generation: int | None
     admissions: tuple[AdmissionEvidence, ...]
+    selection_shortlist: tuple[SelectionCandidateEvidence, ...] = ()
+
+
+def _selection_summary(
+    resolved_provider: str, selection: ProviderFallbackSelectionResult | None
+) -> tuple[str, tuple[SelectionCandidateEvidence, ...]]:
+    """Fill real selection reason/shortlist only when selection evidence exists.
+
+    Absent input keeps the byte-identical baseline (``UNKNOWN`` reason, empty
+    shortlist). Rows are provider-labeled already; only this provider's rows
+    are shortlisted so single-provider discipline is preserved. A SELECTED
+    result that never evaluated this provider fails closed instead of being
+    claimed.
+    """
+    if selection is None:
+        return SELECTION_REASON_UNKNOWN, ()
+    if not isinstance(selection, ProviderFallbackSelectionResult):
+        raise ValueError("selection must be ProviderFallbackSelectionResult or None")
+    rows = tuple(
+        SelectionCandidateEvidence(
+            provider_id=evaluation.provider_id,
+            model_id=evaluation.model_id,
+            stage=getattr(evaluation.stage, "value", evaluation.stage),
+            eligible=evaluation.eligible,
+            reason_code=evaluation.reason_code,
+            expected_configuration_generation=(
+                evaluation.expected_configuration_generation
+            ),
+        )
+        for evaluation in selection.evaluations
+        if evaluation.provider_id == resolved_provider
+    )
+    if rows:
+        return rows[-1].reason_code, rows
+    if selection.provider_id is None:
+        return selection.reason_code, rows
+    raise ValueError("selection result does not evaluate this provider")
 
 
 def project_provider_selection_evidence(
@@ -119,6 +173,7 @@ def project_provider_selection_evidence(
     current_configuration_generation: int | None,
     admissions: tuple[ProviderAdmissionRecord, ...],
     now: datetime | None = None,
+    selection: ProviderFallbackSelectionResult | None = None,
 ) -> ProviderSelectionEvidence:
     """Project one provider's persisted evidence without inventing authority.
 
@@ -127,6 +182,11 @@ def project_provider_selection_evidence(
     (store-typed) and must belong to this provider; near-miss identifiers are
     kept verbatim and never joined or correlated. Ordering is deterministic
     newest-first regardless of input order.
+
+    ``selection`` is optional (WO-P1-752): when a pure pre-attempt selection
+    result is supplied, the real selection reason and this provider's
+    shortlist rows are projected; when it is absent the output stays
+    byte-identical to the baseline (``UNKNOWN`` / ``NOT_EVALUATED``).
     """
     resolved_provider = _require_identity(provider_id)
     resolved_generation = _require_generation(current_configuration_generation)
@@ -166,10 +226,12 @@ def project_provider_selection_evidence(
         )
         for record in ordered
     )
+    selection_reason, shortlist = _selection_summary(resolved_provider, selection)
     return ProviderSelectionEvidence(
         provider_id=resolved_provider,
-        selection_reason=SELECTION_REASON_UNKNOWN,
+        selection_reason=selection_reason,
         fallback_reason=FALLBACK_REASON_NOT_EVALUATED,
         current_configuration_generation=resolved_generation,
         admissions=evidence,
+        selection_shortlist=shortlist,
     )

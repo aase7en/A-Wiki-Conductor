@@ -1,0 +1,9 @@
+# OpenAI-harness UI metadata for the accelerated A-FastTask profile.
+# A-Faster adds routing constraints only; canonical authority remains A-FastTask
+# plus the repository/project Work Order and accepted protocols.
+interface:
+  display_name: "A-Faster"
+  short_description: "Accelerate substantial work across safe multi-device/multilane routes"
+  default_prompt: "Use $a-faster for this substantial task. Recover outstanding executions first, load the canonical $a-fasttask authority, bind global WIP across Windows/macOS/GitHub and Kilo/Claude GLM routes, keep mutable scopes non-overlapping, record device/harness/model/evidence/cleanup state, then continue every safe READY lane without waiting for user relay."
+policy:
+  allow_implicit_invocation: false

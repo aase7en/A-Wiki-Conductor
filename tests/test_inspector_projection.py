@@ -1,0 +1,532 @@
+"""WO-P1-739 RED contract: pure, bounded and truthful inspector views."""
+
+from __future__ import annotations
+
+import ast
+import sys
+from dataclasses import FrozenInstanceError, fields, replace
+from datetime import datetime, timezone
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+
+import a_conductor.inspector_projection as module
+from a_conductor.inspector_projection import (
+    HookInspectorRow,
+    InspectorProjectionError,
+    InspectorState,
+    SkillInspectorRow,
+    ToolInspectorRow,
+    ToolPhase,
+    build_inspector_views,
+)
+
+NOW = datetime(2026, 11, 9, 10, 0, tzinfo=timezone.utc)
+
+
+def _tool(**changes: object) -> ToolInspectorRow:
+    return replace(ToolInspectorRow(
+        name="local-connector", device="windows-local", category="connector",
+        source="instance.ps1 discovery", phase=ToolPhase.REGISTERED,
+        state=InspectorState.UNKNOWN, registration_evidence="instance.ps1",
+        last_verified=None, last_error="", next_safe_action="Inspect health",
+        provenance="discovery-only",
+    ), **changes)
+
+
+def _hook(**changes: object) -> HookInspectorRow:
+    return replace(HookInspectorRow(
+        name="control-hook-adapter", hook_class="OBSERVE",
+        authority_source="contract:1.0.0", enabled=True, fail_mode="UNKNOWN",
+        state=InspectorState.UNKNOWN, last_event="", last_error="",
+        provenance="contract-only",
+    ), **changes)
+
+
+def _skill(**changes: object) -> SkillInspectorRow:
+    return replace(SkillInspectorRow(
+        name="fixture-skill", state="AVAILABLE",
+        registry_source="skills-registry.json", routing_hint="fixture trigger",
+        harness="all", deprecated=False, duplicate=False,
+        provenance="registry-only",
+    ), **changes)
+
+
+def _views(*, tools=(), hooks=(), skills=()) -> dict:
+    return build_inspector_views(tools=tools, hooks=hooks, skills=skills, now=NOW)
+
+
+def test_imports_are_pure() -> None:
+    banned = {"subprocess", "socket", "urllib", "sqlite3", "shutil", "requests", "http"}
+    for value in vars(module).values():
+        if isinstance(value, ModuleType):
+            assert value.__name__.split(".")[0] not in banned
+    pending, visited = [module], set()
+    while pending:
+        imported = pending.pop()
+        if imported.__name__ in visited:
+            continue
+        visited.add(imported.__name__)
+        assert imported.__name__.split(".")[0] not in banned
+        for value in vars(imported).values():
+            if isinstance(value, ModuleType):
+                reachable = sys.modules.get(value.__name__)
+                if reachable is not None:
+                    pending.append(reachable)
+    tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            assert all(alias.name.split(".")[0] not in banned for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            assert (node.module or "").split(".")[0] not in banned
+            assert node.level == 0, "Projection must not import I/O-bearing project modules"
+
+
+def test_enum_contract_and_frozen_rows() -> None:
+    assert {state.value for state in InspectorState} == {
+        "READY", "UNKNOWN", "STALE", "DISCONNECTED", "DEGRADED",
+    }
+    assert {phase.value for phase in ToolPhase} == {
+        "REGISTERED", "STARTED", "CONNECTED", "INJECTED", "UNKNOWN",
+    }
+    for row in (_tool(), _hook(), _skill()):
+        with pytest.raises(FrozenInstanceError):
+            row.name = "changed"
+
+
+@pytest.mark.parametrize("section,builder", [
+    ("tools", _tool), ("hooks", _hook), ("skills", _skill),
+])
+def test_unknown_state_is_clamped_never_ready(section, builder) -> None:
+    result = _views(**{section: (builder(state="garbage"),)})
+    assert result[section][0]["state"] == "UNKNOWN"
+    assert result["summary"][section]["counts"]["UNKNOWN"] == 1
+    assert result["summary"][section]["counts"].get("READY", 0) == 0
+
+
+def test_unknown_phase_and_hook_enums_are_clamped() -> None:
+    result = _views(tools=(_tool(phase="garbage"),), hooks=(
+        _hook(hook_class="garbage", fail_mode="garbage"),
+    ))
+    assert result["tools"][0]["phase"] == "UNKNOWN"
+    assert result["hooks"][0]["hook_class"] == "UNKNOWN"
+    assert result["hooks"][0]["fail_mode"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("phase", tuple(ToolPhase))
+def test_tool_phase_is_not_runtime_readiness(phase: ToolPhase) -> None:
+    row = _views(tools=(_tool(phase=phase),))["tools"][0]
+    assert row["phase"] == phase.value
+    assert row["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("state", tuple(InspectorState))
+def test_states_are_first_class_in_every_section(state: InspectorState) -> None:
+    result = _views(tools=(_tool(state=state),), hooks=(_hook(state=state),),
+                    skills=(_skill(state=state),))
+    for section in ("tools", "hooks", "skills"):
+        assert result[section][0]["state"] == state.value
+        assert result["summary"][section]["counts"][state.value] == 1
+
+
+def test_available_is_skill_only_and_not_ready() -> None:
+    result = _views(tools=(_tool(state="AVAILABLE"),), skills=(_skill(),))
+    assert result["tools"][0]["state"] == "UNKNOWN"
+    assert result["skills"][0]["state"] == "AVAILABLE"
+    assert result["summary"]["skills"]["counts"]["AVAILABLE"] == 1
+    assert result["summary"]["skills"]["counts"].get("READY", 0) == 0
+
+
+@pytest.mark.parametrize("section,builder", [
+    ("tools", _tool), ("hooks", _hook), ("skills", _skill),
+])
+def test_bounds_drop_oldest_and_count_only_retained_rows(section, builder) -> None:
+    rows = tuple(builder(name=f"row-{index:03}") for index in range(129))
+    result = _views(**{section: rows})
+    assert len(result[section]) == 128
+    assert result[section][0]["name"] == "row-001"
+    assert result[section][-1]["name"] == "row-128"
+    summary = result["summary"][section]
+    assert summary["truncated"] is True
+    assert summary["dropped"] == 1
+    assert sum(summary["counts"].values()) == 128
+
+
+@pytest.mark.parametrize("secret", [
+    "Bearer FAKE000000000000000000000000000",
+    "sk-FAKE0000000000000000000000000000000000",
+    "ghp_FAKE0000000000000000000000000000000",
+    "api_key=FAKE0000000000000000000000",
+    "token=FAKE0000000000000000000000",
+    "credential=FAKE0000000000000000000000",
+    "-----BEGIN PRIVATE KEY----- FAKE",
+    "x" * 210 + " token=FAKE0000000000000000000000",
+])
+def test_secret_shaped_errors_are_redacted_before_length_cap(secret: str) -> None:
+    result = _views(tools=(_tool(last_error=secret),), hooks=(_hook(last_error=secret),))
+    assert result["tools"][0]["last_error"] == "[REDACTED]"
+    assert result["hooks"][0]["last_error"] == "[REDACTED]"
+    assert secret not in repr(result)
+
+
+@pytest.mark.parametrize("section,builder", [
+    ("tools", _tool), ("hooks", _hook), ("skills", _skill),
+])
+def test_all_free_text_fields_are_capped_and_secret_free(section, builder) -> None:
+    original = builder()
+    for field in fields(original):
+        if field.name in {"state", "phase", "hook_class", "fail_mode"}:
+            continue
+        if isinstance(getattr(original, field.name), str):
+            long_row = replace(original, **{field.name: "x" * 250})
+            assert len(_views(**{section: (long_row,)})[section][0][field.name]) <= 200
+            secret_row = replace(original, **{field.name: "token=FAKE0000000000000000"})
+            assert _views(**{section: (secret_row,)})[section][0][field.name] == "[REDACTED]"
+
+
+@pytest.mark.parametrize("bad", [None, object(), {"name": "foreign"}, "row"])
+def test_foreign_rows_raise_code_only_error(bad: object) -> None:
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(tools=(bad,))
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+    assert str(caught.value) == caught.value.code
+
+
+@pytest.mark.parametrize("bad", ["", "   ", None, 3])
+@pytest.mark.parametrize("section,builder", [
+    ("tools", _tool), ("hooks", _hook), ("skills", _skill),
+])
+def test_every_row_requires_a_nonempty_string_name(section, builder, bad) -> None:
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(**{section: (builder(name=bad),)})
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+
+
+def test_discarded_oldest_row_is_still_validated() -> None:
+    with pytest.raises(InspectorProjectionError):
+        _views(tools=(_tool(name=""),) + tuple(_tool() for _ in range(128)))
+
+
+def test_hostile_iterator_raises_typed_error() -> None:
+    class Hostile:
+        def __iter__(self):
+            raise RuntimeError("token=FAKE0000000000000000")
+
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(tools=Hostile())
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+    assert "FAKE" not in str(caught.value)
+
+
+@pytest.mark.parametrize("row,section", [
+    (_tool(last_verified=True), "tools"),
+    (_tool(device=object()), "tools"),
+    (_hook(enabled="yes"), "hooks"),
+    (_skill(deprecated="false"), "skills"),
+    (_skill(duplicate=1), "skills"),
+])
+def test_malformed_scalar_fields_are_not_coerced(row, section) -> None:
+    with pytest.raises(InspectorProjectionError):
+        _views(**{section: (row,)})
+
+
+@pytest.mark.parametrize("verified", [None, 1794218400, "2026-11-09T10:00:00Z"])
+def test_last_verified_preserves_supported_types(verified) -> None:
+    row = _views(tools=(_tool(last_verified=verified),))["tools"][0]
+    assert row["last_verified"] == verified
+
+
+def test_summary_provenance_and_frozen_input_determinism() -> None:
+    tools = (_tool(state="READY", provenance="probe:readyz"), _tool(state="STALE"))
+    hooks, skills = (_hook(),), (_skill(),)
+    before = repr((tools, hooks, skills))
+    first = _views(tools=tools, hooks=hooks, skills=skills)
+    second = _views(tools=tools, hooks=hooks, skills=skills)
+    assert first == second
+    assert repr((tools, hooks, skills)) == before
+    assert set(first) == {"tools", "hooks", "skills", "summary"}
+    assert first["summary"]["generated_at"] == NOW.isoformat()
+    assert first["tools"][0]["provenance"] == "probe:readyz"
+    assert first["hooks"][0]["provenance"] == "contract-only"
+    assert first["skills"][0]["provenance"] == "registry-only"
+    assert first["summary"]["tools"]["counts"]["READY"] == 1
+    assert first["summary"]["tools"]["counts"]["STALE"] == 1
+    for section in ("tools", "hooks", "skills"):
+        assert first["summary"][section]["truncated"] is False
+        assert first["summary"][section]["dropped"] == 0
+
+
+def test_empty_sections_have_empty_counts() -> None:
+    result = _views()
+    for section in ("tools", "hooks", "skills"):
+        assert len(result[section]) == 0
+        assert sum(result["summary"][section]["counts"].values()) == 0
+
+
+@pytest.mark.parametrize("secret", [
+    "Authorization: Basic RkFLRTpGQUtF",
+    'Authorization: Digest username="FAKE", response="FAKE"',
+    "Authorization: CustomScheme FAKE-CREDENTIAL",
+    "ftp://fixture-user:FAKE-PASSWORD@example.invalid/path",
+    "custom+fixture://fixture-user:FAKE-PASSWORD@example.invalid/path",
+    "t\u043eken=FAKE-CREDENTIAL",
+    "\uff54\uff4f\uff4b\uff45\uff4e=FAKE-CREDENTIAL",
+    "to\u0301ken=FAKE-CREDENTIAL",
+])
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "name"), ("tools", _tool, "last_error"),
+    ("skills", _skill, "routing_hint"), ("hooks", _hook, "provenance"),
+])
+def test_auth_userinfo_and_unicode_markers_redact_whole_free_text(
+    secret: str, section: str, builder, field: str,
+) -> None:
+    result = _views(**{section: (builder(**{field: secret}),)})
+    assert result[section][0][field] == "[REDACTED]"
+    assert secret not in repr(result)
+
+
+def test_confusable_marker_is_redacted_before_truncation() -> None:
+    result = _views(tools=(_tool(last_error="x" * 210 + " t\u043eken=FAKE-CREDENTIAL"),))
+    assert result["tools"][0]["last_error"] == "[REDACTED]"
+
+
+@pytest.mark.parametrize("sign", [-1, 1])
+def test_oversized_last_verified_is_rejected_without_stringifying(sign: int) -> None:
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(tools=(_tool(last_verified=sign * 10**5000),))
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+    assert str(caught.value) == caught.value.code
+
+
+@pytest.mark.parametrize("verified", [-(2**53), 2**53, 0])
+def test_last_verified_safe_integer_endpoints_are_inclusive(verified: int) -> None:
+    assert _views(tools=(_tool(last_verified=verified),))["tools"][0]["last_verified"] == verified
+
+
+@pytest.mark.parametrize("verified", [-(2**53) - 1, 2**53 + 1])
+def test_last_verified_just_outside_safe_integer_range_is_rejected(verified: int) -> None:
+    with pytest.raises(InspectorProjectionError):
+        _views(tools=(_tool(last_verified=verified),))
+
+
+def test_raw_field_at_4096_chars_is_accepted_and_truncated() -> None:
+    row = _views(tools=(_tool(last_error="x" * 4096),))["tools"][0]
+    assert row["last_error"] == "x" * 200
+
+
+def test_raw_field_cap_precedes_redaction_of_overlength_secret() -> None:
+    with pytest.raises(InspectorProjectionError):
+        _views(tools=(_tool(last_error="token=" + "x" * 4097),))
+
+
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "name"), ("tools", _tool, "last_error"),
+    ("skills", _skill, "routing_hint"), ("hooks", _hook, "provenance"),
+])
+def test_raw_field_over_4096_chars_is_rejected_before_normalization(
+    section, builder, field, monkeypatch,
+) -> None:
+    calls = []
+    original = module.unicodedata.normalize
+
+    def observe_normalization(form, value):
+        calls.append(len(value))
+        return original(form, value)
+
+    monkeypatch.setattr(module.unicodedata, "normalize", observe_normalization)
+    with pytest.raises(InspectorProjectionError) as caught:
+        _views(**{section: (builder(**{field: "x" * 4097}),)})
+    assert caught.value.code == "INSPECTOR_PROJECTION_INVALID_INPUT"
+    assert str(caught.value) == caught.value.code
+    assert 4097 not in calls
+
+
+def test_long_ascii_with_scattered_delimiters_is_not_redacted() -> None:
+    value = "a:b=c " * 666
+    assert len(value) == 3996
+    row = _views(tools=(_tool(last_error=value),))["tools"][0]
+    assert row["last_error"] == value[:200]
+
+
+def test_secret_at_char_300_of_800_chars_is_whole_value_redacted() -> None:
+    marker = "t\u043eken=FAKE-CREDENTIAL "
+    value = "x" * 299 + " " + marker
+    value += "x" * (800 - len(value))
+    assert len(value) == 800 and value.index("t\u043eken=") == 300
+    assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == "[REDACTED]"
+
+
+@pytest.mark.parametrize("value", [
+    "Authorization : Basic FAKE-CREDENTIAL",
+    "api key = FAKE-CREDENTIAL", "access key: FAKE-CREDENTIAL",
+    "password = FAKE-CREDENTIAL", "bearer=FAKE-CREDENTIAL",
+    "cookie: FAKE-CREDENTIAL", "credential = FAKE-CREDENTIAL",
+    "prefix=(sk-FAKE000000000000000000000000)",
+    "sk-ask-bcdefg",
+    "https://example.invalid/share/FAKE-CREDENTIAL",
+])
+def test_linear_matcher_preserves_spaced_and_embedded_secret_shapes(value: str) -> None:
+    assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == "[REDACTED]"
+
+
+def test_url_path_at_sign_is_not_userinfo() -> None:
+    value = "custom://example.invalid/path/user@example.invalid"
+    assert _views(tools=(_tool(last_error=value),))["tools"][0]["last_error"] == value
+
+
+@pytest.mark.parametrize("value", [
+    '"Bearer FAKE0000000000000000"',
+    "(Bearer FAKE0000000000000000)",
+    "[Bearer FAKE0000000000000000]",
+    "error: Bearer FAKE0000000000000000",
+    "Bearer FAKE0000000000000000...),",
+    "(Bearer () [] ; FAKE0000000000000000)",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_punctuation_wrapped_bearer_credentials_are_whole_value_redacted(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert "FAKE" not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "bearer", "(bearer)", '"bearer"', "error: bearer",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_bearer_without_a_nonempty_credential_is_not_redacted(value, field) -> None:
+    assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value
+
+
+@pytest.mark.parametrize("value", [
+    'message="Bearer FAKE0000000000000000"',
+    "error:(Bearer FAKE0000000000000000)",
+    "-Bearer FAKE0000000000000000-",
+])
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "last_error"), ("tools", _tool, "name"),
+    ("skills", _skill, "routing_hint"),
+])
+def test_embedded_bearer_marker_with_payload_is_whole_value_redacted(
+    value, section, builder, field,
+) -> None:
+    result = _views(**{section: (builder(**{field: value}),)})
+    assert result[section][0][field] == "[REDACTED]"
+    assert "FAKE" not in repr(result)
+
+
+def test_marker_regex_contains_only_word_boundaries_and_literal_alternation() -> None:
+    pattern = module._MARKERS_RE.pattern
+    prefix, suffix = r"\b(?:", r")\b"
+    assert pattern.startswith(prefix) and pattern.endswith(suffix)
+    literals = pattern[len(prefix):-len(suffix)].split("|")
+    assert {"authorization", "bearer", "token", "secret", "password", "api-key", "credential"} <= set(literals)
+    assert all(literal and all(char in "abcdefghijklmnopqrstuvwxyz_- " for char in literal)
+               for literal in literals)
+
+
+def test_literal_marker_search_runs_once_for_the_normalized_field(monkeypatch) -> None:
+    original = module._MARKERS_RE
+    calls = []
+
+    class RecordingMatcher:
+        def search(self, value):
+            calls.append(value)
+            return original.search(value)
+
+    monkeypatch.setattr(module, "_MARKERS_RE", RecordingMatcher())
+    raw = 'message="Bearer FAKE0000000000000000"'
+    result = _views(tools=(_tool(last_error=raw),))
+    assert result["tools"][0]["last_error"] == "[REDACTED]"
+    assert calls.count(raw.casefold()) == 1
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=FAKE0000000000000000",
+    "refresh_token=FAKE0000000000000000",
+    "OPENAI_API_KEY=fixture-opaque-credential",
+    "session_secret=xyz",
+    'SERVICE_PASSWORD:"fixture-opaque"',
+    "(ACCESS_TOKEN='FAKE0000000000000000')",
+])
+@pytest.mark.parametrize("section,builder,field", [
+    ("tools", _tool, "last_error"), ("tools", _tool, "name"),
+    ("skills", _skill, "routing_hint"),
+])
+def test_prefixed_assignment_labels_with_secret_suffix_are_whole_value_redacted(
+    value, section, builder, field,
+) -> None:
+    result = _views(**{section: (builder(**{field: value}),)})
+    assert result[section][0][field] == "[REDACTED]"
+    assert value not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "monitored=1", "key_count=5", "access_token=", "session_secret=''",
+    'SERVICE_PASSWORD:""',
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_nonsecret_or_payload_free_assignment_labels_are_not_redacted(value, field) -> None:
+    assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value
+
+
+def test_assignment_label_pass_preserves_literal_marker_regex() -> None:
+    assert module._MARKERS_RE.pattern == (
+        r"\b(?:authorization|bearer|token|secret|password|api-key|api_key|apikey|api key|"
+        r"access-key|access_key|accesskey|access key|credential|cookie)\b"
+    )
+
+
+@pytest.mark.parametrize("value", [
+    "access_token= FAKE0000000000000000",
+    "MY_TOKEN: xyz",
+    "OPENAI_API_KEY = fixture-opaque-credential",
+    "OPENAI_API_KEY= fixture-opaque-credential",
+    "MY_TOKEN :  xyz",
+    "MY_TOKEN = : xyz",
+    "OPENAI_API_KEY =fixture-opaque-credential",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_cross_token_secret_assignment_payloads_are_whole_value_redacted(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert value not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "access_token=", "MY_TOKEN: ", "OPENAI_API_KEY = :",
+    "monitored=1", "key_count=5", "bearer",
+    "MY_API KEY", "MY_API unrelated KEY = fixtureOpaque123",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_cross_token_pending_assignment_without_following_payload_is_not_redacted(value, field) -> None:
+    assert _views(tools=(_tool(**{field: value}),))["tools"][0][field] == value
+
+
+@pytest.mark.parametrize("value", [
+    '{"SERVICE_PASSWORD": "hunter:2"}',
+    'SERVICE_PASSWORD = "hunter:2"',
+    "SERVICE_PASSWORD: hunter:2",
+    "access_token= fixture:opaque",
+    "access_token= monitored=1",
+    "MY_TOKEN : () monitored=1",
+    "bearer () [] {},;.`",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_pending_secret_assignment_fails_closed_on_any_non_delimiter_payload(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert "hunter:2" not in repr(result)
+    assert "fixture:opaque" not in repr(result)
+
+
+@pytest.mark.parametrize("value", [
+    "MY_API KEY = fixtureOpaque123",
+    "MYAPI KEY:fixtureOpaque123",
+    "MY_ACCESS KEY : fixtureOpaque123",
+])
+@pytest.mark.parametrize("field", ["last_error", "name"])
+def test_two_word_secret_assignment_labels_use_one_token_lookback(value, field) -> None:
+    result = _views(tools=(_tool(**{field: value}),))
+    assert result["tools"][0][field] == "[REDACTED]"
+    assert "fixtureOpaque123" not in repr(result)

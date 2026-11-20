@@ -706,6 +706,23 @@ def test_spec_accepts_bounded_anthropic_environment_overrides(tmp_path: Path) ->
     assert environment["ANTHROPIC_AUTH_TOKEN"] == "secret-token-value"
 
 
+def test_spec_accepts_zcode_runtime_model_metadata_override(tmp_path: Path) -> None:
+    root = tmp_path / "owned"
+    runtime_json = '{"model":{"providerId":"zcode-glm","modelId":"glm-5.3"}}'
+    runtime = OwnedProcessSpec(
+        allowed_root=root,
+        cwd=root,
+        pid_path=root / "run" / "runtime.pid",
+        stdout_path=root / "logs" / "stdout.log",
+        stderr_path=root / "logs" / "stderr.log",
+        command=(sys.executable, "--marker", "owned-marker"),
+        expected_executable_name=Path(sys.executable).name,
+        expected_profile_marker="owned-marker",
+        environment_overrides=(("ZCODE_RUNTIME_MODEL_JSON", runtime_json),),
+    )
+    assert runtime.environment_overrides == (("ZCODE_RUNTIME_MODEL_JSON", runtime_json),)
+
+
 def test_owned_process_repr_masks_environment_override_values(tmp_path: Path) -> None:
     root = tmp_path / "owned"
     secret = "secret-token-value"

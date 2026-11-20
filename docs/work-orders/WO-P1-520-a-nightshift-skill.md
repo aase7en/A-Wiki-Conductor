@@ -1,0 +1,252 @@
+# WO-P1-520 — A-NightShift overnight-supervisor skill
+
+Status: ACTIVE / AUTHORING — attempt-0006 no-model-spin blocking-wait
+repair (successor to attempt-0005 Phase 1 RED proof, attempt-0003
+premature-terminal repair, attempt-0002 and attempt-0001, RED-first)
+Issue: #520
+Topology: CONTROL_PLANE_ONLY
+Risk: R3 coordination policy
+Claim: WO-P1-520-NIGHTSHIFT-MAC-001
+Repo: A-Wiki-Conductor
+Worktree: /Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo520-a-nightshift
+Branch: feat/wo-p1-520-a-nightshift
+Exact base: 84696b2360197c981d6f9fa2f33fb065b7b8ef07
+
+## Goal
+
+Create the reusable thin overlay skill **A-NightShift**: an
+overnight/operator-away continuation profile over the accepted
+A-FastTask + A-Faster stack. Invocation tasking forms: "use A-NightShift",
+"ใช้ A-NightShift", "A-NightShift ตาม Roadmap", and equivalent explicit
+overnight/operator-away continuation intent. Explanatory mentions must not
+activate work.
+
+## Frozen mutation scope (exactly four NEW files)
+
+1. `.agents/skills/a-nightshift/SKILL.md`
+2. `.agents/skills/a-nightshift/references/overnight-supervisor.md`
+3. `tests/test_a_nightshift_skill_contract.py`
+4. `docs/work-orders/WO-P1-520-a-nightshift-skill.md`
+
+Forbidden: every existing tracked file (especially `.agents/skills/a-faster/**`,
+`.agents/skills/a-fasttask/**`, #498 files, #517 files); any
+scheduler/task/claim/lease/provider/review/merge/completion authority;
+secrets; destructive Git; commit/push/merge.
+
+## Required semantics (pinned by tests)
+
+- overlay on accepted A-FastTask + A-Faster; fail closed if bases
+  missing/conflicting; never a second control plane;
+- RECOVER -> RECONCILE -> HARVEST before any new dispatch;
+- global WIP max 3 mutable + 1 independent review; one mutable hotspot per
+  mutation owner; never multiplied;
+- GLM-5.3 MAX heavy R2/R3 author/repair/review; GLM-5.3-Flash bounded
+  read-only; TypeSafe-JEV advisory only; max normal nesting
+  Codex -> GLM -> JEV;
+- low-cost Codex traffic-controller/supervisor, never the primary
+  engineer; smallest/cheapest currently available capable profile; LOW
+  effort default; escalate only for ambiguous recovery/collision/
+  authority/acceptance; no permanent product-model pin; fail closed when
+  model/effort cannot change mid-goal;
+- quiet event-driven waiting with compact receipts; bounded infrequent
+  polling only when events are unavailable;
+- dispatch-first / harvest-later; refill safe READY capacity; never
+  manufacture work; never burn quota for its own sake;
+- refresh approved quota/readiness before every material GLM dispatch;
+  QUOTA_UNKNOWN is not RATE_LIMITED and never unlimited;
+- no blind redispatch of RUNNING/UNKNOWN/INTERRUPTED/TERMINAL_UNHARVESTED;
+- one collision-safe per-run ephemeral supervisor contract outside Git
+  under the OS temp dir; compact /goal pointer that tells Codex to read
+  that exact ephemeral contract; exact ephemeral path recorded in an
+  A_NIGHTSHIFT receipt;
+- cleanup only at terminal state after child runs are harvested or durably
+  checkpointed; exact-path deletion only, no wildcard/glob;
+- macOS and Windows temp-root semantics without hard-coding one operator
+  machine;
+- stop only on HUMAN_ACTION_REQUIRED / HUMAN_DECISION_REQUIRED /
+  AUTHORIZATION_REQUIRED / SAFETY_BLOCK / NO_SAFE_NEXT_ACTION;
+- successor alignment with #517 A-Faster utilization enforcement:
+  active NightShift implies `A_FASTER_ACTIVE=YES` after base activation
+  succeeds; routing/receipt output preserves/consumes `FANOUT_TARGET`,
+  `UNUSED_SAFE_CAPACITY`, `A_FASTER_UNDERUTILIZED`,
+  `AUTO_REFILL_REQUIRED` verbatim from accepted A-Faster semantics —
+  no second utilization authority, no parallel refill state machine;
+  unexposed markers are recorded as `UNKNOWN`, never invented.
+
+Reference split: `SKILL.md` stays concise; the long reusable supervisor
+contract/template lives in `references/overnight-supervisor.md` as the
+canonical tracked source. Each invocation materializes an ephemeral
+per-run copy and substitutes exact recovered run facts/paths; the template
+never instructs committing the ephemeral copy.
+
+## Tests
+
+Semantic RED-first tests in `tests/test_a_nightshift_skill_contract.py`
+(not full-file snapshots), pinning: invocation-vs-explanation, base
+overlay fail-closed, recover-before-dispatch ordering, WIP, model roles,
+JEV advisory, low-cost supervisor without permanent model pin, quiet
+waiting, fanout/refill, quota, no blind redispatch, per-run temp path +
+collision safety, compact /goal pointer, exact-path cleanup / no wildcard,
+stop gates, no second authority, and the never-committed canonical
+template. Attempt-0002 adds semantic pins for the five A-Faster
+utilization receipt markers (`A_FASTER_ACTIVE` / `FANOUT_TARGET` /
+`UNUSED_SAFE_CAPACITY` / `A_FASTER_UNDERUTILIZED` /
+`AUTO_REFILL_REQUIRED`), the `A_FASTER_ACTIVE=YES` implication, and the
+no-second-authority boundary. Attempt-0003 adds the premature-terminal
+regression pins (issue #520): WAITING_EXTERNAL classification,
+recheck-forbids-terminal-gate, `NO_MUTATION_AVAILABLE` !=
+`NO_SAFE_NEXT_ACTION`, exhaustive `TRUE_NO_SAFE_NEXT_ACTION` proof,
+WAITING_EXTERNAL lifecycle, cleanup hardening, escalation guard, the
+pinned 2026-09-23 CI incident outcome vector, and the
+no-new-scheduler/timer/state-store constraint.
+
+Attempt-0005 adds the no-model-spin blocking-wait pins (issue #520
+reply-spin incident): the six verbatim markers
+(`USE_BLOCKING_WAIT=YES` / `MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES`
+/ `USER_VISIBLE_REPEAT_REPLY=FORBIDDEN` / `AUTO_CONTINUATION_REPOLL=FORBIDDEN`
+/ `UNCHANGED_WAIT_OUTPUT=SILENT` / `WAIT_TOOL_TIMEOUT_RECHECK`) in both
+overlay and template; the one-foreground-blocking-wait resolution; the
+no-turn-completion / no-repeat-reply / no-auto-continuation-repoll
+rules; the `gh run watch` preferred CI primitive; watcher-output
+suppression from model context; the one-silent-in-tool-loop generic
+fallback; the no-detached-watcher / no-new-state-store constraint; the
+WAIT_TOOL_TIMEOUT_RECHECK recheck (not progress/stop gate/cleanup
+authority); the seconds-scale-loop prohibition; SAFE-READY-work-first;
+the state_changed=YES return to RECOVER -> RECONCILE -> HARVEST; the
+no-repeated-receipts rule; and the pinned reply-spin regression vector.
+
+## Attempt-0006 — no-model-spin blocking-wait repair (issue #520)
+
+Production defect (observed live 2026-09-23/24): while a `/goal` ran
+with a WAITING_EXTERNAL GitHub Actions CI dependency whose
+authoritative state stayed IN_PROGRESS (unchanged), the supervisor spun
+a seconds-scale loop — poll, emit a visible still-waiting reply,
+complete the model turn, `/goal` auto-continue, poll again — burning
+Codex/model usage without progress. Root cause: the quiet-waiting
+"declared low-frequency polling interval" was semantic prose, not a
+real timer; nothing bound the wait to a blocking call, so turn
+completion plus `/goal` auto-continuation manufactured an unbounded
+repoll loop.
+
+Attempt history: attempt-0004 was cancelled mid-flight by a
+continuation race after mutating only part of the test-file docstring;
+that partial state was preserved verbatim (never reset or discarded)
+and attempt-0005 resumed from it. Attempt-0005 completed Phase 1
+(tests only): RED proven at committed HEAD
+15f0f3ad6e8ba2c85d008497fb412b82a74e281a — 43 collected => 14 NEW
+failed / 29 pre-existing passed in
+`tests/test_a_nightshift_skill_contract.py`; A-Faster
+invocation-contract control 11 passed. Attempt-0006 (this repair)
+implements Phase 2 GREEN: SKILL.md + canonical reference/template now
+carry the blocking-wait semantics; all 43 NightShift tests pass with
+the 29 prior semantics and the A-Faster 11/11 control intact.
+
+Repair semantics (policy/contract only — no scheduler, timer, or state
+store): with WAITING_EXTERNAL + unchanged authoritative state +
+blocking_wait_capable=YES + independent_ready_work=NO, the wait is ONE
+foreground read-only blocking wait bound to the exact dependency
+identity (`USE_BLOCKING_WAIT=YES`); the supervisor never completes the
+model turn solely to report the unchanged wait
+(`MODEL_TURN_MUST_NOT_COMPLETE_ON_UNCHANGED_WAIT=YES`); no repeated
+user-visible WAITING_EXTERNAL reply and no repoll solely because
+`/goal` auto-continued (`USER_VISIBLE_REPEAT_REPLY=FORBIDDEN`,
+`AUTO_CONTINUATION_REPOLL=FORBIDDEN`); unchanged watch output is
+suppressed/redirected out of model context
+(`UNCHANGED_WAIT_OUTPUT=SILENT`); the GitHub Actions preferred
+foreground primitive is
+`gh run watch <RUN_ID> --repo <OWNER/REPO> --compact --exit-status --interval 60`;
+the generic fallback is one foreground bounded silent loop inside a
+tool call (internal sleep/poll; output only on transition, terminal
+state, real error, or bounded tool timeout); no detached or unowned
+watcher/timer and no new scheduler/task store/state store;
+`WAIT_TOOL_TIMEOUT_RECHECK` is not progress, not a stop gate, and not
+cleanup authority (fresh-read, then re-enter the blocking wait while
+recheckable with no independent SAFE READY work); independent SAFE
+READY work is dispatched/harvested before blocking; on
+`state_changed=YES` the watcher returns and the loop runs
+RECOVER -> RECONCILE -> HARVEST as needed, recomputes the DAG, then
+continues/refills; unchanged polls are not progress and never append
+repeated receipts (at most watcher start plus one transition/timeout
+summary). Existing attempt-0003 premature-terminal semantics, #517
+pass-through markers, WIP, model hierarchy, quota refresh, and
+exact-path cleanup are unchanged.
+
+## Attempt-0003 — premature-terminal regression repair (issue #520)
+
+Production incident: the first real overnight run stopped prematurely at
+2026-09-23T18:06:44Z. The supervisor checkpoint classified GitHub Actions
+Windows job 107304826658 as derived STALLED (step age since 17:48:43Z),
+ended the Goal as blocked, and deleted the ephemeral supervisor contract.
+Authoritative GitHub truth: the job remained IN_PROGRESS (not terminal),
+the long step completed SUCCESS at 18:17:51Z, the job completed SUCCESS
+at 18:19:41Z, and the checkpoint itself declared the exact next safe
+action (re-poll the job after external state changes).
+
+Root cause: NightShift stop classification let "cannot safely
+cancel/retry a STALLED external job" collapse into NO_SAFE_NEXT_ACTION
+even while a safe bounded recheck action existed; cleanup then deleted
+the ephemeral contract too early.
+
+Repair (RED-first, policy/contract hardening only — no new scheduler,
+timer, or state store): a recheckable external CI/provider/review/device
+dependency that is RUNNING/WAITING/STALLED is WAITING_EXTERNAL, never a
+terminal Goal state or stop gate; RECHECK_ACTION_EXISTS =>
+NO_SAFE_NEXT_ACTION=FALSE; NO_MUTATION_AVAILABLE is not
+NO_SAFE_NEXT_ACTION; terminal NO_SAFE_NEXT_ACTION requires
+TRUE_NO_SAFE_NEXT_ACTION proven by the exhaustive absence predicate
+(mutable READY work; read-only recovery/reconciliation;
+TERMINAL_UNHARVESTED harvest; independent review action; authorized
+external observation/recheck; bounded monitoring action; any
+already-declared exact next safe action — ALL absent); the
+WAITING_EXTERNAL lifecycle keeps the Goal alive with ownership/context
+and exact dependency/job identity, prefers event-driven wake with
+bounded infrequent recheck fallback, counts unchanged polls as
+non-progress, and runs RECOVER -> RECONCILE -> HARVEST on state change;
+cleanup is forbidden for RUNNING/WAITING/WAITING_EXTERNAL/STALLED/
+INTERRUPTED-recoverable/UNKNOWN-recoverable or any state with a valid
+recheck/next-safe-action, and a "blocked" label alone is never cleanup
+authority; ambiguous STALLED/WAITING_EXTERNAL terminal conversion must
+escalate to the configured stronger/integrator path or fail closed as
+WAITING_EXTERNAL. The incident scenario is pinned as regression
+semantics in the tests. Existing #517 pass-through utilization
+semantics and the no-second-authority boundary are unchanged.
+
+## Attempt-0002 — successor alignment with #517
+
+Read-only fan-in against #517 showed A-Faster utilization enforcement
+introduces machine-visible receipt markers: `A_FASTER_ACTIVE`,
+`FANOUT_TARGET`, `UNUSED_SAFE_CAPACITY`, `A_FASTER_UNDERUTILIZED`,
+`AUTO_REFILL_REQUIRED`. This repair adds them to the overlay so
+A-NightShift cleanly consumes/preserves accepted A-Faster semantics once
+#517 is accepted, without duplicating authority: active NightShift
+implies `A_FASTER_ACTIVE=YES` after base activation succeeds; the
+markers are passed through verbatim in routing/receipt output and as
+pass-through placeholders in the supervisor template; the overlay
+computes no second utilization authority or refill state machine. The
+#517 worktree was not inspected; existing A-Faster/A-FastTask files are
+untouched; the four-file mutation scope is unchanged.
+
+## Verification matrix
+
+- run `tests/test_a_nightshift_skill_contract.py` (RED observed at
+  attempt-0001 before GREEN; RED observed at attempt-0003 for the nine
+  new incident regression tests before GREEN; RED observed at
+  attempt-0005 for the fourteen new no-model-spin tests — 14 failed /
+  29 passed — before the attempt-0006 Phase 2 GREEN: 43 passed);
+- run `tests/test_a_faster_invocation_contract.py` (11 passed at every
+  checkpoint, including attempt-0005 RED and attempt-0006 GREEN);
+- strict UTF-8 on all four files;
+- `git diff --check`;
+- exact scope: no tracked changes and no new paths outside the four files
+  plus the run result artifact;
+- added-line secret scan (0 hits);
+- no tracked changes outside the four paths.
+
+## Result
+
+Compact result at `runs/WO-P1-520/author/attempt-0006/result.md`
+(attempt-0005 result retained at `runs/WO-P1-520/author/attempt-0005/result.md`;
+attempt-0003 result retained at `runs/WO-P1-520/author/attempt-0003/result.md`;
+attempt-0002 result retained at `runs/WO-P1-520/author/attempt-0002/result.md`;
+attempt-0001 result retained at `runs/WO-P1-520/author/attempt-0001/result.md`).
+Do not commit/push/merge.

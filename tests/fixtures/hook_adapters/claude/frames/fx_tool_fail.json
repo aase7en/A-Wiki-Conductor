@@ -1,0 +1,17 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxToolFail",
+    "session_ref": "fx-session-0001",
+    "turn_ref": "fx-turn-0008",
+    "occurred_at": "2026-09-19T08:20:10Z",
+    "duration_ms": 3000,
+    "tool_ref": "FxBash",
+    "tool_payload": {
+      "command": "curl https://chat.example/FAKE/share/0000"
+    },
+    "failure_code": "NATIVE_TOOL_ERROR"
+  }
+}

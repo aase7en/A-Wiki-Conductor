@@ -1,0 +1,10 @@
+# OpenAI-harness UI metadata and invocation policy for the repo-local
+# a-fasttask skill (WO-P1-245, repair-1 2026-09-16). Official skill metadata
+# shape: top-level `interface` + `policy` only; no top-level name/description/
+# prompt; no dependency fields.
+interface:
+  display_name: "A-FastTask"
+  short_description: "Route substantial repo work through existing project gates"
+  default_prompt: "Use $a-fasttask to route this substantial repository task through the existing project authorities, record the task/claim reference, chosen workflow, evidence destination, blocker, cleanup state, and exact next action, then continue immediately under that existing workflow when this agent is the authorized selected executor/integrator and no real blocker or approval gate requires a stop."
+policy:
+  allow_implicit_invocation: true

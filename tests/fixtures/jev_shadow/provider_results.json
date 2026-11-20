@@ -1,0 +1,90 @@
+{
+  "task-001": {
+    "type": "choice",
+    "answer": "bugfix",
+    "confidence": 0.94,
+    "probabilities": {
+      "bugfix": 0.96,
+      "feature": 0.02,
+      "docs": 0.01,
+      "review": 0.01
+    },
+    "model": "fixture-jev-1.13",
+    "latency_ms": 102,
+    "input_tokens": 280,
+    "output_tokens": 28,
+    "cost_usd": 0.000012,
+    "retries": 0
+  },
+  "skill-001": {
+    "type": "choice",
+    "answer": "pdf",
+    "confidence": 0.55,
+    "probabilities": {
+      "pdf": 0.58,
+      "slides": 0.36,
+      "spreadsheet": 0.02,
+      "none": 0.04
+    },
+    "model": "fixture-jev-1.13",
+    "latency_ms": 96,
+    "input_tokens": 250,
+    "output_tokens": 26,
+    "cost_usd": 0.000011,
+    "retries": 0
+  },
+  "failure-001": {
+    "type": "choice",
+    "answer": "RATE_LIMITED",
+    "confidence": 0.98,
+    "probabilities": {
+      "CODE_FAILURE": 0,
+      "TEST_FAILURE": 0,
+      "TRANSPORT_FAILURE": 0.01,
+      "RATE_LIMITED": 0.98,
+      "AUTH_FAILURE": 0.01
+    },
+    "model": "fixture-jev-1.13",
+    "latency_ms": 88,
+    "input_tokens": 235,
+    "output_tokens": 31,
+    "cost_usd": 0.00001,
+    "retries": 0
+  },
+  "review-001": {
+    "type": "score",
+    "answer": 0.05,
+    "confidence": 0.93,
+    "probabilities": {
+      "0": 0.95,
+      "1": 0.05,
+      "2": 0
+    },
+    "model": "fixture-jev-1.13",
+    "latency_ms": 112,
+    "input_tokens": 265,
+    "output_tokens": 24,
+    "cost_usd": 0.0000115,
+    "retries": 0
+  },
+  "evidence-001": {
+    "type": "noul",
+    "answer": 0.94,
+    "model": "fixture-jev-1.13",
+    "latency_ms": 84,
+    "input_tokens": 220,
+    "output_tokens": 18,
+    "cost_usd": 0.0000095,
+    "retries": 0
+  },
+  "escalate-001": {
+    "type": "noul",
+    "answer": 0.97,
+    "model": "fixture-jev-1.13",
+    "latency_ms": 118,
+    "input_tokens": 245,
+    "output_tokens": 18,
+    "cost_usd": 0.0000105,
+    "retries": 0
+  }
+}

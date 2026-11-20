@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; img-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>SundayFamily | UX-1 ตัวอย่างภาพรวม</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --surface: #111820;
+      --surface-raised: #17212c;
+      --border: #2b3948;
+      --text: #edf2f7;
+      --muted: #a5b4c3;
+      --accent: #9bc5ff;
+      --focus: #b8d7ff;
+      --ready: #8f8;
+      --available: #8f8;
+      --unknown: #fc6;
+      --stale: #f96;
+      --degraded: #f66;
+      --disconnected: #c9f;
+      --s1: 4px;
+      --s2: 8px;
+      --s3: 12px;
+      --s4: 16px;
+      --s5: 24px;
+      --s6: 32px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: auto; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.65 system-ui, 'Segoe UI', 'Leelawadee UI', sans-serif;
+    }
+    a { color: var(--accent); text-underline-offset: 4px; }
+    a:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 28px; line-height: 1.4; }
+    h2 { font-size: 18px; line-height: 1.5; }
+    h3 { font-size: 16px; line-height: 1.5; }
+    code, .mono, time {
+      font-family: ui-monospace, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    .skip { position: absolute; top: -80px; left: 16px; padding: 12px; background: var(--surface); z-index: 2; }
+    .skip:focus { top: 8px; }
+    .app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar { border-right: 1px solid var(--border); padding: var(--s5) var(--s4); }
+    .brand { font-size: 20px; font-weight: 700; }
+    .muted, .reason { color: var(--muted); }
+    .small, .reason { font-size: 13px; line-height: 1.6; }
+    .sidebar .intro { margin: var(--s2) 0 var(--s6); }
+    nav ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); }
+    .nav-item { display: block; min-height: 52px; padding: var(--s2) var(--s3); border: 1px solid transparent; border-radius: 8px; }
+    .nav-item[aria-current] { border-color: var(--border); background: var(--surface-raised); color: var(--accent); }
+    .nav-item span { display: block; font-size: 12px; color: var(--muted); }
+    .nav-disabled { color: var(--muted); cursor: default; }
+    .side-note { margin-top: var(--s6); border-top: 1px solid var(--border); padding-top: var(--s4); }
+    main { min-width: 0; padding: var(--s6); max-width: 1600px; }
+    .header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s4); margin-bottom: var(--s5); }
+    .eyebrow { font-size: 12px; color: var(--muted); margin-bottom: var(--s2); }
+    .header p { margin-top: var(--s2); }
+    .chip { display: inline-block; padding: 3px 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 12px; background: var(--surface); }
+    .sample-banner { padding: var(--s4) var(--s5); border: 1px solid var(--accent); border-radius: 8px; margin-bottom: var(--s5); }
+    .sample-banner strong { display: block; color: var(--accent); }
+    .sample-banner p { margin-top: var(--s1); }
+    .section-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
+    .fleet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4); margin-bottom: var(--s5); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: var(--s5); min-width: 0; }
+    .device-head { display: flex; justify-content: space-between; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+    .device-copy { margin: var(--s3) 0; }
+    .device-meta { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); }
+    .badge { display: inline-block; background: var(--surface); border: 1px solid currentColor; border-radius: 5px; padding: 2px 7px; font: 12px/1.6 ui-monospace, Consolas, monospace; white-space: nowrap; }
+    .ready { color: var(--ready); }
+    .available { color: var(--available); }
+    .unknown { color: var(--unknown); }
+    .stale { color: var(--stale); }
+    .degraded { color: var(--degraded); }
+    .disconnected { color: var(--disconnected); }
+    .dashboard { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--s4); }
+    .card-title { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s3); }
+    .counters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s2); margin: var(--s4) 0; }
+    .counter { border: 1px solid var(--border); padding: var(--s3); border-radius: 6px; }
+    .counter strong { display: block; font-size: 25px; line-height: 1.3; }
+    .counter span { font-size: 12px; color: var(--muted); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    caption { text-align: left; color: var(--muted); margin-bottom: var(--s2); }
+    th, td { padding: var(--s3) var(--s2); text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+    th { color: var(--muted); font-weight: 500; background: var(--surface-raised); }
+    td:first-child, th:first-child { padding-left: var(--s2); }
+    .lane-name { display: block; margin-bottom: var(--s1); }
+    .gate { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-bottom: var(--s1); font-size: 11px; }
+    .source { border-top: 1px solid var(--border); margin-top: var(--s4); padding-top: var(--s3); }
+    .inspector-group { border-bottom: 1px solid var(--border); padding: var(--s3) 0; }
+    .inspector-group:first-of-type { padding-top: 0; }
+    .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: var(--s2) 0; }
+    .truncated { margin-top: var(--s2); padding-left: var(--s3); border-left: 2px solid var(--accent); }
+    .empty { margin-top: var(--s4); border: 1px dashed var(--border); padding: var(--s4); border-radius: 6px; }
+    .empty h3 { margin: var(--s2) 0; }
+    .usage { min-height: 180px; }
+    .usage p { margin-top: var(--s3); }
+    .advice { border-left: 2px solid var(--accent); padding-left: var(--s4); margin: var(--s4) 0; }
+    .advice p + p { margin-top: var(--s2); }
+    .activity { grid-column: 1 / -1; }
+    .events { list-style: none; padding: 0; margin: 0; }
+    .events li { display: grid; grid-template-columns: 72px 1fr auto; gap: var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--border); }
+    .events time { color: var(--muted); font-size: 13px; }
+    footer { margin-top: var(--s5); border-top: 1px solid var(--border); padding-top: var(--s4); }
+    footer p + p { margin-top: var(--s2); }
+    @media (max-width: 1279px) {
+      main { padding: var(--s5); }
+      .dashboard { grid-template-columns: minmax(0, 1fr); }
+      .activity { grid-column: auto; }
+    }
+    @media (max-width: 899px) {
+      .app { grid-template-columns: minmax(0, 1fr); }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--border); padding: var(--s4); }
+      .sidebar .intro { margin: var(--s1) 0 var(--s3); }
+      nav ul { display: flex; flex-wrap: wrap; gap: var(--s1); }
+      .nav-item { min-height: 44px; padding: var(--s2); font-size: 13px; }
+      .nav-item span { font-size: 11px; }
+      .side-note { display: none; }
+      main { padding: var(--s4); }
+      .fleet { grid-template-columns: minmax(0, 1fr); }
+      .header { flex-direction: column; }
+      .card { padding: var(--s4); }
+      .sample-banner { padding: var(--s4); }
+      h1 { font-size: 24px; }
+      .events li { grid-template-columns: 64px 1fr; }
+      .events .chip { grid-column: 2; justify-self: start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#overview">ข้ามไปเนื้อหาภาพรวม</a>
+  <div class="app">
+    <aside class="sidebar" aria-label="แถบนำทางตัวอย่าง">
+      <div class="brand">SundayFamily</div>
+      <p class="intro muted small">หนึ่งพื้นที่สำหรับสถานะและหลักฐาน<br>UX-1 / DESIGN PREVIEW</p>
+      <nav aria-label="เมนูหลักที่เสนอ">
+        <ul>
+          <li><a class="nav-item" aria-current="page" href="#overview">ภาพรวม<span>Overview</span></a></li>
+          <li><a class="nav-item" href="#fleet">ทีมเครื่อง<span>Fleet</span></a></li>
+          <li><a class="nav-item" href="#work">งานและเลน<span>Work &amp; Lanes</span></a></li>
+          <li><a class="nav-item" href="#inspector">เครื่องมือและการใช้งาน<span>Tools &amp; Usage</span></a></li>
+          <li><span class="nav-item nav-disabled" aria-disabled="true">ตั้งค่า<span>Settings / ยังไม่มีหน้าใน mockup</span></span></li>
+          <li><a class="nav-item" href="#jev">Jev มุมตัดสินใจเร็ว<span>READ_ONLY advisory</span></a></li>
+          <li><a class="nav-item" href="#activity">บันทึกกิจกรรม<span>Activity &amp; Logs</span></a></li>
+        </ul>
+      </nav>
+      <p class="side-note small muted">ลิงก์เลื่อนไปส่วนตัวอย่างในหน้าเดียว ไม่ใช่เมนูแอปที่ทำงานแล้ว ไม่มีการเรียก tool หรือแก้ runtime</p>
+    </aside>
+    <main id="overview">
+      <header class="header">
+        <div>
+          <div class="eyebrow">SUNDAYFAMILY / OPERATOR OVERVIEW</div>
+          <h1>เห็นสถานะ รู้ว่าต้องรออะไร</h1>
+          <p class="muted">คุณสั่งงานด้วยภาษาธรรมชาติ ระบบแสดงผลและหลักฐาน ไม่ต้องจำชื่อเครื่องมือ</p>
+        </div>
+        <span class="chip">SESSION DEMO / ไม่มี token จริง</span>
+      </header>
+      <section class="sample-banner" aria-label="คำเตือนข้อมูลจำลอง">
+        <strong>ตัวอย่างข้อมูล — SAMPLE DATA (ยังไม่ใช่ข้อมูลจริง)</strong>
+        <p class="small">ทุกสถานะ จำนวน เวลา และเหตุการณ์ในหน้านี้เป็นข้อมูลจำลองสำหรับเลือกแบบ UX-1 ไม่ใช่ผลตรวจเครื่องหรือการยืนยันว่าฟีเจอร์พร้อมใช้</p>
+      </section>
+      <section id="fleet" aria-labelledby="fleet-title">
+        <div class="section-head">
+          <h2 id="fleet-title">ทีมเครื่อง <span class="muted small">Fleet</span></h2>
+          <span class="chip">อ่านอย่างเดียว / SAMPLE</span>
+        </div>
+        <div class="fleet">
+          <article class="card">
+            <div class="device-head">
+              <h3>SundayMCP Windows</h3>
+              <span class="badge ready">READY</span>
+            </div>
+            <p class="device-copy">พร้อมตามหลักฐานสุขภาพจำลอง ไม่ได้แปลว่างานเสร็จ</p>
+            <div class="device-meta small muted">
+              <span>แหล่ง: SAMPLE health observation</span>
+              <span>ตรวจ: <time datetime="2026-11-10T14:00:00Z">14:00:00 UTC</time></span>
+            </div>
+            <p class="reason">tunnel_configured: true (ตัวอย่าง) / ไม่แสดง pairing ID</p>
+          </article>
+          <article class="card">
+            <div class="device-head">
+              <h3>SundayMCP Mac</h3>
+              <span class="badge ready">READY</span>
+            </div>
+            <p class="device-copy">พร้อมตามหลักฐานสุขภาพจำลอง ไม่ยืนยัน Inspector บนเครื่องนี้</p>
+            <div class="device-meta small muted">
+              <span>แหล่ง: SAMPLE health observation</span>
+              <span>ตรวจ: <time datetime="2026-11-10T14:00:00Z">14:00:00 UTC</time></span>
+            </div>
+            <p class="reason">Fleet DTO เป็น target-state / ไม่มีปุ่ม Start หรือ Stop ใน v1</p>
+          </article>
+        </div>
+      </section>
+      <div class="dashboard">
+        <section class="card" id="work" aria-labelledby="work-title">
+          <div class="card-title">
+            <h2 id="work-title">งานและเลน</h2>
+            <span class="chip">3 เลน / SAMPLE</span>
+          </div>
+          <p class="small muted">สถานะงานเป็นคนละ vocabulary กับ readiness ของเครื่องมือ ไม่ใช้สีเขียวแทนการยอมรับงาน</p>
+          <div class="counters" aria-label="จำนวนเลนจำลองตามสถานะ">
+            <div class="counter"><strong>1</strong><span class="mono">RUNNING</span></div>
+            <div class="counter"><strong>1</strong><span class="mono">WAITING</span></div>
+            <div class="counter"><strong>1</strong><span class="mono">BLOCKED</span></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <caption>รายการจำลอง / ไม่มี authoritative receipt ใน mockup</caption>
+              <thead><tr><th scope="col">เลน</th><th scope="col">สถานะ</th><th scope="col">Gates</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><strong class="lane-name">สรุปหลักฐานงาน</strong><span class="muted mono">DEMO-LANE-A</span></td>
+                  <td><span class="chip">RUNNING</span></td>
+                  <td><span class="gate">claim: sample</span><br><span class="gate">review: pending</span></td>
+                </tr>
+                <tr>
+                  <td><strong class="lane-name">รอความเห็นต่อแบบ</strong><span class="muted mono">DEMO-LANE-B</span></td>
+                  <td><span class="chip">WAITING</span></td>
+                  <td><span class="gate">operator: pending</span></td>
+                </tr>
+                <tr>
+                  <td><strong class="lane-name">ตรวจแหล่งข้อมูล</strong><span class="muted mono">DEMO-LANE-C</span></td>
+                  <td><span class="chip">BLOCKED</span></td>
+                  <td><span class="gate">evidence: missing</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="source reason">แหล่ง: SAMPLE lane projection / เวลา 14:00 UTC<br>Owner, claim และ HEAD จริง: ไม่มีในตัวอย่างนี้ ไม่อนุญาตให้ดำเนินการต่อจากข้อมูลจำลอง</p>
+        </section>
+        <section class="card" id="inspector" aria-labelledby="inspector-title">
+          <div class="card-title">
+            <h2 id="inspector-title">หลักฐานเครื่องมือ</h2>
+            <span class="chip">Inspector / SAMPLE</span>
+          </div>
+          <p class="small muted">ตัวอย่าง Windows Inspector: นับเฉพาะแถวที่คงไว้ ไม่ใช่จำนวนการเรียก tool</p>
+          <div class="inspector-group">
+            <h3>Tools <span class="muted small">6 retained</span></h3>
+            <div class="badges" aria-label="สถานะ Tools จำลอง">
+              <span class="badge ready">READY 2</span><span class="badge unknown">UNKNOWN 1</span>
+              <span class="badge stale">STALE 1</span><span class="badge degraded">DEGRADED 1</span>
+              <span class="badge disconnected">DISCONNECTED 1</span>
+            </div>
+            <p class="reason">พร้อม / ยังไม่ทราบ / หลักฐานเก่า / ตรวจมีปัญหา / ขาดการเชื่อมต่อ</p>
+            <p class="reason">phase: CONNECTED เป็น metadata ไม่ใช่หลักฐาน READY</p>
+          </div>
+          <div class="inspector-group">
+            <h3>Hooks <span class="muted small">2 retained</span></h3>
+            <div class="badges"><span class="badge unknown">UNKNOWN 2</span></div>
+            <p class="reason">contract-only: พบสัญญา ไม่ได้พิสูจน์ว่า hook ทำงาน</p>
+          </div>
+          <div class="inspector-group">
+            <h3>Skills <span class="muted small">128 retained</span></h3>
+            <div class="badges"><span class="badge available">AVAILABLE 120</span><span class="badge unknown">UNKNOWN 8</span></div>
+            <p class="reason">AVAILABLE = registry + path เท่านั้น ไม่ใช่ runtime READY หรือสิทธิ์ใช้งาน</p>
+            <p class="truncated small">แสดง 128 แถวที่คงไว้ / dropped: 12 / truncated: true<br>ตัวอย่างขีดจำกัด ไม่ใช่ inventory ทั้งระบบ</p>
+          </div>
+          <div class="empty">
+            <span class="badge unknown">UNKNOWN</span>
+            <h3>Mac: ไม่มีหลักฐาน Inspector</h3>
+            <p class="reason">no inspector evidence / INSPECTOR_NOT_PROVIDED<br>source: ยังไม่มี projection / ไม่ทราบเวลา<br>ไม่แทนด้วย 0 และไม่อนุมานจาก Fleet READY</p>
+          </div>
+          <p class="source reason">แหล่งทั้งหมด: SAMPLE Inspector projection / เวลา 14:00 UTC<br>ค่าที่ถูกปกปิด: <code>[REDACTED]</code> / ไม่มีข้อมูลต้นฉบับซ่อนอยู่</p>
+        </section>
+        <section class="card usage" id="usage" aria-labelledby="usage-title">
+          <div class="card-title"><h2 id="usage-title">การใช้งานเครื่องมือ</h2><span class="chip">รอ slice 2 / source gate</span></div>
+          <span class="badge unknown">UNKNOWN</span>
+          <p>ยังไม่มีแหล่งหลักฐานจำนวนการเรียกใช้งาน</p>
+          <p class="reason">ไม่สร้างกราฟจากจำนวน tool ที่ลงทะเบียน การต่อ Inspector ใน slice 2 เพียงอย่างเดียวไม่ทำให้มี usage events</p>
+          <p class="reason">source: ยังไม่มี usage projection / ไม่ทราบเวลา</p>
+        </section>
+        <section class="card" id="jev" aria-labelledby="jev-title">
+          <div class="card-title"><h2 id="jev-title">Jev มุมตัดสินใจเร็ว</h2><span class="chip">READ_ONLY advisory</span></div>
+          <div class="advice">
+            <p>ตัวอย่างคำแนะนำ: ตรวจแหล่งหลักฐานที่ขาดก่อนสรุปความพร้อม</p>
+            <p class="reason">อ้างอิง: SAMPLE Mac Inspector empty state<br>เป็นตัวอย่างข้อความที่เขียนไว้ ไม่ใช่คำตอบจาก AI สด</p>
+          </div>
+          <span class="badge unknown">UNKNOWN</span>
+          <p class="reason">ยังไม่มี live advisory source / ไม่ทราบเวลา / ไม่สร้าง confidence เอง</p>
+          <p class="source small">คำแนะนำไม่ใช่การอนุมัติ ไม่เปลี่ยน claim ไม่ retry และไม่สรุปว่างานเสร็จ</p>
+        </section>
+        <section class="card activity" id="activity" aria-labelledby="activity-title">
+          <div class="card-title"><h2 id="activity-title">บันทึกกิจกรรมล่าสุด</h2><span class="chip">SAMPLE EVENTS</span></div>
+          <ul class="events">
+            <li><time datetime="2026-11-10T14:00:00Z">14:00</time><div>ได้รับ snapshot จำลอง<span class="reason"> / SAMPLE projection; ไม่ใช่ข้อมูลสด</span></div><span class="chip">ตัวอย่าง</span></li>
+            <li><time datetime="2026-11-10T13:58:00Z">13:58</time><div>ตัวอย่างเลนรอ operator review<span class="reason"> / SAMPLE gate event</span></div><span class="chip">รอตรวจ</span></li>
+            <li><time datetime="2026-11-10T13:55:00Z">13:55</time><div>ตัวอย่าง source ไม่ส่ง Inspector<span class="reason"> / SAMPLE missing-evidence event</span></div><span class="badge unknown">UNKNOWN</span></li>
+          </ul>
+          <p class="reason">วันที่จำลอง 2026-11-10 / ทุกเวลา UTC / ไม่มี log จากเครื่องจริง</p>
+        </section>
+      </div>
+      <footer class="small muted">
+        <p>UX-1 design preview / #739 / 2026-11-10 / เปิดแบบ offline ได้ / ไม่มี network, storage หรือ runtime actions</p>
+        <p>เมนูเป็นการเลื่อนในตัวอย่าง ไม่ได้เปลี่ยนหน้าแอปจริง การเลือกแบบนี้ไม่ใช่การอนุมัติ implementation, token handoff หรือ Tk retirement</p>
+        <p>ตรวจรายละเอียดใน <a href="2026-11-10-sunday-family-ux1-design.md">design packet</a> และบันทึก operator green-light บน #739 ก่อน UX-2</p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

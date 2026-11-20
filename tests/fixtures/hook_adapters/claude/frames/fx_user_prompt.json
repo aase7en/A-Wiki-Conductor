@@ -1,0 +1,11 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxUserPrompt",
+    "session_ref": "fx-session-0001",
+    "occurred_at": "2026-09-19T08:30:15.250+07:00",
+    "prompt_text": "FXBAIT-PROMPT please summarize using sk-FAKE0000000000000000000000000000000000"
+  }
+}

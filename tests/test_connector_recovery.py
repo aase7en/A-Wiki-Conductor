@@ -6,6 +6,7 @@ from a_conductor.connector_recovery import (
     ConnectorRecoveryCoordinator,
     ConnectorRecoveryRecord,
     ConnectorRecoveryState,
+    RecoveryHistoryEventKind,
 )
 from a_conductor.local_instances import (
     InstanceHealthState,
@@ -18,12 +19,34 @@ class MemoryStore:
     def __init__(self) -> None:
         self.records: dict[str, ConnectorRecoveryRecord] = {}
         self.save_calls = 0
+        self.history: list = []
 
     def get_connector_recovery(self, instance_name: str):
         return self.records.get(instance_name)
 
     def save_connector_recovery(self, record: ConnectorRecoveryRecord):
         self.save_calls += 1
+        self.records[record.instance_name] = record
+        return record
+
+    def save_connector_recovery_history(self, record: ConnectorRecoveryRecord, events):
+        self.save_calls += 1
+        self.records[record.instance_name] = record
+        self.history.extend(events)
+        return record
+
+    def clear_connector_recovery(self, instance_name: str) -> None:
+        self.records.pop(instance_name, None)
+
+
+class BareStore:
+    def __init__(self) -> None:
+        self.records: dict[str, ConnectorRecoveryRecord] = {}
+
+    def get_connector_recovery(self, instance_name: str):
+        return self.records.get(instance_name)
+
+    def save_connector_recovery(self, record: ConnectorRecoveryRecord):
         self.records[record.instance_name] = record
         return record
 
@@ -207,3 +230,157 @@ def test_late_cancellation_reaches_start_boundary_without_failure_budget() -> No
     assert result.state is ConnectorRecoveryState.STOPPED
     assert result.failure_count == 0
     assert calls == []
+
+
+def test_store_without_history_support_still_recovers() -> None:
+    store = BareStore()
+    calls: list[str] = []
+
+    def start(name: str, *, cancel_check=None):
+        calls.append(name)
+        return InstanceOrchestrationOutcome("start", InstanceResultCode.RUNNING)
+
+    recovery = ConnectorRecoveryCoordinator(
+        store=store,
+        autostart_check=lambda name: True,
+        start_instance=start,
+        clock_fn=Clock(1000.0),
+    )
+    result = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    assert result.state is ConnectorRecoveryState.READY
+    assert result.restart_count == 1
+    assert calls == ["Sunday-Worker-1"]
+
+
+def test_stable_ready_refresh_appends_zero_history_events() -> None:
+    recovery, store, _, clock = build()
+    recovery.observe("Sunday-Worker-1", InstanceHealthState.READY)
+    assert [event.kind for event in store.history] == [
+        RecoveryHistoryEventKind.READY_OBSERVED
+    ]
+    events_after_first = len(store.history)
+    clock.now += 15.0
+    recovery.observe("Sunday-Worker-1", InstanceHealthState.READY)
+    assert len(store.history) == events_after_first
+
+
+def test_unexpected_stopped_recovery_ready_uses_fresh_post_start_time() -> None:
+    store = MemoryStore()
+    clock = Clock(2000.0)
+
+    def start(name: str, *, cancel_check=None):
+        clock.now += 30.0
+        return InstanceOrchestrationOutcome("start", InstanceResultCode.RUNNING)
+
+    recovery = ConnectorRecoveryCoordinator(
+        store=store,
+        autostart_check=lambda name: True,
+        start_instance=start,
+        clock_fn=clock,
+    )
+    result = recovery.observe(
+        "Sunday-Worker-1",
+        InstanceHealthState.STOPPED,
+        reason_code="UNEXPECTED_EXIT",
+    )
+    assert result.state is ConnectorRecoveryState.READY
+    assert result.restart_count == 1
+    assert result.updated_at == 2030.0
+
+    assert [event.kind for event in store.history] == [
+        RecoveryHistoryEventKind.RECOVERY_STARTED,
+        RecoveryHistoryEventKind.RECOVERY_READY,
+    ]
+    started, ready = store.history
+    assert started.observed_at == 2000.0
+    assert started.from_state is ConnectorRecoveryState.STOPPED
+    assert started.to_state is ConnectorRecoveryState.RECOVERING
+    assert started.reason_code == "UNEXPECTED_EXIT"
+    assert ready.observed_at == 2030.0
+    assert ready.observed_at > started.observed_at
+    assert ready.from_state is ConnectorRecoveryState.RECOVERING
+    assert ready.to_state is ConnectorRecoveryState.READY
+    assert ready.restart_count == 1
+
+
+def test_failed_attempts_and_degrade_are_reconstructable_from_history() -> None:
+    recovery, store, _, clock = build(outcomes=(failed(), failed(), failed()))
+    one = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    clock.now = one.next_retry_at
+    two = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    clock.now = two.next_retry_at
+    three = recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    assert three.state is ConnectorRecoveryState.DEGRADED
+
+    assert [event.kind for event in store.history] == [
+        RecoveryHistoryEventKind.RECOVERY_STARTED,
+        RecoveryHistoryEventKind.RECOVERY_FAILED,
+        RecoveryHistoryEventKind.RECOVERY_STARTED,
+        RecoveryHistoryEventKind.RECOVERY_FAILED,
+        RecoveryHistoryEventKind.RECOVERY_STARTED,
+        RecoveryHistoryEventKind.RECOVERY_FAILED,
+    ]
+    degrade_event = store.history[-1]
+    assert degrade_event.from_state is ConnectorRecoveryState.RECOVERING
+    assert degrade_event.to_state is ConnectorRecoveryState.DEGRADED
+    assert degrade_event.reason_code == "STARTED_NOT_READY"
+
+
+def test_manual_suppress_and_manual_start_history_is_distinguishable() -> None:
+    recovery, store, _, _ = build()
+    recovery.suppress("Sunday-Worker-1")
+    suppressed = store.history[-1]
+    assert suppressed.kind is RecoveryHistoryEventKind.SUPPRESSED
+    assert suppressed.from_state is ConnectorRecoveryState.STOPPED
+    assert suppressed.to_state is ConnectorRecoveryState.STOPPED
+
+    recovery.manual_start("Sunday-Worker-1")
+    manual = store.history[-1]
+    assert manual.kind is RecoveryHistoryEventKind.MANUAL_START
+    assert manual.from_state is ConnectorRecoveryState.STOPPED
+    assert manual.to_state is ConnectorRecoveryState.STOPPED
+    assert manual.restart_count == 0
+
+
+def test_manual_start_after_degrade_preserves_restart_count_in_history() -> None:
+    recovery, store, _, _ = build()
+    store.save_connector_recovery(
+        ConnectorRecoveryRecord(
+            instance_name="Sunday-Worker-1",
+            state=ConnectorRecoveryState.DEGRADED,
+            recovery_suppressed=True,
+            failure_count=3,
+            failure_window_started_at=900.0,
+            restart_count=4,
+            last_exit_reason="STARTED_NOT_READY",
+            last_exit_at=990.0,
+            next_retry_at=None,
+            updated_at=990.0,
+        )
+    )
+    result = recovery.manual_start("Sunday-Worker-1")
+    assert result.restart_count == 4
+    assert store.history[-1].kind is RecoveryHistoryEventKind.MANUAL_START
+    assert store.history[-1].restart_count == 4
+
+
+def test_non_autostart_stop_and_cancel_are_evidenced() -> None:
+    stopped = build(autostart=False)
+    recovery, store, _, _ = stopped
+    recovery.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    outage = store.history[-1]
+    assert outage.kind is RecoveryHistoryEventKind.OUTAGE_OBSERVED
+    assert outage.to_state is ConnectorRecoveryState.STOPPED
+    assert outage.reason_code == "UNEXPECTED_STOPPED"
+
+    checks = iter((False, False, True))
+    recovery2, store2, _, _ = build()
+    recovery2.observe(
+        "Sunday-Worker-1",
+        InstanceHealthState.STOPPED,
+        cancel_check=lambda: next(checks),
+    )
+    cancelled = store2.history[-1]
+    assert cancelled.kind is RecoveryHistoryEventKind.RECOVERY_CANCELLED
+    assert cancelled.from_state is ConnectorRecoveryState.RECOVERING
+    assert cancelled.to_state is ConnectorRecoveryState.STOPPED

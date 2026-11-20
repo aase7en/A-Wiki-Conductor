@@ -627,3 +627,21 @@ def test_q27_malformed_expected_hash_rejects(tmp_path):
     bad = _TPF(task_contract_ref="R", path=packet.path, sha256="0" * 64)
     with pytest.raises(Exception):
         ZCodeTaskPacketIdentity.from_task_packet_file(bad)
+
+
+# ---------------- WO-P1-205 Phase D exact execution handle ----------------
+
+def test_phase_d_zcode_runner_additive_outcome_preserves_legacy_run(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    runner, store, _, _, _ = _runner(tmp_path)
+    outcome = runner.run_with_outcome(operation_ref=None)
+
+    assert outcome.kind is SupervisedRunOutcomeKind.FRESH
+    assert outcome.execution_id is not None
+    assert store.get(outcome.execution_id).execution_id == outcome.execution_id
+    assert outcome.native.exit_code == 0
+
+    legacy = runner.run(operation_ref=None)
+    assert legacy.exit_code == 0
+    assert not hasattr(legacy, "execution_id")

@@ -19,6 +19,7 @@ from a_conductor.zcode_protocol import (
     ZCODE_MAX_RESPONSE_BYTES,
     ZCodeProtocolDriver,
     ZCodeProtocolError,
+    ZCodeRuntimeModel,
 )
 from a_conductor.zcode_supervised_helper import (
     ZCodeChildIdentity,
@@ -91,6 +92,135 @@ def _drive(script, **turn_kwargs):
 
 
 # ---------------- happy paths ----------------
+
+def _runtime_model(provider_id="provider-a", model_id="glm-5.3"):
+    return ZCodeRuntimeModel(
+        revision="zcode-runtime-v1:" + "a" * 64,
+        provider_id=provider_id,
+        model_id=model_id,
+        base_url="https://provider.example.test/anthropic",
+        api_key_env="ANTHROPIC_API_KEY",
+    )
+
+
+def _create_with_model(provider_id="provider-a", model_id="glm-5.3", session_id="sess-1"):
+    return json.dumps({
+        "id": 1,
+        "result": {
+            "session": {"sessionId": session_id},
+            "settings": {
+                "model": {
+                    "current": {"providerId": provider_id, "modelId": model_id},
+                    "available": [],
+                }
+            },
+        },
+    })
+
+
+def test_authorized_runtime_model_is_materialized_in_session_create():
+    runtime_model = _runtime_model()
+    transport = ScriptedTransport([
+        _create_with_model(), _prefs(), _subscribe_ok(), _delta("OK"), _completed()
+    ])
+    driver = ZCodeProtocolDriver(transport)
+    turn = driver.run_turn(
+        "say OK",
+        workspace="A:/fake",
+        runtime_model=runtime_model,
+        deadline_seconds=10,
+    )
+    assert turn.turn_completed
+    messages = [json.loads(line) for line in transport.sent]
+    create = messages[0]
+    assert create["method"] == "session/create"
+    assert create["params"]["runtimeModel"] == runtime_model.as_dict()
+    assert create["params"]["model"] == runtime_model.model_ref
+    wire = json.dumps(create, sort_keys=True)
+    assert "credential-value-must-never-appear" not in wire
+    assert wire.count("ANTHROPIC_API_KEY") == 1
+
+
+def test_runtime_model_mismatch_fails_before_prompt_send():
+    runtime_model = _runtime_model()
+    transport = ScriptedTransport([
+        _create_with_model(provider_id="provider-b", model_id="other-model"),
+    ])
+    driver = ZCodeProtocolDriver(transport)
+    with pytest.raises(ZCodeProtocolError) as exc:
+        driver.run_turn(
+            "must-not-send",
+            workspace="A:/fake",
+            runtime_model=runtime_model,
+            deadline_seconds=10,
+        )
+    assert exc.value.code == "SESSION_MODEL_MISMATCH"
+    messages = [json.loads(line) for line in transport.sent]
+    assert not any(message.get("method") == "session/send" for message in messages)
+
+
+def test_runtime_model_transport_round_trip_is_non_secret():
+    runtime_model = _runtime_model()
+    encoded = runtime_model.to_json()
+    assert "credential-value-must-never-appear" not in encoded
+    assert '"source":"env"' in encoded
+    assert ZCodeRuntimeModel.from_json(encoded) == runtime_model
+
+
+@pytest.mark.parametrize(
+    ("needle", "replacement"),
+    (
+        ('"provider":{', '"provider":{"providerId":"shadow"},"provider":{'),
+        (
+            '"baseURL":"https://provider.example.test/anthropic"',
+            '"baseURL":"https://shadow.invalid","baseURL":"https://provider.example.test/anthropic"',
+        ),
+        ('"modelId":"glm-5.3"', '"modelId":"shadow-model","modelId":"glm-5.3"'),
+    ),
+)
+def test_runtime_model_transport_rejects_duplicate_object_keys(needle, replacement):
+    encoded = _runtime_model().to_json()
+    duplicated = encoded.replace(needle, replacement, 1)
+    assert duplicated != encoded
+    with pytest.raises(ValueError, match="runtime model metadata is invalid"):
+        ZCodeRuntimeModel.from_json(duplicated)
+
+
+def test_runtime_model_transport_rejects_inline_secret_shape():
+    doc = _runtime_model().as_dict()
+    doc["provider"]["apiKey"] = {
+        "source": "inline", "value": "credential-value-must-never-appear"
+    }
+    with pytest.raises(ValueError, match="runtime model metadata is invalid"):
+        ZCodeRuntimeModel.from_json(json.dumps(doc))
+
+
+def test_runtime_model_missing_attestation_fails_before_prompt_send():
+    runtime_model = _runtime_model()
+    transport = ScriptedTransport([_create()])
+    driver = ZCodeProtocolDriver(transport)
+    with pytest.raises(ZCodeProtocolError) as exc:
+        driver.run_turn(
+            "must-not-send",
+            workspace="A:/fake",
+            runtime_model=runtime_model,
+            deadline_seconds=10,
+        )
+    assert exc.value.code == "SESSION_MODEL_ATTESTATION_MISSING"
+    messages = [json.loads(line) for line in transport.sent]
+    assert not any(message.get("method") == "session/send" for message in messages)
+
+
+def test_runtime_model_rejects_non_loopback_cleartext_endpoint():
+    with pytest.raises(ValueError, match="external runtime model endpoints require HTTPS"):
+        ZCodeRuntimeModel(
+            revision="zcode-runtime-v1:" + "a" * 64,
+            provider_id="provider-a",
+            model_id="glm-5.3",
+            base_url="http://provider.example.test/anthropic",
+            api_key_env="ANTHROPIC_API_KEY",
+        )
+
 
 def test_full_protocol_happy_path_without_thought():
     transport, turn = _drive([_create(), _prefs(), _subscribe_ok(), _delta("O"), _delta("K"), _completed()])

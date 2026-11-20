@@ -1,0 +1,12 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": false,
+  "frame": {
+    "fixture_event": "FxSubagentStop",
+    "session_ref": "fx-session-0001",
+    "subagent_ref": "fx-subagent-01",
+    "occurred_at": "2026-09-19T08:15:08.800Z",
+    "duration_ms": 8800
+  }
+}

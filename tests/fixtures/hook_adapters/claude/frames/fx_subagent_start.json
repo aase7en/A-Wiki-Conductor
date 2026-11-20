@@ -1,0 +1,13 @@
+{
+  "native_version": "0.0.0-fixture-a",
+  "expect_outcome": "envelope",
+  "contains_redaction_bait": true,
+  "frame": {
+    "fixture_event": "FxSubagentStart",
+    "session_ref": "fx-session-0001",
+    "subagent_ref": "fx-subagent-01",
+    "model_ref": "fx-model-a",
+    "occurred_at": "2026-09-19T08:15:00Z",
+    "prompt": "FXBAIT-SUBAGENT-PROMPT"
+  }
+}

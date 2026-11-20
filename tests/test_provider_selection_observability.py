@@ -13,6 +13,15 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from a_conductor.provider_config_store import ProviderAdmissionRecord
+from a_conductor.provider_fallback_policy import (
+    REASON_ELIGIBLE_NOT_SELECTED,
+    REASON_QUOTA_EXHAUSTED,
+    REASON_SELECTED,
+    CandidateEvaluation,
+    ProviderFallbackSelectionResult,
+    SelectionOutcome,
+    SelectionStage,
+)
 from a_conductor.provider_selection_observability import (
     EXPIRY_NOT_EVALUATED,
     EXPIRY_PAST_EXPIRY_RECONCILE_REQUIRED,
@@ -253,3 +262,150 @@ def test_wo128_projection_deterministic_ordering_stress() -> None:
     for first, second in zip(ids, ids[1:]):
         left, right = by_id[first].acquired_at, by_id[second].acquired_at
         assert left > right or (left == right and first > second)
+
+
+def make_candidate(
+    provider_id="provider-test",
+    model_id="model-test",
+    eligible=True,
+    reason_code=REASON_ELIGIBLE_NOT_SELECTED,
+    generation=3,
+) -> CandidateEvaluation:
+    return CandidateEvaluation(
+        provider_id=provider_id,
+        model_id=model_id,
+        expected_configuration_generation=generation,
+        stage=SelectionStage.AUTHORIZED,
+        eligible=eligible,
+        reason_code=reason_code,
+    )
+
+
+def make_selection_result(
+    *evaluations,
+    outcome=SelectionOutcome.SELECTED,
+    provider_id="provider-test",
+    model_id="model-test",
+    reason_code=REASON_SELECTED,
+    generation=3,
+) -> ProviderFallbackSelectionResult:
+    selected = outcome is SelectionOutcome.SELECTED
+    return ProviderFallbackSelectionResult(
+        outcome=outcome,
+        provider_id=provider_id if selected else None,
+        model_id=model_id if selected else None,
+        expected_configuration_generation=generation if selected else None,
+        requested_effort="DEFAULT",
+        reason_code=reason_code if selected else outcome.value,
+        evaluations=tuple(evaluations),
+    )
+
+
+def test_wo752_selection_input_fills_real_reason_and_shortlist() -> None:
+    selection = make_selection_result(
+        make_candidate(reason_code=REASON_SELECTED),
+        make_candidate(
+            provider_id="provider-other",
+            model_id="model-other",
+            eligible=False,
+            reason_code=REASON_QUOTA_EXHAUSTED,
+        ),
+    )
+    evidence = project_provider_selection_evidence(
+        provider_id="provider-test",
+        current_configuration_generation=3,
+        admissions=(),
+        selection=selection,
+    )
+    assert evidence.selection_reason == REASON_SELECTED
+    assert evidence.selection_reason == "SELECTED_FIRST_ELIGIBLE_IN_EXPLICIT_ORDER"
+    # fallback authority is still never invented from selection evidence
+    assert evidence.fallback_reason == "NOT_EVALUATED"
+    # single-provider discipline: only this provider's rows are shortlisted
+    assert len(evidence.selection_shortlist) == 1
+    entry = evidence.selection_shortlist[0]
+    assert entry.provider_id == "provider-test"
+    assert entry.model_id == "model-test"
+    assert entry.reason_code == REASON_SELECTED
+    assert entry.stage == "AUTHORIZED"
+    assert entry.eligible is True
+    assert entry.expected_configuration_generation == 3
+
+
+def test_wo752_selection_input_loser_provider_gets_own_row_reason() -> None:
+    selection = make_selection_result(
+        make_candidate(
+            provider_id="provider-a",
+            model_id="model-a",
+            reason_code=REASON_SELECTED,
+        ),
+        make_candidate(reason_code=REASON_ELIGIBLE_NOT_SELECTED),
+    )
+    evidence = project_provider_selection_evidence(
+        provider_id="provider-test",
+        current_configuration_generation=3,
+        admissions=(),
+        selection=selection,
+    )
+    assert evidence.selection_reason == REASON_ELIGIBLE_NOT_SELECTED
+    assert evidence.selection_reason == "ELIGIBLE_NOT_FIRST_IN_EXPLICIT_ORDER"
+    assert len(evidence.selection_shortlist) == 1
+    assert evidence.selection_shortlist[0].provider_id == "provider-test"
+
+
+def test_wo752_selection_input_empty_outcome_reports_outcome_reason() -> None:
+    selection = make_selection_result(outcome=SelectionOutcome.NO_CANDIDATE_EMPTY_SET)
+    evidence = project_provider_selection_evidence(
+        provider_id="provider-test",
+        current_configuration_generation=3,
+        admissions=(),
+        selection=selection,
+    )
+    assert evidence.selection_reason == "NO_CANDIDATE_EMPTY_SET"
+    assert evidence.selection_shortlist == ()
+    assert evidence.fallback_reason == "NOT_EVALUATED"
+
+
+def test_wo752_selection_input_fails_closed_on_foreign_or_invalid_shape() -> None:
+    # SELECTED result that never evaluated this provider cannot be claimed
+    foreign = make_selection_result(
+        make_candidate(
+            provider_id="provider-a",
+            model_id="model-a",
+            reason_code=REASON_SELECTED,
+        )
+    )
+    with pytest.raises(ValueError):
+        project_provider_selection_evidence(
+            provider_id="provider-test",
+            current_configuration_generation=3,
+            admissions=(),
+            selection=foreign,
+        )
+    with pytest.raises(ValueError):
+        project_provider_selection_evidence(
+            provider_id="provider-test",
+            current_configuration_generation=3,
+            admissions=(),
+            selection="not-a-selection-result",
+        )
+
+
+def test_wo752_absent_selection_input_is_byte_identical_baseline() -> None:
+    baseline = ProviderSelectionEvidence(
+        provider_id="provider-test",
+        selection_reason="UNKNOWN",
+        fallback_reason="NOT_EVALUATED",
+        current_configuration_generation=3,
+        admissions=(),
+    )
+    evidence = project(())
+    assert evidence == baseline
+    assert evidence.selection_reason == "UNKNOWN"
+    assert evidence.fallback_reason == "NOT_EVALUATED"
+    assert evidence.selection_shortlist == ()
+    records = (make_record(status="ACTIVE"),)
+    with_admissions = project(records)
+    assert with_admissions.selection_reason == "UNKNOWN"
+    assert with_admissions.fallback_reason == "NOT_EVALUATED"
+    assert with_admissions.selection_shortlist == ()

@@ -51,7 +51,7 @@ def _profile():
         provider_id="zcode-glm",
         display_name="ZCode GLM",
         provider_type="zcode-app-server",
-        protocol_family=ProtocolFamily.CUSTOM,
+        protocol_family=ProtocolFamily.ANTHROPIC_MESSAGES,
         endpoint_ref="zcode-desktop",
         credential_ref="secret-ref:zcode-credential",
         trust_class=ProviderTrustClass.FIRST_PARTY,
@@ -535,3 +535,461 @@ def test_q29_no_second_scheduler_or_store_created(tmp_path):
     source = inspect.getsource(module)
     for banned in ("WorkerLeaseBroker(", "acquire(", "SQLiteExecutionStore(", "threading"):
         assert banned not in source, banned
+
+
+# ---------------- WO-P1-226: READ_ONLY review assembly entrypoint --------
+
+def _review_authorities(tmp_path, *, lease):
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=SQLiteExecutionStore(tmp_path / "control.sqlite"),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=lease,
+        admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=(),
+        worker_id="a-worker-01", repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay", head="h" * 40, dirty=False,
+    )
+
+
+def _review_lease(tmp_path):
+    from dataclasses import replace as _replace
+    from tests.test_zcode_real_helper_e2e import build_lease
+    from a_conductor.worker_lease import LeaseMutationIntent
+    return _replace(
+        build_lease(tmp_path),
+        mutation_intent=LeaseMutationIntent.READ_ONLY,
+        mutable_scope=(),
+        allowed_scope=(),
+    )
+
+
+def test_wo226_review_assembly_accepts_exact_read_only_empty_scope(tmp_path):
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    runner = assemble_zcode_review_execution(
+        authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+        packet=_e2e_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    assert runner.execution_fingerprint_spec().operation_ref.startswith("zcode-task-v1:")
+    assert runner.execution_fingerprint() == runner.execution_fingerprint()
+
+
+def test_wo226_review_assembly_rejects_mutation_lease(tmp_path):
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet, build_lease
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_review_execution(
+            authorities=_review_authorities(tmp_path, lease=build_lease(tmp_path)),
+            packet=_e2e_packet(tmp_path),
+            model_id="glm-5.3", expected_generation=1, expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_REVIEW_LEASE_INTENT_MISMATCH"
+
+
+def test_wo226_review_assembly_rejects_nonempty_requested_scope(tmp_path):
+    from dataclasses import replace as _replace
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    authorities = _replace(
+        _review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+        requested_mutable_scope=("src/a_conductor/x.py",),
+    )
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_review_execution(
+            authorities=authorities,
+            packet=_e2e_packet(tmp_path),
+            model_id="glm-5.3", expected_generation=1, expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_REVIEW_REQUESTED_SCOPE_NOT_EMPTY"
+
+
+def test_wo226_mutation_entrypoint_still_rejects_read_only(tmp_path):
+    """WO226 §6: the mutation-capable entrypoint is NOT weakened."""
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+            packet=_e2e_packet(tmp_path),
+            model_id="glm-5.3",
+            expected_generation=1,
+            expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == "ZCODE_LEASE_MUTATION_INTENT_INSUFFICIENT"
+
+
+# ---------------- WO-P1-246: author provenance classification ----------------
+
+REPAIR_REF = "zra2-repair-v1:" + "e" * 64
+
+
+def _mutation_authorities(tmp_path, *, task_ref: str):
+    from dataclasses import replace as _replace
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs, _Store
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=_Store(),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=_replace(build_lease(tmp_path), task_id=task_ref),
+        admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
+        worker_id="a-worker-01", repo_root=str(tmp_path),
+        branch="feat/wo-p1-158-zcode-zero-relay", head="h" * 40, dirty=False,
+    )
+
+
+def _ref_packet(tmp_path, task_ref: str):
+    path = tmp_path / "task-packet.md"
+    path.write_text(f"Author task under {task_ref}.", encoding="utf-8")
+    return TaskPacketFile(
+        task_contract_ref=task_ref,
+        path=str(path),
+        sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+
+
+def test_wo246_original_author_packet_classifies_generation0(tmp_path):
+    """Test 9 (assembly seam): the verified original packet + canonical lease
+    yields a generation-0 binding bound to the exact contract."""
+    runner = assemble_zcode_execution(
+        authorities=_mutation_authorities(tmp_path, task_ref="WO-P1-246-AUTHOR"),
+        packet=_ref_packet(tmp_path, "WO-P1-246-AUTHOR"),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    binding = runner._identity.author_provenance
+    assert binding is not None
+    assert binding.author_generation == 0
+    assert binding.task_contract_ref == "WO-P1-246-AUTHOR"
+    assert binding.task_packet_sha256 == runner._task_packet.packet_sha256
+
+
+def test_wo246_reviewer_assembly_gets_no_author_provenance(tmp_path):
+    """Test 14: review_only=True carries no author provenance."""
+    from a_conductor.zcode_production_assembly import assemble_zcode_review_execution
+    runner = assemble_zcode_review_execution(
+        authorities=_review_authorities(tmp_path, lease=_review_lease(tmp_path)),
+        packet=_e2e_review_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+    )
+    assert runner._identity.author_provenance is None
+
+
+def _e2e_review_packet(tmp_path):
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    return _e2e_packet(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("ref", "code"),
+    [
+        (REPAIR_REF, "ZCODE_REPAIR_LINEAGE_UNAVAILABLE"),
+        ("zra2-repair-v1:" + "E" * 64, "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-v1:" + "e" * 63, "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-v2:" + "e" * 64, "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-v1:", "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+        ("zra2-repair-bogus", "ZCODE_REPAIR_CONTRACT_UNSUPPORTED"),
+    ],
+)
+def test_wo246_repair_family_fails_closed_before_launch(tmp_path, ref, code):
+    """Tests 10/11/12: any zra2-repair- family packet fails closed with the
+    typed assembly error BEFORE launch — never generation 0, no external
+    effect, and prefix-only grammar matches classify nothing."""
+    with pytest.raises(ZCodeAssemblyError) as e:
+        assemble_zcode_execution(
+            authorities=_mutation_authorities(tmp_path, task_ref=ref),
+            packet=_ref_packet(tmp_path, ref),
+            model_id="glm-5.3",
+            expected_generation=1,
+            expected_base_url=BASE_URL,
+            secret_reference="secret-ref:zcode-credential",
+            workspace=str(tmp_path), executable=EXEC, bundle_js=BUNDLE,
+        )
+    assert e.value.code == code
+
+
+@NT_ONLY
+def test_wo246_e2e_author_run_persists_generation0_pair(tmp_path):
+    """Test 9 (full production chain): assemble → run through the real
+    specialized helper; the durable record carries generation 0 and one
+    opaque attempt id."""
+    import re as _re
+    import sqlite3
+
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+    from tests.test_zcode_real_helper_e2e import build_real_service_authorities
+    from tests.test_zcode_real_helper_e2e import _packet as _e2e_packet
+    from tests.test_zcode_real_helper_e2e import _write_fake_app_server
+    import sys as _sys
+
+    runtime_python = getattr(_sys, "_base_executable", _sys.executable)
+    fake_script = _write_fake_app_server(tmp_path / "fake", tmp_path / "receipts", "ok")
+    authorities = replace(
+        build_real_service_authorities(tmp_path),
+        lease_evidence=build_lease(tmp_path),
+        admission_evidence=build_admission(),
+    )
+    runner = assemble_zcode_execution(
+        authorities=authorities,
+        packet=_e2e_packet(tmp_path),
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=runtime_python,
+        bundle_js=str(fake_script),
+        deadline_seconds=20.0,
+    )
+    result = runner.run(operation_ref=None, timeout_seconds=80)
+    assert result.exit_code == 0
+
+    con = sqlite3.connect(tmp_path / "control.sqlite")
+    try:
+        attempt, generation = con.execute(
+            "SELECT author_attempt_id, author_generation FROM execution_records"
+        ).fetchone()
+    finally:
+        con.close()
+    assert generation == 0
+    assert _re.fullmatch(r"author-attempt-v1:[0-9a-f]{32}", attempt)
+
+
+# ---- WO-P1-498 / 498A: guarded writer route through REAL service authorities ----
+
+@NT_ONLY
+def test_wo498_real_service_assembly_binds_required_lease_guard(tmp_path):
+    """Through the REAL owned-process authorities, an injected lease-health
+    reader (same configured lease authority) binds a REQUIRED launch-time
+    PRE_DISPATCH guard onto the mutation-capable supervised ZCode runner."""
+    from a_conductor.worker_lease import LeaseHealth, LeaseHealthKind
+
+    from tests.test_zcode_authority_bound_assembly import _LiveObserver
+    from tests.test_zcode_real_helper_e2e import build_lease, build_real_service_authorities
+
+    class _Reader:
+        def __init__(self, health):
+            self.health = health
+            self.calls = []
+
+        def inspect_health(self, lease_id, *, now):
+            self.calls.append(lease_id)
+            return self.health
+
+    lease = build_lease(tmp_path)
+    reader = _Reader(LeaseHealth(LeaseHealthKind.ACTIVE, lease))
+    authorities = replace(
+        build_real_service_authorities(tmp_path),
+        lease_health_reader=reader,
+        # the guarded writer route requires the live observer as well
+        live_worktree_observer=_LiveObserver(),
+    )
+    runner = _service_assemble(tmp_path, authorities=authorities)
+    assert runner._pre_dispatch_guard is not None
+    assert runner._pre_dispatch_guard_required is True
+    assert runner._live_worktree_observer is not None
+    assert reader.calls == []  # no launch-time read before any run()
+
+
+# ------- WO-P1-498 generation-3: production live Git identity wiring -------
+
+
+def _live_git(root, *args):
+    import subprocess
+
+    completed = subprocess.run(
+        (
+            "git",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-C",
+            str(root),
+            *args,
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    return completed.stdout.strip()
+
+
+_LIVE_BRANCH = "feat/wo-p1-158-zcode-zero-relay"
+
+
+def _live_repo(tmp_path):
+    root = tmp_path / "live-repo"
+    root.mkdir(parents=True, exist_ok=True)
+    _live_git(root, "init", "-b", _LIVE_BRANCH)
+    (root / "README.md").write_text("gen3\n", encoding="utf-8")
+    _live_git(root, "add", "README.md")
+    _live_git(root, "commit", "-m", "init")
+    return root, _live_git(root, "rev-parse", "HEAD")
+
+
+def _live_bound_authorities(tmp_path, root, branch, head):
+    """Mutation authorities bound to a REAL git worktree + the production
+    read-only live-identity observer (fake supervised authorities assert no
+    launch happens in gate tests; the service start boundary converts the
+    assertion into a typed recovery outcome for the allow case)."""
+    from a_conductor.registry import windows_worktree_key
+
+    from tests.test_zcode_authority_bound_assembly import _Controller, _Obs
+    from tests.test_zcode_real_helper_e2e import Snapshot as _E2ESnapshot
+    from tests.test_zcode_real_helper_e2e import _profile as _e2e_profile
+    from tests.test_zcode_real_helper_e2e import build_admission, build_lease
+
+    from a_conductor.pre_dispatch_guard import GitLiveWorktreeObserver
+
+    lease = replace(
+        build_lease(tmp_path),
+        branch=branch,
+        expected_head=head,
+        worktree_key=windows_worktree_key(str(root)),
+    )
+    return ZCodeExecutionAuthorities(
+        provider_snapshot=_E2ESnapshot(1, _e2e_profile()),
+        secret_resolver=Secrets(),
+        execution_store=SQLiteExecutionStore(tmp_path / "live-control.sqlite"),
+        supervised_controller=_Controller(),
+        supervised_observer=_Obs(),
+        python_executable="python.exe",
+        lease_evidence=lease,
+        admission_evidence=build_admission(),
+        dispatch_batch_id="batch-e2e-0001",
+        dispatch_execution_id="exec-e2e-bound-0001",
+        project_id="zcode",
+        requested_mutable_scope=("src/a_conductor/zcode_runner.py",),
+        worker_id="a-worker-01",
+        repo_root=str(root),
+        branch=branch,
+        head=head,
+        dirty=False,
+        live_worktree_observer=GitLiveWorktreeObserver(),
+    )
+
+
+def _live_assemble(tmp_path, root, branch, head, *, packet=None):
+    # the confined packet must live INSIDE the trusted repo root and carry
+    # the lease-bound task contract ref
+    from tests.test_zcode_real_helper_e2e import TASK_REF
+
+    if packet is None:
+        path = root / "task-packet.md"
+        path.write_text("gen3 live identity probe", encoding="utf-8")
+        packet = TaskPacketFile(
+            task_contract_ref=TASK_REF,
+            path=str(path),
+            sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+    return assemble_zcode_execution(
+        authorities=_live_bound_authorities(tmp_path, root, branch, head),
+        packet=packet,
+        model_id="glm-5.3",
+        expected_generation=1,
+        expected_base_url=BASE_URL,
+        secret_reference="secret-ref:zcode-credential",
+        workspace=str(tmp_path),
+        executable=EXEC,
+        bundle_js=BUNDLE,
+    )
+
+
+def test_wo498_production_fresh_route_denies_live_head_drift_before_launch(tmp_path):
+    """A production-assembled FRESH route carries the read-only live Git
+    observer: HEAD moving after assembly denies BEFORE durable persistence
+    or backend launch."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+    from a_conductor.zcode_runner import SupervisedZCodeRunner
+
+    root, head = _live_repo(tmp_path)
+    runner = _live_assemble(tmp_path, root, _LIVE_BRANCH, head)
+    assert isinstance(runner, SupervisedZCodeRunner)
+    assert runner._live_worktree_observer is not None
+
+    # the worktree HEAD moves between assembly and the fresh launch
+    (root / "drift.md").write_text("drift\n", encoding="utf-8")
+    _live_git(root, "add", "drift.md")
+    _live_git(root, "commit", "-m", "drift")
+
+    outcome = runner.run_with_outcome(timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == (
+        "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_HEAD_MISMATCH"
+    )
+    # denial happened before persistence and before any launch attempt
+    assert runner._store.find_by_fingerprint(runner.execution_fingerprint()) == ()
+
+
+def test_wo498_production_fresh_route_denies_live_branch_drift_before_launch(tmp_path):
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    root, head = _live_repo(tmp_path)
+    runner = _live_assemble(tmp_path, root, _LIVE_BRANCH, head)
+    _live_git(root, "checkout", "-b", "docs/other-branch")
+
+    outcome = runner.run_with_outcome(timeout_seconds=30)
+    assert outcome.kind is SupervisedRunOutcomeKind.FAILED
+    assert outcome.execution_id is None
+    assert outcome.native.stderr == (
+        "SUPERVISED_LIVE_WORKTREE_DENIED:WORKTREE_BRANCH_MISMATCH"
+    )
+    assert runner._store.find_by_fingerprint(runner.execution_fingerprint()) == ()
+
+
+def test_wo498_production_fresh_route_matching_identity_reaches_backend_launch(tmp_path):
+    """A matching live identity permits exactly one fresh launch: the run
+    proceeds PAST the live-identity seam to the backend launch boundary
+    (the asserting fake controller converts any start attempt into a typed
+    recovery failure)."""
+    from a_conductor.supervised_run_coordinator import SupervisedRunOutcomeKind
+
+    root, head = _live_repo(tmp_path)
+    runner = _live_assemble(tmp_path, root, _LIVE_BRANCH, head)
+    outcome = runner.run_with_outcome(timeout_seconds=30)
+    # the live identity ALLOWED: the run reached the backend launch seam
+    # where the asserting fake controller surfaces the typed start failure
+    assert outcome.kind is SupervisedRunOutcomeKind.RECOVERY_REQUIRED
+    assert outcome.native.stderr.startswith("SUPERVISED_LAUNCH_FAILED:")
+    assert "SUPERVISED_LIVE_WORKTREE" not in outcome.native.stderr

@@ -1,0 +1,5 @@
+{
+  "kilo_version": "7.8.0",
+  "provider_model": "cointh-glm/glm-5.3",
+  "evidence_base": "runs/WO-P1-262/author/attempt-0001/kilo-sanitized.ndjson"
+}

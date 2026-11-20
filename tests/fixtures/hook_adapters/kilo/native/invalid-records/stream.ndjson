@@ -1,0 +1,5 @@
+{"type": "step_start", "timestamp": "2026-09-19T11:00:00.000Z", "part": {}}
+{"type": "step_start", "timestamp": "2026-09-19 11:00:01", "sessionID": "kilo-fixture-session-0006", "part": {}}
+this line is not json
+{"type": "tool_use", "timestamp": "2026-09-19T11:00:02.000Z", "sessionID": "kilo-fixture-session-0006", "part": {"name": "bash", "state": {"status": "escalated", "input": {"command": "git push"}}}}
+{"type": "tool_use", "timestamp": "2026-09-19T15:41:05.500+07:00", "sessionID": "kilo-fixture-session-0006", "part": {"name": "bash", "state": {"status": "running", "input": {"command": "python -m pytest -q tests/test_hook_contract_schema.py"}}}}

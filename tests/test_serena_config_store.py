@@ -299,3 +299,274 @@ def test_clear_instance_flags_also_clears_recovery_state(tmp_path: Path) -> None
     )
     db.clear_instance_flags("Sunday-Worker-1")
     assert db.get_connector_recovery("Sunday-Worker-1") is None
+
+
+def _history_event(**overrides):
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryHistoryEvent,
+        ConnectorRecoveryState,
+        RecoveryHistoryEventKind,
+    )
+
+    fields = dict(
+        instance_name="Sunday-Worker-1",
+        kind=RecoveryHistoryEventKind.RECOVERY_STARTED,
+        from_state=ConnectorRecoveryState.STOPPED,
+        to_state=ConnectorRecoveryState.RECOVERING,
+        observed_at=100.0,
+        reason_code="UNEXPECTED_STOPPED",
+        restart_count=0,
+    )
+    fields.update(overrides)
+    return ConnectorRecoveryHistoryEvent(**fields)
+
+
+def test_legacy_database_initialize_adds_history_table_and_preserves_recovery_rows(
+    tmp_path: Path,
+) -> None:
+    from a_conductor.connector_recovery import ConnectorRecoveryState
+
+    database = tmp_path / "legacy.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE instance_recovery (
+                instance_name TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                recovery_suppressed INTEGER NOT NULL,
+                failure_count INTEGER NOT NULL,
+                failure_window_started_at REAL,
+                restart_count INTEGER NOT NULL,
+                last_exit_reason TEXT,
+                last_exit_at REAL,
+                next_retry_at REAL,
+                updated_at REAL NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO instance_recovery(
+                instance_name, state, recovery_suppressed, failure_count,
+                failure_window_started_at, restart_count, last_exit_reason,
+                last_exit_at, next_retry_at, updated_at
+            ) VALUES('Sunday-Worker-1', 'DEGRADED', 1, 3, 900.0, 4,
+                     'STARTED_NOT_READY', 990.0, NULL, 990.0)
+            """
+        )
+        connection.commit()
+
+    db = SQLiteSerenaConfigStore(database)
+    db.initialize()
+    with sqlite3.connect(database) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+    assert "instance_recovery_history" in tables
+
+    preserved = db.get_connector_recovery("Sunday-Worker-1")
+    assert preserved is not None
+    assert preserved.state is ConnectorRecoveryState.DEGRADED
+    assert preserved.restart_count == 4
+    assert db.list_connector_recovery_history("Sunday-Worker-1") == ()
+
+
+def test_recovery_history_survives_store_reopen_ordered_by_sequence(
+    tmp_path: Path,
+) -> None:
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryRecord,
+        ConnectorRecoveryState,
+        RecoveryHistoryEventKind,
+    )
+
+    db = store(tmp_path)
+    record = ConnectorRecoveryRecord(
+        instance_name="Sunday-Worker-1",
+        state=ConnectorRecoveryState.RECOVERING,
+        updated_at=100.0,
+    )
+    events = (
+        _history_event(),
+        _history_event(
+            kind=RecoveryHistoryEventKind.RECOVERY_FAILED,
+            from_state=ConnectorRecoveryState.RECOVERING,
+            to_state=ConnectorRecoveryState.RECOVERING,
+            observed_at=105.0,
+            reason_code="STARTED_NOT_READY",
+        ),
+    )
+    assert db.save_connector_recovery_history(record, events) == record
+    assert db.get_connector_recovery("Sunday-Worker-1") == record
+
+    reopened = SQLiteSerenaConfigStore(db.database_path)
+    history = reopened.list_connector_recovery_history("Sunday-Worker-1")
+    assert [event.kind for event in history] == [
+        RecoveryHistoryEventKind.RECOVERY_STARTED,
+        RecoveryHistoryEventKind.RECOVERY_FAILED,
+    ]
+    sequences = [event.sequence for event in history]
+    assert sequences == sorted(sequences)
+    assert len(set(sequences)) == 2
+    assert all(sequence > 0 for sequence in sequences)
+    assert history[1].observed_at > history[0].observed_at
+    assert reopened.get_connector_recovery("Sunday-Worker-1") == record
+
+
+def test_corrupt_recovery_history_row_fails_closed_on_decode(tmp_path: Path) -> None:
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryRecord,
+        ConnectorRecoveryState,
+    )
+
+    db = store(tmp_path)
+    record = ConnectorRecoveryRecord(
+        instance_name="Sunday-Worker-1",
+        state=ConnectorRecoveryState.RECOVERING,
+        updated_at=100.0,
+    )
+    db.save_connector_recovery_history(record, (_history_event(),))
+    with sqlite3.connect(db.database_path) as connection:
+        connection.execute(
+            "UPDATE instance_recovery_history SET kind='NOT_A_KIND' WHERE sequence = 1"
+        )
+        connection.commit()
+
+    with pytest.raises(SerenaConfigStoreError) as exc_info:
+        db.list_connector_recovery_history("Sunday-Worker-1")
+    assert exc_info.value.code == "RECOVERY_HISTORY_CORRUPT"
+
+
+def test_history_read_is_bounded_and_filtered_by_sequence(tmp_path: Path) -> None:
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryRecord,
+        ConnectorRecoveryState,
+        RecoveryHistoryEventKind,
+    )
+
+    db = store(tmp_path)
+    base = ConnectorRecoveryRecord(
+        instance_name="Sunday-Worker-1",
+        state=ConnectorRecoveryState.STOPPED,
+        updated_at=100.0,
+    )
+    db.save_connector_recovery_history(
+        base,
+        (
+            _history_event(),
+            _history_event(
+                kind=RecoveryHistoryEventKind.RECOVERY_FAILED,
+                observed_at=105.0,
+            ),
+            _history_event(
+                kind=RecoveryHistoryEventKind.RECOVERY_READY,
+                from_state=ConnectorRecoveryState.RECOVERING,
+                to_state=ConnectorRecoveryState.READY,
+                observed_at=130.0,
+                restart_count=1,
+            ),
+        ),
+    )
+    db.save_connector_recovery_history(
+        ConnectorRecoveryRecord(
+            instance_name="Sunday-Worker-2",
+            state=ConnectorRecoveryState.STOPPED,
+            updated_at=120.0,
+        ),
+        (_history_event(instance_name="Sunday-Worker-2", observed_at=120.0),),
+    )
+
+    all_events = db.list_connector_recovery_history()
+    assert [event.instance_name for event in all_events] == [
+        "Sunday-Worker-1",
+        "Sunday-Worker-1",
+        "Sunday-Worker-1",
+        "Sunday-Worker-2",
+    ]
+    first_sequence = all_events[0].sequence
+    tail = db.list_connector_recovery_history(after_sequence=first_sequence)
+    assert len(tail) == 3
+    limited = db.list_connector_recovery_history(limit=2)
+    assert len(limited) == 2
+    assert limited[0].sequence < limited[1].sequence
+
+    with pytest.raises(SerenaConfigStoreError) as exc_info:
+        db.list_connector_recovery_history(limit=0)
+    assert exc_info.value.code == "RECOVERY_HISTORY_INVALID"
+    with pytest.raises(SerenaConfigStoreError) as exc_info:
+        db.list_connector_recovery_history(limit=1001)
+    assert exc_info.value.code == "RECOVERY_HISTORY_INVALID"
+
+
+def test_history_write_rejects_mismatched_instance_names(tmp_path: Path) -> None:
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryRecord,
+        ConnectorRecoveryState,
+    )
+
+    db = store(tmp_path)
+    record = ConnectorRecoveryRecord(
+        instance_name="Sunday-Worker-1",
+        state=ConnectorRecoveryState.STOPPED,
+        updated_at=100.0,
+    )
+    with pytest.raises(SerenaConfigStoreError) as exc_info:
+        db.save_connector_recovery_history(
+            record,
+            (_history_event(instance_name="Sunday-Worker-2"),),
+        )
+    assert exc_info.value.code == "RECOVERY_HISTORY_INVALID"
+
+
+def test_coordinator_sqlite_history_flow_ready_refresh_and_reopen(
+    tmp_path: Path,
+) -> None:
+    from a_conductor.connector_recovery import (
+        ConnectorRecoveryCoordinator,
+        ConnectorRecoveryState,
+        RecoveryHistoryEventKind,
+    )
+    from a_conductor.local_instances import (
+        InstanceHealthState,
+        InstanceOrchestrationOutcome,
+        InstanceResultCode,
+    )
+
+    db = store(tmp_path)
+    holder = {"now": 3000.0}
+
+    def clock() -> float:
+        return holder["now"]
+
+    def start(name: str, *, cancel_check=None):
+        holder["now"] += 30.0
+        return InstanceOrchestrationOutcome("start", InstanceResultCode.RUNNING)
+
+    coordinator = ConnectorRecoveryCoordinator(
+        store=db,
+        autostart_check=lambda name: True,
+        start_instance=start,
+        clock_fn=clock,
+    )
+    result = coordinator.observe("Sunday-Worker-1", InstanceHealthState.STOPPED)
+    assert result.state is ConnectorRecoveryState.READY
+    assert result.updated_at == 3030.0
+    assert result.restart_count == 1
+
+    holder["now"] += 15.0
+    again = coordinator.observe("Sunday-Worker-1", InstanceHealthState.READY)
+    assert again == result
+
+    history = db.list_connector_recovery_history("Sunday-Worker-1")
+    assert [event.kind for event in history] == [
+        RecoveryHistoryEventKind.RECOVERY_STARTED,
+        RecoveryHistoryEventKind.RECOVERY_READY,
+    ]
+    assert history[1].observed_at == 3030.0
+    assert history[1].observed_at > history[0].observed_at
+
+    reopened = SQLiteSerenaConfigStore(db.database_path)
+    assert reopened.list_connector_recovery_history("Sunday-Worker-1") == history

@@ -1,0 +1,37 @@
+manifestVersion: 1
+id: a-sunday-conductor-web
+category: Development
+name: A-Sunday Conductor Web
+version: 0.1.0
+tagline: Web control surface for A-Sunday Conductor
+description: |
+  Read-only Monitor API and React dashboard for A-Sunday Conductor.
+  Provides real-time worker status, connector health, and bounded control actions.
+developer:
+  name: A-Sunday
+  website: https://github.com/aase7en/A-Wiki-Conductor
+support: https://github.com/aase7en/A-Wiki-Conductor/issues
+dependencies: []
+path: ""
+port: 8756
+arch:
+  - arm64
+  - amd64
+icon: ""
+targets:
+  - ""
+repo:
+  public: true
+  url: https://github.com/aase7en/A-Wiki-Conductor
+  versionTag: v0.1.0
+  subpath: ""
+container:
+  image: ""
+  command: []
+  environment: {}
+  ports:
+    internal: 8756
+    exposed: 8756
+  volumes: []
+  dataDir: ""
+  restartPolicy: on-failure

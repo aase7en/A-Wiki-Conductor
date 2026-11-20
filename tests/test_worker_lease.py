@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,6 +8,7 @@ from threading import Barrier
 
 import pytest
 
+from a_conductor import worker_lease as worker_lease_module
 from a_conductor.worker_lease import (
     CandidateRejectionKind,
     LeaseMutationIntent,
@@ -19,6 +21,17 @@ from a_conductor.worker_lease import (
 )
 
 NOW = datetime(2026, 8, 28, 15, 45, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _legacy_suite_hotspot_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep pre-MSP2 lease tests focused on lease semantics, not filesystem identity."""
+
+    def resolver(worktree: str) -> str:
+        normalized = worker_lease_module.windows_worktree_key(worktree)
+        return "test-" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    monkeypatch.setattr(worker_lease_module, "default_hotspot_resolver", resolver)
 
 
 def candidate(worker_id: str, *, worktree: str = r"A:\Repo", **changes) -> WorkerLeaseCandidate:

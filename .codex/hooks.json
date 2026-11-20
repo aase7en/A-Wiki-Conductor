@@ -1,0 +1,107 @@
+{
+  "description": "A-Sunday Codex wake/supervisor enforcement for A-Faster + A-NightShift.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\"",
+            "statusMessage": "Loading A-Sunday supervisor policy",
+            "additionalContextLimit": 1800
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\"",
+            "additionalContextLimit": 1800
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\""
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\"",
+            "statusMessage": "Checking A-Sunday dispatch policy",
+            "additionalContextLimit": 1000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\"",
+            "additionalContextLimit": 1000
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\"",
+            "statusMessage": "Preserving durable A-Sunday child truth"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/a_sunday_lifecycle.py\"",
+            "commandWindows": "powershell -NoProfile -Command \"$r=(& git rev-parse --show-toplevel).Trim(); & python (Join-Path $r '.codex\\hooks\\a_sunday_lifecycle.py')\"",
+            "statusMessage": "Checking NightShift continuation receipt",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

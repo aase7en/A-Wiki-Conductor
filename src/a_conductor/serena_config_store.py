@@ -15,7 +15,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
-from .connector_recovery import ConnectorRecoveryRecord, ConnectorRecoveryState
+from .connector_recovery import (
+    ConnectorRecoveryHistoryEvent,
+    ConnectorRecoveryRecord,
+    ConnectorRecoveryState,
+    RecoveryHistoryEventKind,
+)
 from .serena_runtime import (
     ProjectIdentityPolicy,
     SerenaProjectBinding,
@@ -170,6 +175,17 @@ class SQLiteSerenaConfigStore:
                         last_exit_at REAL,
                         next_retry_at REAL,
                         updated_at REAL NOT NULL CHECK (updated_at >= 0)
+                    );
+
+                    CREATE TABLE IF NOT EXISTS instance_recovery_history (
+                        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                        instance_name TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        from_state TEXT NOT NULL,
+                        to_state TEXT NOT NULL,
+                        reason_code TEXT,
+                        restart_count INTEGER NOT NULL CHECK (restart_count >= 0),
+                        observed_at REAL NOT NULL CHECK (observed_at >= 0)
                     );
 
                     CREATE TABLE IF NOT EXISTS instance_display_names (
@@ -603,6 +619,143 @@ class SQLiteSerenaConfigStore:
                 (instance_name.strip(),),
             )
             connection.commit()
+
+    _HISTORY_READ_LIMIT_MAX = 1000
+
+    def save_connector_recovery_history(
+        self,
+        record: ConnectorRecoveryRecord,
+        events: tuple[ConnectorRecoveryHistoryEvent, ...] | list[ConnectorRecoveryHistoryEvent],
+    ) -> ConnectorRecoveryRecord:
+        if not isinstance(record, ConnectorRecoveryRecord):
+            raise SerenaConfigStoreError("RECOVERY_RECORD_INVALID")
+        if not isinstance(events, (tuple, list)):
+            raise SerenaConfigStoreError("RECOVERY_HISTORY_INVALID")
+        for event in events:
+            if not isinstance(event, ConnectorRecoveryHistoryEvent):
+                raise SerenaConfigStoreError("RECOVERY_HISTORY_INVALID")
+            if event.instance_name != record.instance_name:
+                raise SerenaConfigStoreError("RECOVERY_HISTORY_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO instance_recovery(
+                        instance_name, state, recovery_suppressed, failure_count,
+                        failure_window_started_at, restart_count, last_exit_reason,
+                        last_exit_at, next_retry_at, updated_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(instance_name) DO UPDATE SET
+                        state=excluded.state,
+                        recovery_suppressed=excluded.recovery_suppressed,
+                        failure_count=excluded.failure_count,
+                        failure_window_started_at=excluded.failure_window_started_at,
+                        restart_count=excluded.restart_count,
+                        last_exit_reason=excluded.last_exit_reason,
+                        last_exit_at=excluded.last_exit_at,
+                        next_retry_at=excluded.next_retry_at,
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        record.instance_name, record.state.value,
+                        int(record.recovery_suppressed), record.failure_count,
+                        record.failure_window_started_at, record.restart_count,
+                        record.last_exit_reason, record.last_exit_at,
+                        record.next_retry_at, record.updated_at,
+                    ),
+                )
+                for event in events:
+                    connection.execute(
+                        """
+                        INSERT INTO instance_recovery_history(
+                            instance_name, kind, from_state, to_state,
+                            reason_code, restart_count, observed_at
+                        ) VALUES(?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            event.instance_name, event.kind.value,
+                            event.from_state.value, event.to_state.value,
+                            event.reason_code, event.restart_count,
+                            event.observed_at,
+                        ),
+                    )
+                connection.commit()
+            except sqlite3.Error as exc:
+                connection.rollback()
+                raise SerenaConfigStoreError("RECOVERY_STORE_WRITE_FAILED") from exc
+        return record
+
+    def list_connector_recovery_history(
+        self,
+        instance_name: str | None = None,
+        *,
+        after_sequence: int = 0,
+        limit: int = 200,
+    ) -> tuple[ConnectorRecoveryHistoryEvent, ...]:
+        if instance_name is not None and (
+            not isinstance(instance_name, str) or not instance_name.strip()
+        ):
+            raise SerenaConfigStoreError("INSTANCE_NAME_INVALID")
+        if (
+            isinstance(after_sequence, bool)
+            or not isinstance(after_sequence, int)
+            or after_sequence < 0
+        ):
+            raise SerenaConfigStoreError("RECOVERY_HISTORY_INVALID")
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= self._HISTORY_READ_LIMIT_MAX
+        ):
+            raise SerenaConfigStoreError("RECOVERY_HISTORY_INVALID")
+        self.initialize()
+        with self._connect() as connection:
+            try:
+                if instance_name is None:
+                    rows = connection.execute(
+                        """
+                        SELECT sequence, instance_name, kind, from_state, to_state,
+                               reason_code, restart_count, observed_at
+                        FROM instance_recovery_history
+                        WHERE sequence > ?
+                        ORDER BY sequence
+                        LIMIT ?
+                        """,
+                        (after_sequence, limit),
+                    ).fetchall()
+                else:
+                    rows = connection.execute(
+                        """
+                        SELECT sequence, instance_name, kind, from_state, to_state,
+                               reason_code, restart_count, observed_at
+                        FROM instance_recovery_history
+                        WHERE instance_name = ? AND sequence > ?
+                        ORDER BY sequence
+                        LIMIT ?
+                        """,
+                        (instance_name.strip(), after_sequence, limit),
+                    ).fetchall()
+            except sqlite3.Error as exc:
+                raise SerenaConfigStoreError("RECOVERY_STORE_READ_FAILED") from exc
+        events: list[ConnectorRecoveryHistoryEvent] = []
+        for row in rows:
+            try:
+                events.append(
+                    ConnectorRecoveryHistoryEvent(
+                        instance_name=row["instance_name"],
+                        kind=RecoveryHistoryEventKind(row["kind"]),
+                        from_state=ConnectorRecoveryState(row["from_state"]),
+                        to_state=ConnectorRecoveryState(row["to_state"]),
+                        observed_at=row["observed_at"],
+                        reason_code=row["reason_code"],
+                        restart_count=row["restart_count"],
+                        sequence=row["sequence"],
+                    )
+                )
+            except (ValueError, TypeError) as exc:
+                raise SerenaConfigStoreError("RECOVERY_HISTORY_CORRUPT") from exc
+        return tuple(events)
 
     def set_instance_autostart(self, instance_name: str, enabled: bool) -> None:
         if not isinstance(instance_name, str) or not instance_name.strip():

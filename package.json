@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "web:dev": "npm --prefix web/sunday-family run dev",
+    "web:build": "npm --prefix web/sunday-family run build"
+  }
+}

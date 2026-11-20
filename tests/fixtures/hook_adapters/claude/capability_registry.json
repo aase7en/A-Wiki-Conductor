@@ -1,0 +1,121 @@
+{
+  "registry_version": "1",
+  "adapter_id": "claude-hook-adapter",
+  "note": "Version-pinned capability registry for the Claude Code hook adapter v1. Entries with real_version=true describe observed native versions and carry only locally observed evidence. Entries with real_version=false are synthetic fixture vocabularies that prove mapping mechanics offline and are never capability claims about any real version.",
+  "versions": {
+    "2.1.178": {
+      "status": "DISCOVERY_REQUIRED",
+      "real_version": true,
+      "evidence": [
+        {
+          "kind": "cli-version",
+          "command": "claude --version",
+          "observed": "2.1.178 (Claude Code)",
+          "observed_at": "2026-09-19"
+        },
+        {
+          "kind": "cli-help-flag",
+          "command": "claude --help",
+          "observed": "--include-hook-events: include all hook lifecycle events in the output stream (only with --output-format=stream-json)",
+          "observed_at": "2026-09-19"
+        },
+        {
+          "kind": "cli-help-flag",
+          "command": "claude --help",
+          "observed": "--bare: skip hooks (hooks subsystem exists per-session)",
+          "observed_at": "2026-09-19"
+        },
+        {
+          "kind": "cli-help-flag",
+          "command": "claude --help",
+          "observed": "--safe-mode: hooks listed among disabled customizations",
+          "observed_at": "2026-09-19"
+        },
+        {
+          "kind": "cli-help-flag",
+          "command": "claude --help",
+          "observed": "--debug [filter]: 'hooks' documented as a debug category example",
+          "observed_at": "2026-09-19"
+        }
+      ],
+      "native_bindings": {},
+      "emits": [
+        "transport.adapter_capabilities"
+      ]
+    },
+    "0.0.0-fixture-a": {
+      "status": "FIXTURE_ONLY",
+      "real_version": false,
+      "discriminator_field": "fixture_event",
+      "evidence": [],
+      "native_bindings": {
+        "FxSessionStart": {
+          "event_type": "execution.session_started",
+          "phase": "within",
+          "privacy_class": "INTERNAL",
+          "summary_token": "session started"
+        },
+        "FxSessionEnd": {
+          "event_type": "execution.session_ended",
+          "phase": "terminal",
+          "privacy_class": "INTERNAL",
+          "summary_token": "session ended"
+        },
+        "FxUserPrompt": {
+          "event_type": "execution.prompt_submitted",
+          "phase": "before",
+          "privacy_class": "SENSITIVE",
+          "summary_token": "prompt submitted"
+        },
+        "FxToolPre": {
+          "event_type": "tool.execute.before",
+          "phase": "before",
+          "privacy_class": "INTERNAL",
+          "summary_token": "tool execution before"
+        },
+        "FxToolPost": {
+          "event_type": "tool.execute.after",
+          "phase": "after",
+          "privacy_class": "INTERNAL",
+          "summary_token": "tool execution after"
+        },
+        "FxToolFail": {
+          "event_type": "tool.execute.failed",
+          "phase": "after",
+          "privacy_class": "INTERNAL",
+          "summary_token": "tool execution failed"
+        },
+        "FxSubagentStart": {
+          "event_type": "execution.subagent_started",
+          "phase": "within",
+          "privacy_class": "INTERNAL",
+          "summary_token": "subagent started"
+        },
+        "FxSubagentStop": {
+          "event_type": "execution.subagent_stopped",
+          "phase": "after",
+          "privacy_class": "INTERNAL",
+          "summary_token": "subagent stopped"
+        },
+        "FxAgentStop": {
+          "event_type": "execution.agent_stopped",
+          "phase": "after",
+          "privacy_class": "INTERNAL",
+          "summary_token": "agent turn stopped"
+        }
+      },
+      "emits": [
+        "execution.agent_stopped",
+        "execution.prompt_submitted",
+        "execution.session_ended",
+        "execution.session_started",
+        "execution.subagent_started",
+        "execution.subagent_stopped",
+        "tool.execute.after",
+        "tool.execute.before",
+        "tool.execute.failed",
+        "transport.adapter_capabilities"
+      ]
+    }
+  }
+}

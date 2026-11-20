@@ -2,6 +2,8 @@
 
 > **Naming decision (2026-08-22):** the product display name is **A-Sunday Conductor** (window titles, installer, Start Menu, public docs). It supersedes "A-Conductor" as the public name. This plan and the contracts under `docs/contracts/` continue to use "A-Conductor" as the internal codename; the Python package remains `a_conductor` and the data folder remains `%LOCALAPPDATA%\A-Conductor\`.
 
+> **SundayFamily visual target decision (2026-11-17):** Operator selected **muted Color E-Ink manga/ink style** for the unified Web/PWA/production-management SundayFamily experience. Target guide: `docs/design/sunday-family-design-system.md`, governed via Issue #769 and UX-1 #743. Keep old dark Tk/Ttk UI operational and its original approved constraints until parity/retirement is separately proven. Preserve A-Conductor authority, SundayMCP substrate, A-Wiki knowledge, authentication/Command Gateway and incremental per-card delivery; this is a design decision, not a source/deployment authorization.
+
 ## 1. Project Vision
 
 A-Wiki Conductor is a local autonomous control plane for coordinating multiple AI agents, coding agents, MCP servers, local models, cloud models, and A-Wiki memory.
@@ -257,6 +259,8 @@ Conductor should surface only the operational state needed for multi-worker orch
 - expose a small selected subset of Serena operational data when needed by the control center.
 
 Conductor UI owns worker/project/runtime orchestration, not duplication of Serena internals.
+
+Long-term Sunday Family policy: Serena Dashboard is **manual diagnostics only** and must not auto-open during normal operation. The Sunday Family Web/PWA surface defined in §27 becomes the primary cross-platform operator experience after its acceptance gates; selected Serena diagnostics may be projected through A-Conductor without cloning Serena's UI.
 
 ## 7. Phase 1 — Multi-Serena Control Center
 
@@ -777,6 +781,26 @@ MVP sequence:
 
 Advanced backend failover/routing should begin only after these primitives pass deterministic recovery tests. A-Conductor may enforce operational scheduling/routing/recovery, but A-Wiki remains owner of orchestration intelligence, policy, durable knowledge and cross-project memory.
 
+### Session-Independent Delegated Execution Continuity (DEX) — 2026-09-17
+
+WO-P1-250 extends this existing supervisor/recovery authority for a defect reproduced when a ChatGPT turn/context ended while Kilo/GLM processes outlived the observer. The governing invariant is `CHAT/TURN LOSS != EXECUTION FAILURE` and `NEW SESSION != NEW TASK`. Chat memory is never the bridge between a delegated dispatch and its harvest.
+
+DEX reuses existing job/events/checkpoints, claims, execution identity, recovery reconciliation, liveness projection, and operator surfaces. It must not introduce another scheduler, task DB, claim/lease store, retry engine, review state machine, completion authority, or SSoT.
+
+The cross-repo authority boundary for delegated execution is frozen by `docs/adr/ADR-0002-dex-execution-admission-receipt-boundary.md` and its normative contract `docs/contracts/execution-admission-receipt-v1.md`: A-Sunday Conductor owns admission/reconciliation/receipt/retry-authorization/review/acceptance; SunDayRemoteMCP owns physical supervision + immutable collection evidence only; A-FastTask routes/binds only; substrate markers are advisory, never acceptance; `OUTCOME-KNOWN != RETRY-AUTHORIZED`; old terminal evidence may be collected under repo drift while new mutation stays fail-closed. A-Conductor admission owns the canonical worktree/repo path identity frozen into the binding tuple/digest (OS final physical path resolution of the existing root — Windows `GetFinalPathNameByHandleW`-equivalent / POSIX `realpath`-equivalent; lexical normalization alone is insufficient; fail-closed as `PROJECT_IDENTITY_FAILED`); SRM independently recomputes and verifies — never redefines — that identity at the physical execution seam; once admitted, the canonical identity and binding digest are immutable for the attempt.
+
+- `DEX-0` (MODIFY) — durable dispatch pointer bound to existing execution/job authority, including task/lane/executor/repo/worktree/claim/evidence destinations/replay-safety without secrets. Policy accepted via WO-P1-250 / PR #345.
+- `DEX-1` (MODIFY) — A-FastTask entry recovery reconciles outstanding delegated executions and harvests `TERMINAL_UNHARVESTED` results before new conflicting work. Router/binder only; accepted via PR #345.
+- `DEX-2a` — SunDayRemoteMCP physical supervision (per-execution shim boundary, exact process identity + PID-reuse defense, descendant quiescence, immutable collect) as execution substrate only; recomputes/verifies (never owns) the admission-supplied canonical worktree/repo path identity at the physical seam; `WO-P1-259`, `EXECUTION_SUBSTRATE_ONLY`.
+- `DEX-2b` — A-Sunday Conductor reconciliation + idempotent receipt of immutable substrate evidence, extending existing job/execution authorities; owns admission-side canonical worktree/repo path identity canonicalization + binding-digest formation; `TERMINAL_UNHARVESTED` harvest-before-conflict semantics; `WO-P1-260`, `CONTROL_PLANE_ONLY`.
+- `DEX-3a` — completion event/notification through supported operator surfaces; never claim that plain chat self-wakes after a local process completes.
+- `DEX-3b` — supported resume adapter; wake/resume only via a supported capability-proven surface.
+- `DEX-4` — hardened SunDayRemoteMCP backend/adapter only (substrate hardening under ADR-0002 threat-model decisions; no control-plane authority growth).
+- `DEX-5` — ambiguity/quarantine handling precedes any later authorized replay/resume; ambiguous state blocks blind replay.
+- `DEX-6` — deterministic E2E fault gate (chat timeout, context rollover, transport loss, worker exit, machine restart, terminal result awaiting harvest, and the DEX boundary scenarios in `docs/contracts/fault-injection.md`), moved earlier as a prerequisite and continuous gate for `DEX-2a`/`DEX-2b` rather than a late step.
+
+Dependency rule: DEX policy/recovery entry may be folded independently where scope does not overlap another claim; DEX-2a/DEX-2b runtime implementation follows the accepted ADR-0002 boundary, the resilient-supervisor / Zero-Relay / SunDay Runtime dependency chain, and exact-SHA compatibility sets (WO-P1-251). The user-facing target is that an instruction equivalent to “use A-FastTask and continue” performs `RECOVER -> RECONCILE OUTSTANDING EXECUTIONS -> HARVEST TERMINAL RESULTS -> CONTINUE NEXT READY` without asking the human to reconstruct a prior chat.
+
 ## 20. Responsive Global UI + Multilingual Guidance (2026-08-24)
 
 **Active planning work order:** `docs/work-orders/WO-P1-062-responsive-global-ui.md`
@@ -801,7 +825,7 @@ Implementation must EXTEND existing Tk layout/i18n/PanedWindow seams rather than
 The user approved a new visual target for the native desktop app: a lightweight professional terminal/CMD/CLI command-center layout. `DESIGN.md` is the authoritative visual/interaction SSoT for this redesign.
 
 Key constraints:
-- keep Tk/Ttk as the desktop UI framework; no browser/web rewrite;
+- Tk/Ttk remains the current LOCAL-USABLE-1 desktop shell; the long-term operator-surface framework is superseded by the Sunday Family Web/PWA roadmap in §27, with no big-bang rewrite;
 - use the detailed `assets/sunday-family-particle.png` portrait as the brand master;
 - keep particle rendering bounded to the logo and use very fine white/gray points;
 - allow only gentle pointer-follow eye motion plus subtler face/head parallax;
@@ -939,4 +963,161 @@ Planned bounded delivery nodes:
 - `ODP-8` deterministic fake/fault-injection E2E across plan -> parallel execute -> verify -> repair/review -> resume;
 - `ODP-9` bounded real multi-provider pilot only after all participating providers are genuinely authorized/admitted.
 
+### JEV-ACCEL — System One decision acceleration experiment (2026-09-22)
+
+**Planning authority:** `docs/plans/2026-09-22-jev-system-one-acceleration-roadmap.md`
+**Active evaluation WO:** `docs/work-orders/WO-P1-484-jev1-shadow-decision-benchmark.md` / Issue #484
+
+JEV-ACCEL is an **experimental child track of ODP**, not a new control plane or production provider authority. JEV-1 benchmarks TypeSafe Jev/System One in shadow mode against bounded semantic-decision workloads and records quality, false-action, escalation, latency, throughput, cost, retry/error and typed-schema evidence. It may inform ODP-2/4/7/8, but JEV-1 itself changes no production routing.
+
+Progression is evidence-gated:
+
+`JEV-0 docs/threat model -> JEV-1 shadow benchmark -> [GO?] -> JEV-2 provider-neutral semantic seam -> JEV-3 advisory A-FastTask pilot -> JEV-4 cascade -> JEV-5 production admission -> JEV-6 Thai/domain pilots -> JEV-7 scale`
+
+Hard boundaries:
+- Jev output is proposal/evidence only; it never grants task, claim, mutation, review, merge, completion or SSoT authority.
+- deterministic facts and exact calculations stay in code/tools;
+- no private project/user payload is sent in JEV-1;
+- no live provider call is accepted until secret-safe credential safety is proven;
+- JEV work must not block LOCAL-USABLE-1 or overlap active MSP mutation scopes;
+- failing or inconclusive benchmark evidence leaves Jev unadmitted and the architecture provider-neutral.
+
 Current frontier coexistence: WO148/PR #199 provider service authorization and WO147/PR #200 ReviewBus adapter retain their existing ownership; ODP implementation must not overlap them. WO096 remains the independent P0 v0.7.0 release blocker. AiPASS remains ineligible while its authorization/admission gates are unsatisfied; ODP cannot bypass provider policy.
+
+## 25. A-Faster Hook / STM / Observability Architecture (2026-09-19)
+
+**Planning authority:** `docs/plans/2026-09-19-a-faster-hook-stm-observability-roadmap.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-257-hook-stm-observability-roadmap.md` / Issue #365
+
+A-Sunday Conductor will add a normalized Hook Contract and shared monitor
+projection so A-Conductor, SunDayRemoteMCP, Kilo, Claude Code, Workers, RDC and
+future execution surfaces can be observed through one event vocabulary without
+creating another control plane.
+
+The architecture boundary is fixed:
+
+- A-Conductor remains the sole task/claim/routing/retry/review/acceptance and
+  command-authorization authority;
+- A-FastTask remains the canonical router/binder;
+- A-Faster remains the accelerated multi-device/multi-harness profile over
+  A-FastTask;
+- SunDayRemoteMCP remains execution/capability substrate only;
+- Hook Bus, STM and Monitor UI are observability/working-state infrastructure,
+  never project SSoT;
+- Web UI, Extension UI and Desktop UI consume the same normalized Monitor
+  Projection rather than maintaining separate task state;
+- consequential UI actions are deferred until an A-Conductor Command Gateway
+  validates task/claim/safety/replay/ownership authority.
+
+Priority sequence:
+
+1. freeze Hook Contract v1, failure model, privacy/redaction, ordering/dedupe and
+   version/capability discovery;
+2. extend existing A-Conductor control/lifecycle event seams;
+3. add bounded SRM execution/process/tool hook seams;
+4. add version-bound Claude Code and Kilo adapters plus advisory
+   Ponytail/Caveman/Grill-me integration;
+5. add bounded TTL STM and Hook Bus with authoritative-state precedence;
+6. expose a shared read-only Monitor API and live event stream;
+7. build Web UI + Extension UI Hook Monitor against the same contract;
+8. only then add Command Gateway-mediated pause/cancel/retry/reassign/cleanup
+   requests;
+9. roll out Windows/macOS then Linux/Pi/Umbrel headless without a second monitor
+   stack;
+10. integrate semantic activity from Issue #341 and provider/ODP observability
+    without merging their authorities;
+11. run deterministic conformance/chaos/performance/security tests before
+    retiring legacy monitor paths.
+
+The global WIP remains one `3 mutable + 1 independent review` budget across
+devices, harnesses, repositories and CROSS_REPO compatibility-set members.
+Recovery/blocker work consumes headroom inside that budget unless an accepted
+Work Order explicitly changes capacity.
+
+The first monitor milestone is read-only. Monitoring failure may degrade
+visibility but must not rewrite task truth or imply execution failure. Security
+or authority guards that are deliberately hook-backed must state explicit
+fail-closed behavior in their own accepted Work Order.
+
+Implementation details, event fields, STM rules, Hook Monitor views,
+cross-platform integration, failure modes and acceptance gates are defined in
+the planning authority above.
+
+## 26. Product Fast Lane — DWB Convergence to LOCAL-USABLE-1 (2026-09-20)
+
+**Planning authority:** `docs/plans/2026-09-20-dwb-convergence-product-acceleration-roadmap.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-397-dwb-convergence-roadmap.md` / Issue #397
+
+This section is the authoritative PROJECT-PLAN pointer for a fresh session
+resolving "use A-Faster and continue the roadmap". The full roadmap lives in
+the planning authority above; PROJECT-PLAN does not duplicate it.
+
+**LOCAL-USABLE-1** (first genuinely usable local product gate) is reached when
+task/execution/repo truth is generated from durable authority (GOT-1 Generated
+Operational Truth), the local SRM execution path cannot silently overwrite an
+observed file (FMG-1 SRM File Mutation Guard v2), and the existing A-Sunday
+desktop app shows one concise read-only Runtime Cockpit over that truth
+(COCKPIT-1) — with interruption/unknown-outcome states operator-visible and a
+fresh session able to recover from durable state without chat history.
+
+Fast-lane dependency order:
+
+1. `GOT-1` and `FMG-1` are independent and may run in parallel in free,
+   non-overlapping global WIP;
+2. `GOT-1` + `FMG-1` -> `COCKPIT-1` -> `LOCAL-USABLE-1`.
+
+`WTL` worktree lifecycle/classification is read-only and may proceed in
+parallel when it does not consume a needed review slot; consequential cleanup
+(`WTL-2`) is later. Payload Guard (`PAYLOAD-1`), dependency diet (`DEPDIET-1`)
+and Windows front-door polish (`FRONTDOOR-1`) come after LOCAL-USABLE-1 or are
+local-use optional unless they become measured blockers.
+
+Authority boundaries are unchanged: A-Wiki/A-Sunday Conductor owns
+task/claim/retry/review/acceptance authority; SunDayRemoteMCP is execution
+substrate only. An A-Faster/A-FastTask invocation resolves actual
+CURRENT-WORK/active WOs/Git/runtime/delegated-run state first; this pointer
+authorizes no preemption and no duplicate dispatch.
+
+Legacy PROJECT-PLAN draft PRs #243 (WO-P1-170) and #244 (WO-P1-171) are closed
+historical proposals — preserved in branch/commit history, not deleted — and no
+longer own PROJECT-PLAN roadmap authority. Dispositions are recorded in
+`docs/work-orders/WO-P1-406-product-fast-lane-pointer.md` / Issue #406.
+
+## 27. Sunday Family Web/PWA Cross-Platform Control Surface (2026-09-26)
+
+**Planning authority:** `docs/plans/2026-09-26-sunday-family-web-pwa-roadmap.md`
+**Runtime/UI boundary:** `docs/contracts/sunday-family-web-runtime-boundary-v1.md`
+**Roadmap-capture WO:** `docs/work-orders/WO-P1-555-sunday-family-web-pwa.md` / Issue #555
+
+Sunday Family is the long-term product/package/operator experience over the existing A-Sunday Conductor authority and SunDayRemoteMCP execution substrate.
+
+The framework direction is:
+
+`A-CONDUCTOR HEADLESS AUTHORITY/API + SRM HEADLESS EXECUTION + REACT/TYPESCRIPT/VITE PWA`
+
+The preferred future A-Conductor HTTP/event-service baseline is FastAPI/Starlette + Uvicorn, subject to a child-WO dependency/provenance review; this planning decision adds no runtime dependency by itself. REST/JSON is used for bounded snapshots/commands and SSE is the default live Monitor stream. WebSocket is not required unless a later accepted requirement proves SSE plus request/response insufficient.
+
+This supersedes the **long-term** Tk/Ttk-only UI framework direction without interrupting the active `#433 -> #429 -> LOCAL-USABLE-1` path. Tk/Ttk remains the accepted current shell until Web/PWA parity and rollback gates pass.
+
+Authority remains unchanged:
+- A-Sunday Conductor owns task/claim/routing/retry/review/acceptance truth, Monitor API and Command Gateway;
+- SunDayRemoteMCP remains execution/capability substrate only;
+- Sunday Family Web/PWA is presentation + bounded operator intent, never SSoT;
+- browser code may never call SRM mutation surfaces directly;
+- consequential controls go through A-Conductor Command Gateway;
+- Serena Dashboard is `AUTO_OPEN = FALSE` and manual diagnostic fallback only.
+
+Dependency order:
+
+1. finish current LOCAL-USABLE-1 truth/runtime binding;
+2. stabilize the normalized Monitor Projection/API seam;
+3. `SF-WEB-0` contract/dependency gate;
+4. `SF-WEB-1` read-only Monitor API;
+5. `SF-WEB-2` React/TypeScript/Vite read-only Sunday Family shell;
+6. `SF-WEB-3` PWA/installable local experience;
+7. `SF-WEB-4` Command Gateway controls;
+8. `SF-WEB-5` Windows/macOS/Linux/Pi/Umbrel service packaging;
+9. `SF-WEB-6` parity + optional Tk/Ttk retirement;
+10. `SF-WEB-7` authenticated remote operator mode.
+
+Normal operation must not require a native dashboard UI executable. Optional platform launchers may start/attach to the local service and open the browser or installed PWA, but they must not create a second UI/state authority.

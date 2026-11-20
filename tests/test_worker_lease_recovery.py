@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -8,6 +9,7 @@ from threading import Barrier
 
 import pytest
 
+from a_conductor import worker_lease as worker_lease_module
 from a_conductor.domain import RecoveryClassification
 from a_conductor.worker_lease import (
     LeaseHealthKind,
@@ -23,6 +25,17 @@ from a_conductor.worker_lease import (
 )
 
 NOW = datetime(2026, 8, 29, 14, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _legacy_suite_hotspot_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep recovery tests independent of physical Git worktree fixtures."""
+
+    def resolver(worktree: str) -> str:
+        normalized = worker_lease_module.windows_worktree_key(worktree)
+        return "test-" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    monkeypatch.setattr(worker_lease_module, "default_hotspot_resolver", resolver)
 
 
 def request(*, session: str = "session-1", task: str = "task-1", ttl: int = 60) -> WorkerLeaseRequest:

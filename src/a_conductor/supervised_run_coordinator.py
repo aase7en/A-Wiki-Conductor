@@ -18,6 +18,7 @@ import hashlib
 import time
 import uuid
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path, PureWindowsPath
 from typing import Callable, Protocol
 
@@ -36,6 +37,15 @@ from .execution_record import (
 )
 from .execution_store import ExecutionStoreError
 from .native_execution import NativeCommandResult
+from .pre_dispatch_guard import (
+    LiveWorktreeIdentity,
+    LiveWorktreeObservationError,
+    LiveWorktreeObserver,
+    PreDispatchGuardDecision,
+    PreDispatchGuardDecisionKind,
+    is_valid_guard_reason,
+    live_worktree_drift_reason,
+)
 from .supervised_execution import (
     SupervisedCollectOutcome,
     SupervisedExecutionError,
@@ -43,6 +53,11 @@ from .supervised_execution import (
     SupervisedInspectionState,
     SupervisedLaunchOutcome,
     SupervisedLaunchPlan,
+)
+from .zero_relay_author_provenance import (
+    AuthorProvenanceBinding,
+    is_valid_author_attempt_id,
+    mint_author_attempt_id,
 )
 
 
@@ -62,11 +77,51 @@ class SupervisedExecutionFingerprintStore(Protocol):
     def find_by_fingerprint(self, fingerprint: str) -> tuple[DurableExecutionRecord, ...]: ...
 
 
+class PreDispatchGuardLike(Protocol):
+    """WO-P1-498: injected launch-time revalidation seam. Guard output is
+    untrusted authority output — see ``_assess_pre_dispatch_guard``."""
+
+    def check(self) -> PreDispatchGuardDecision: ...
+
+
 def _require_text(value: str, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip() or "\x00" in value:
         raise ValueError(f"{field_name} must be a non-blank string")
     return value
 
+
+class SupervisedRunOutcomeKind(str, Enum):
+    """Typed lifecycle disposition for one supervised run call."""
+
+    FRESH = "FRESH"
+    ATTACH_RUNNING = "ATTACH_RUNNING"
+    REUSE_COMPLETED = "REUSE_COMPLETED"
+    BLOCKED_UNKNOWN = "BLOCKED_UNKNOWN"
+    FAILED = "FAILED"
+    TIMED_OUT = "TIMED_OUT"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
+
+
+@dataclass(frozen=True, slots=True)
+class SupervisedRunOutcome:
+    """Additive exact-run handoff.
+
+    execution_id is present only when this call can prove the exact durable
+    record exists. The native result remains the legacy return surface and is
+    never itself completion authority.
+    """
+
+    kind: SupervisedRunOutcomeKind
+    execution_id: str | None
+    native: NativeCommandResult
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, SupervisedRunOutcomeKind):
+            raise ValueError("kind must be a SupervisedRunOutcomeKind")
+        if self.execution_id is not None:
+            _require_text(self.execution_id, "execution_id")
+        if not isinstance(self.native, NativeCommandResult):
+            raise ValueError("native must be a NativeCommandResult")
 
 @dataclass(frozen=True, slots=True)
 class SupervisedRunIdentity:
@@ -81,6 +136,7 @@ class SupervisedRunIdentity:
     head_before: str
     runtime_profile_ref: str
     repo_root: str
+    author_provenance: AuthorProvenanceBinding | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -95,6 +151,16 @@ class SupervisedRunIdentity:
             "repo_root",
         ):
             _require_text(getattr(self, name), name)
+        # WO-P1-246: the ONLY provenance surface is the proof-carrying
+        # binding produced by the trusted ZCode classification seam. No bare
+        # generation integer and no required-flag may cross this boundary;
+        # provenance-shaped junk (strings/ints) fails closed at construction.
+        if self.author_provenance is not None and not isinstance(
+            self.author_provenance, AuthorProvenanceBinding
+        ):
+            raise ValueError(
+                "author_provenance must be an AuthorProvenanceBinding or None"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +241,9 @@ class SupervisedRunCoordinator:
         sleep_fn: Callable[[float], None] = time.sleep,
         clock_fn: Callable[[], float] = time.monotonic,
         max_output_bytes: int = 64 * 1024,
+        pre_dispatch_guard: "PreDispatchGuardLike | None" = None,
+        pre_dispatch_guard_required: bool = False,
+        live_worktree_observer: LiveWorktreeObserver | None = None,
     ) -> None:
         for method_name in ("create", "get", "find_by_fingerprint"):
             if not callable(getattr(execution_store, method_name, None)):
@@ -184,6 +253,16 @@ class SupervisedRunCoordinator:
                 raise ValueError(f"supervised must provide {method_name}")
         if not isinstance(identity, SupervisedRunIdentity):
             raise ValueError("identity must be a SupervisedRunIdentity")
+        if pre_dispatch_guard is not None and not callable(
+            getattr(pre_dispatch_guard, "check", None)
+        ):
+            raise ValueError("pre_dispatch_guard must provide check")
+        if not isinstance(pre_dispatch_guard_required, bool):
+            raise ValueError("pre_dispatch_guard_required must be bool")
+        if live_worktree_observer is not None and not callable(
+            getattr(live_worktree_observer, "observe", None)
+        ):
+            raise ValueError("live_worktree_observer must provide observe")
         if (
             not isinstance(poll_interval_seconds, (int, float))
             or isinstance(poll_interval_seconds, bool)
@@ -216,6 +295,9 @@ class SupervisedRunCoordinator:
         self._sleep_fn = sleep_fn
         self._clock_fn = clock_fn
         self._max_output_bytes = max_output_bytes
+        self._pre_dispatch_guard = pre_dispatch_guard
+        self._pre_dispatch_guard_required = pre_dispatch_guard_required
+        self._live_worktree_observer = live_worktree_observer
 
     @property
     def identity(self) -> SupervisedRunIdentity:
@@ -322,17 +404,109 @@ class SupervisedRunCoordinator:
                 consecutive_unknown = 0
             self._sleep_fn(self._poll_interval_seconds)
 
-    def run(
+    def _durable_execution_id(self, execution_id: str | None) -> str | None:
+        """Expose a locator only when the exact durable record is observable.
+
+        This side-effect-free proof is used only by the additive outcome
+        surface. Any read ambiguity fails closed to no locator and must not
+        alter the historical native-result behavior.
+        """
+        if execution_id is None:
+            return None
+        try:
+            record = self._store.get(execution_id)
+        except Exception:
+            return None
+        if not isinstance(record, DurableExecutionRecord):
+            return None
+        return execution_id if record.execution_id == execution_id else None
+
+    def _assess_pre_dispatch_guard(self) -> str | None:
+        """WO-P1-498 / 498A: revalidate the consequential FRESH launch.
+
+        Returns ``None`` when the fresh launch may proceed, or a stable
+        typed error code when it must fail closed. Guard output is untrusted
+        authority output: exceptions collapse to UNAVAILABLE, malformed
+        objects/results/reasons collapse to INVALID — never a raw exception
+        or unbounded data leak. An optional route with no guard preserves
+        historical behavior; a guard-required route with no guard fails
+        closed.
+        """
+        guard = self._pre_dispatch_guard
+        if guard is None:
+            if self._pre_dispatch_guard_required:
+                return "SUPERVISED_PRE_DISPATCH_GUARD_REQUIRED"
+            return None
+        try:
+            decision = guard.check()
+        except Exception:
+            return "SUPERVISED_PRE_DISPATCH_GUARD_UNAVAILABLE"
+        if not isinstance(decision, PreDispatchGuardDecision):
+            return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+        if decision.kind is PreDispatchGuardDecisionKind.ALLOW:
+            if not is_valid_guard_reason(decision.reason_code):
+                return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+            return None
+        if decision.kind is PreDispatchGuardDecisionKind.DENY:
+            reason = decision.reason_code if is_valid_guard_reason(decision.reason_code) else None
+            if reason is None:
+                return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+            return f"SUPERVISED_PRE_DISPATCH_GUARD_DENIED:{reason}"
+        return "SUPERVISED_PRE_DISPATCH_GUARD_INVALID"
+
+    def _assess_live_worktree_identity(self) -> str | None:
+        """WO-P1-498 / 498A: bind a fresh launch to the LIVE repo
+        root/branch/HEAD at the consequential launch seam.
+
+        An unbound route preserves its prior behavior and stays POLICY_ONLY
+        for this identity check. An injected observer is untrusted
+        authority output: observation failures, malformed facts and drift
+        all fail closed to stable bounded codes without exposing raw
+        runner output or underlying errors.
+        """
+        observer = self._live_worktree_observer
+        if observer is None:
+            return None
+        try:
+            observed = observer.observe(str(self._repo_root))
+        except LiveWorktreeObservationError as exc:
+            if not is_valid_guard_reason(exc.reason_code):
+                return "SUPERVISED_LIVE_WORKTREE_INVALID"
+            return f"SUPERVISED_LIVE_WORKTREE_UNAVAILABLE:{exc.reason_code}"
+        except Exception:
+            return "SUPERVISED_LIVE_WORKTREE_UNAVAILABLE"
+        if not isinstance(observed, LiveWorktreeIdentity):
+            return "SUPERVISED_LIVE_WORKTREE_INVALID"
+        try:
+            reason = live_worktree_drift_reason(
+                observed,
+                expected_repo_root=str(self._repo_root),
+                expected_branch=self._identity.branch,
+                expected_head=self._identity.head_before,
+            )
+        except Exception:
+            return "SUPERVISED_LIVE_WORKTREE_INVALID"
+        if reason is None:
+            return None
+        if not is_valid_guard_reason(reason):
+            return "SUPERVISED_LIVE_WORKTREE_INVALID"
+        return f"SUPERVISED_LIVE_WORKTREE_DENIED:{reason}"
+
+    def run_with_outcome(
         self,
         argv: tuple[str, ...],
         *,
         environment_overrides: tuple[tuple[str, str], ...] = (),
         timeout_seconds: int,
-    ) -> NativeCommandResult:
+    ) -> SupervisedRunOutcome:
         fingerprint = compute_execution_fingerprint(self.fingerprint_spec(argv))
         assessment: DuplicateExecutionAssessment = self._guard.assess(self.fingerprint_spec(argv))
         if assessment.decision is DuplicateExecutionDecision.BLOCKED_UNKNOWN:
-            return self._failure_result(argv, error_code="SUPERVISED_DUPLICATE_BLOCKED")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.BLOCKED_UNKNOWN,
+                None,
+                self._failure_result(argv, error_code="SUPERVISED_DUPLICATE_BLOCKED"),
+            )
 
         execution_id: str | None = None
         if assessment.decision in (
@@ -340,11 +514,59 @@ class SupervisedRunCoordinator:
             DuplicateExecutionDecision.REUSE_COMPLETED,
         ):
             if assessment.record is None:
-                return self._failure_result(argv, error_code="SUPERVISED_ATTACH_RECORD_MISSING")
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code="SUPERVISED_ATTACH_RECORD_MISSING"),
+                )
             execution_id = assessment.record.execution_id
+            success_kind = (
+                SupervisedRunOutcomeKind.ATTACH_RUNNING
+                if assessment.decision is DuplicateExecutionDecision.ATTACH_RUNNING
+                else SupervisedRunOutcomeKind.REUSE_COMPLETED
+            )
         else:
+            # WO-P1-498 / 498A: the lease-bound PRE_DISPATCH guard runs ONLY
+            # on the consequential FRESH branch — after the dedupe assessment
+            # above and BEFORE author-attempt mint, execution-id mint,
+            # durable record creation, or backend launch. ATTACH_RUNNING /
+            # REUSE_COMPLETED never reach this seam.
+            guard_error = self._assess_pre_dispatch_guard()
+            if guard_error is not None:
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code=guard_error),
+                )
+            # WO-P1-498 / 498A: the read-only live Git identity check runs
+            # ONLY on the consequential FRESH branch — after the dedupe
+            # assessment and the lease-bound guard, BEFORE author-attempt
+            # mint, execution-id mint, durable record creation, or backend
+            # launch. ATTACH_RUNNING / REUSE_COMPLETED never reach it.
+            worktree_error = self._assess_live_worktree_identity()
+            if worktree_error is not None:
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code=worktree_error),
+                )
+            success_kind = SupervisedRunOutcomeKind.FRESH
             execution_id = f"exec-{uuid.uuid4().hex[:16]}"
             run_rel = f"runs/{execution_id}"
+            binding = self._identity.author_provenance
+            author_attempt_id: str | None = None
+            author_generation: int | None = None
+            if binding is not None:
+                if binding.task_contract_ref != self._identity.work_order_ref:
+                    return SupervisedRunOutcome(
+                        SupervisedRunOutcomeKind.FAILED,
+                        None,
+                        self._failure_result(
+                            argv, error_code="SUPERVISOR_PROVENANCE_AUTHORITY_INVALID"
+                        ),
+                    )
+                author_attempt_id = mint_author_attempt_id()
+                author_generation = binding.author_generation
             record = new_execution_record(
                 execution_id=execution_id,
                 job_id=self._identity.job_id,
@@ -367,7 +589,20 @@ class SupervisedRunCoordinator:
                 report_ref=self._policy.report_ref(run_rel),
                 transport_state=TransportState.CONNECTED,
                 execution_state=ExecutionProcessState.QUEUED,
+                author_attempt_id=author_attempt_id,
+                author_generation=author_generation,
             )
+            if binding is not None and not (
+                is_valid_author_attempt_id(record.author_attempt_id)
+                and record.author_generation == binding.author_generation
+            ):
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(
+                        argv, error_code="SUPERVISOR_PROVENANCE_PAIR_INVALID"
+                    ),
+                )
             plan = SupervisedLaunchPlan(
                 record=record,
                 runtime_root=self._repo_root,
@@ -375,19 +610,48 @@ class SupervisedRunCoordinator:
                 target_executable_name=PureWindowsPath(argv[0]).name,
                 environment_overrides=environment_overrides,
             )
+            # Recheck at the effect boundary: the live Git identity may
+            # drift while the record/launch plan was assembled after the
+            # pre-mint check. Durable record persistence and the backend
+            # launch both happen inside launch(), so this denial still
+            # precedes both. This is the observation point AS CLOSE AS
+            # POSSIBLE to the consequential FRESH launch.
+            worktree_error = self._assess_live_worktree_identity()
+            if worktree_error is not None:
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    None,
+                    self._failure_result(argv, error_code=worktree_error),
+                )
             try:
-                outcome = self._supervised.launch(plan)
+                launch_outcome = self._supervised.launch(plan)
             except SupervisedExecutionError as exc:
-                return self._failure_result(argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{exc.code}")
-            if outcome.recovery_required:
-                code = outcome.error_code or "SUPERVISED_LAUNCH_FAILED"
-                return self._failure_result(argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{code}")
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.FAILED,
+                    self._durable_execution_id(execution_id),
+                    self._failure_result(
+                        argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{exc.code}"
+                    ),
+                )
+            if launch_outcome.recovery_required:
+                code = launch_outcome.error_code or "SUPERVISED_LAUNCH_FAILED"
+                return SupervisedRunOutcome(
+                    SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                    self._durable_execution_id(execution_id),
+                    self._failure_result(
+                        argv, error_code=f"SUPERVISED_LAUNCH_FAILED:{code}"
+                    ),
+                )
 
         inspection, timed_out = self._poll_until_resolved(
             execution_id, timeout_seconds=timeout_seconds
         )
         if inspection is None:
-            return self._failure_result(argv, error_code="SUPERVISED_INSPECT_FAILED")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(argv, error_code="SUPERVISED_INSPECT_FAILED"),
+            )
         if timed_out:
             record = self._store.get(execution_id)
             stdout, stdout_sha, stdout_truncated = self._read_artifact(
@@ -396,7 +660,7 @@ class SupervisedRunCoordinator:
             stderr, stderr_sha, stderr_truncated = self._read_artifact(
                 self._repo_root / record.stderr_ref
             )
-            return NativeCommandResult(
+            native = NativeCommandResult(
                 executable=PureWindowsPath(argv[0]).name,
                 argument_count=len(argv),
                 exit_code=None,
@@ -408,9 +672,20 @@ class SupervisedRunCoordinator:
                 stdout_truncated=stdout_truncated,
                 stderr_truncated=stderr_truncated,
             )
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.TIMED_OUT,
+                execution_id,
+                native,
+            )
         if inspection.recovery_required:
             code = inspection.error_code or "SUPERVISOR_RECOVERY_REQUIRED"
-            return self._failure_result(argv, error_code=f"SUPERVISOR_RECOVERY_REQUIRED:{code}")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(
+                    argv, error_code=f"SUPERVISOR_RECOVERY_REQUIRED:{code}"
+                ),
+            )
 
         try:
             current = self._store.get(execution_id)
@@ -419,10 +694,46 @@ class SupervisedRunCoordinator:
                 expected_version=current.version,
             )
         except ExecutionStoreError:
-            return self._failure_result(argv, error_code="SUPERVISED_VERSION_CONFLICT")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(argv, error_code="SUPERVISED_VERSION_CONFLICT"),
+            )
         except SupervisedExecutionError as exc:
-            return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{exc.code}")
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(
+                    argv, error_code=f"SUPERVISED_COLLECT_FAILED:{exc.code}"
+                ),
+            )
         if collected.result is None:
             code = collected.error_code or "SUPERVISED_COLLECT_FAILED"
-            return self._failure_result(argv, error_code=f"SUPERVISED_COLLECT_FAILED:{code}")
-        return self._mapped_result(argv, collected.record, exit_code=collected.result.exit_code)
+            return SupervisedRunOutcome(
+                SupervisedRunOutcomeKind.RECOVERY_REQUIRED,
+                self._durable_execution_id(execution_id),
+                self._failure_result(
+                    argv, error_code=f"SUPERVISED_COLLECT_FAILED:{code}"
+                ),
+            )
+        return SupervisedRunOutcome(
+            success_kind,
+            execution_id,
+            self._mapped_result(
+                argv, collected.record, exit_code=collected.result.exit_code
+            ),
+        )
+
+    def run(
+        self,
+        argv: tuple[str, ...],
+        *,
+        environment_overrides: tuple[tuple[str, str], ...] = (),
+        timeout_seconds: int,
+    ) -> NativeCommandResult:
+        """Preserve the historical native-result API exactly."""
+        return self.run_with_outcome(
+            argv,
+            environment_overrides=environment_overrides,
+            timeout_seconds=timeout_seconds,
+        ).native

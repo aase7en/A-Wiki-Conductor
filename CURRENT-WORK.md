@@ -1,22 +1,773 @@
 # A-Sunday Conductor — Current Work
+## 2026-11-19 - WO-P1-769 SUNDAYFAMILY COLOR E-INK DESIGN ALIGNMENT — MERGED / POST_MAIN_VERIFIED / RECONCILING
 
-Last updated: 2026-09-07 (GPT1 — WO162 accepted/merged/released; WO163 single-writer post-merge fold)
+**Accepted candidate:** `778fd7c4c451b7dbfa11fa132911c9ed2d6abc9b`; **PR #770 MERGED** on `main` at `789ee650b7723bcca7a986f569ef3b47962debc4`. Exact-head CI `44035291236` SUCCESS and independent KiloCode/GLM-5.3 exact-SHA review PASS (PR #770 issue comment `6946107838`, three P3 advisories only). Main read verified: `AGENTS.md` and `PROJECT-GRAPH.yaml` route SundayFamily Web/PWA agents to Color E-Ink + manga design system. **Post-main push CI run `44071018797`: COMPLETED / SUCCESS** (all four jobs, verified 2026-11-19; https://github.com/aase7en/A-Wiki-Conductor/actions/runs/44071018797). Historical pre-merge entry below is retained as chronology, not current state. Continuity PR #773 remains open/draft until its own review, updated CI and merge gates pass.
 
-## WO163 post-WO162 merge continuity fold — 2026-09-07 (authoritative)
+**No production UI code or Tk retirement.** UX-1 (#743) functional IA/packaging choices remain gated; SFU26 count remains 10/22. P3 later touching lane: missing trailing newlines in two docs, device-state/ToolPhase mapping, and clarify 7 primary IA domains vs 12 spec checklist rows. Next: finish PR #773 continuity fold with updated exact-head CI and qualified review; merge only under expected-head protection, then fold accepted evidence, release WO claim and close Issue #769 only after all closeout gates pass.
 
-> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Historical evidence below the separator remains evidence only.
+## 2026-11-17 - SUNDAYFAMILY COLOR E-INK VISUAL DECISION — OPERATOR APPROVED / DOC ALIGNMENT IN REVIEW
 
-- **WO-P1-162 / PR #219 is ACCEPTED, MERGED, and RELEASED**: accepted head `540ec54747d93bd4565c7530f6e474ac841f432c`; merge commit `ea521dfafb124d0fc76db1fe4fde08b8d3c5d207`; accepted head is an ancestor of the merge commit. GLM-1 implementation ownership is released.
-- **Universal Agent Entry is BINDING** after WO162 acceptance. `00-AGENT-ENTRY.md` and `docs/agent-collab/AGENT_ENTRY_PROTOCOL.md` are the canonical startup entry/protocol.
-- **This WO163 is a one-shot single-writer reconciliation** for the `MERGED_NOT_FOLDED` state created by the PR #219 merge. It changes governance/continuity only; no product source/runtime/DB/credential authority.
-- **Post-main verification gate** for the WO162 merge is CI run `34091433323`. This fold must not be accepted/merged unless that exact main run succeeds.
-- **Next dependency after this fold**: A-Wiki Issue #54 (ReviewBus addressed-blocker fix) in the existing isolated Q25 lane. No A-Wiki #54 source mutation before this fold is on main.
-- After A-Wiki #54, proceed under the separately approved roadmap/architecture gate before ZRA-2 (#214) → ZRA-3 (#215) → ZRA-4 (#216). PR #222/#223 remain separate drafts and do not bypass this dependency chain.
-- Protected root checkout is not an execution lane. Use isolated owned worktrees and fresh actual-state/claim gates.
-- **WO163 release condition**: when this exact reconciliation projection is on `origin/main` and its required CI/verification gate is satisfied, the closeout claim has no remaining mutable scope and is considered released without another global-file rewrite.
+The operator explicitly chose Color E-Ink (muted sage/teal/mustard/terracotta on warm paper) + manga ink linework for **all target SundayFamily Web/PWA screens**. Decision: Issues #743/#769; repository docs candidate WO-P1-769 branch `docs/wo-p1-769-eink-manga-direction`, based on `6ccc341013085d72fae90902115ab42c76e0217d`. New visual source proposal: `docs/design/sunday-family-design-system.md`. Root Tk `DESIGN.md` remains Tk implementation authority; runtime/permission/claim/Tk-retirement policy unchanged. **This candidate is NOT merged/accepted yet; CI and independent exact-head review are gates.** UX-1 functional IA/packaging decisions remain open, so this visual choice does not self-unblock card 04 UX-2 implementation.
 
-One next safe action: complete deterministic verification of this WO163 candidate → merge expected-head only after CI `34091433323` is SUCCESS → re-pin main → activate A-Wiki #54.
+Next safe action: freeze exact docs candidate, run targeted/YAML/agent-routing checks, independent review + hosted CI; resolve findings, merge only under acceptance, then verify main and fold continuity. Retain 10/22 program count unless actual new merged card evidence changes it.
 
+## 2026-11-16 - SFU26 card 05 settings read models - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `b260a12` -> PR 768 candidate `4887124` (feat `8242b37` + 2 security rounds; 3 files +3375/-0) -> exact-head CI 43948464060 SUCCESS -> merge `de9826820ce750d86b6c66074ee5bc5337a32b3c` -> post-main CI 43950911879 SUCCESS -> [#767 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/767#issuecomment-6928954448).
+Delivered: NEW pure `settings_activity_projection.py` — deny-by-default metadata-only allowlist across 11 surfaces (provider/hook/control/execution/audit/brain-settings/runtime-config/binding/local-refs/registry/network-policy); DENY fields never read; counts+derived booleans replace entries; drift typed; validator parity mutation-check-proven; laundering classes (str/int/datetime two-faced subclasses) closed across rounds 1-2; iterable containment. Framing GLM-5.3 substitute approve 0.8 (operator directive: Terra usage-limited -> GLM-5.3 interim); Jev allowlist 0.80; merge concurrence Jev 0.94 + GLM wait-for-CI 0.85. Program: 10/22 cards. Adviser protocol now: Jev + GLM-5.3 until Terra returns.
+
+### Exact next safe action
+
+(1) UX-1 operator green-light (#743) remains THE gate for card 04 lineage (04->13->14->15->17->18->19). (2) Card 11 (Gemini adapter) needs official API/privacy review; card 12 needs budget/egress permission. (3) Card 05's consumers arrive with card 04/13. (4) Gate-recheck cron active (8h).
+
+## 2026-11-15 - SFU26 P3 consolidation - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `b9b9370` -> PR 766 candidate `616c984` (8 files +424/-14) -> exact-head CI 43753086058 SUCCESS -> merge `b9bc9558bd05246d06ae615f916c3464c6814aa1` -> post-main CI 43777137430 SUCCESS -> [#765 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/765#issuecomment-6903694137).
+Delivered: P3 follow-up backlog of cards 01/02/06/03 closed — monitor frame bound (byte-exact 262144/262145 typed marker), correlation plain-str strictness, fleet two-faced-subclass guards (both sites), card-01 policy pins (app.routes-derived; real pre-routing 405). Review PASS first try; Jev merge_now 0.76 (softer signal disclosed); Terra usage-limit disclosed. Program state: 9/22 cards + P3 backlog ZERO — NO autonomous lanes remain; everything waits on human gates.
+
+### Exact next safe action
+
+(1) OPERATOR GATE — UX-1 green-light (#743): review docs/design/sunday-family-ux1-mockup.html + 5 decisions; unlocks card 04 (UX-2 React) -> 05/13/14/15/17/18/19 lineage (the largest remaining block). (2) Card 11 awaits official Gemini API/privacy review; card 12 awaits explicit budget/egress permission; cards 14/15 await authority framing (Terra required). (3) Two optional P3 advisories remain (RecursionError doc note; str-subclass created_at) — future lanes.
+
+## 2026-11-15 - SFU26 card 03 fleet identity projection - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `69c0a2e` -> PR 764 candidate `92f1557` (feat `58b2bb5` + P1/P2 repair; 3 files +1909/-0) -> exact-head CI 43732361310 SUCCESS -> merge `3c83e604b05e9b114997e50ea43aeaab1ae0acd2` -> post-main CI 43748635822 SUCCESS -> [#763 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/763#issuecomment-6899696531).
+Delivered: NEW pure `fleet_projection.py` — six source classes (claims consume-only EXPIRY_UNKNOWN + scope-count; CockpitLeaseObservation by-reference; app-session labeled never-fleet-ready; local instances path-excluded; remote constant typed UNKNOWN); exclusion law reviewer-verified zero-leak; provable-only joins + typed IDENTITY_CONFLICT; uniform id path-shape law. Review R1 1xP1 (exception escapes) + 1xP2 -> closed RED-first -> delta PASS (4 advisory two-faced-subclass follow-ups recorded). Jev merge_now 0.93; Terra usage-limit disclosed. Standalone — web exposure = card 04/UX-2.
+
+### Exact next safe action
+
+ALL self-unblocked R2 lanes COMPLETE (9/22 cards: 00/01/02/03/06/07/08/09/10). Everything remaining is gated: (a) UX-1 operator green-light (#743) unlocks card 04 (UX-2 React) -> 05/13/14/15/17/18/19 lineage; (b) card 11 needs official Gemini API/privacy review; (c) card 12 needs explicit budget/egress permission; (d) cards 14/15 need authority framing; (e) P3 follow-up backlog (cards 01/02/06/10/03) rides future touching lanes. Recommend: operator reviews docs/design/sunday-family-ux1-mockup.html + 5 decisions on #743 — single action unlocking the largest remaining lineage.
+
+## 2026-11-15 - SFU26 card 10 offline eval corpus - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `c17bc8a` -> PR 762 candidate `9dcbcf8` (feat `177a58f` + P2 repair; 3 files +2194/-0) -> exact-head CI 43721426566 SUCCESS -> merge `07e74e43c25184c4e0114ae2b807217dce914a41` -> post-main CI 43723256737 SUCCESS -> [#761 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/761#issuecomment-6896193057).
+Delivered: NEW pure `eval_corpus.py` — seeded deterministic corpus (1,080 base: 6 strata x 3 languages x 60, 20 cal + 40 sealed holdout, risk 10/5/5+20/10/10; +320 sentinels/8 categories, fake markers, neutral ids); payload projection {case_id, decision_family, risk, content} — leakage reviewer-recomputed EMPTY; duplicate-lineage rejection; cross-process determinism (hash eb9cc653...); preregistration = all 11 §9.3 metrics + rationale + Jev targets UNPROVEN; sentinel bound 300..10_000; zero provider/network/clock/token imports. Review R1 1xP2 (sentinel id leak) -> RED-first repair -> delta PASS. Jev merge_now 0.96; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Offline-evaluation chain COMPLETE (07/08/09/10). Next candidates: card 11 (Gemini conformance adapter — R3, needs official API/privacy review first), card 12 (approved external shadow capture — R3, needs explicit budget/egress permission), card 13 (route UX — needs cards 04/05), card 03 (Fleet DTO — R2, unblocked). Card 03 is the only remaining R2 lane not gated on humans or new R3 review — recommend it next. (2) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+
+## 2026-11-15 - SFU26 card 07 evidence packing - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `76e0bd2` -> PR #760 candidate `f0b99f3` (3 NEW files +1292/-0) -> exact-head CI 43685384232 SUCCESS -> merge `01224a8` -> post-main CI 43686908424 SUCCESS (first try) -> [#759 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/759#issuecomment-6892916659).
+Delivered: NEW pure `evidence_pack_projection.py` — char/item/byte budgets over ACTUAL UTF-8 (declared size = provenance only); mandatory NEVER clipped (ABSTAIN PACK_MANDATORY_BUDGET_EXCEEDED, drop gated on not-mandatory); optional overflow dropped-accounting (monitor truncated invariant); dedup (ref,sha256,span) + retain-both conflict notes; typed malformed/raising paths, zero exception escapes; self-digest canonical-JSON-minus-digest + input fingerprint incl. rejected/duplicate statuses; content inert (injection fixture opaque); no retrieval I/O; no token counting; non_authoritative pinned; operator.v1/zero_relay/orchestration codec untouched. Review PASS first try (0 P1/P2, 4 P3 follow-ups). Jev merge_now 0.95; Terra usage-limit disclosed. Ops note: lane executor's GLM key expired mid-chain after merge; integrator completed verification/checkpoint/close/fold directly from durable state.
+
+### Exact next safe action
+
+(1) Card 10 (offline evaluation corpus + preregistration) UNLOCKED — all prerequisites 07/08/09 delivered; own WO/claim from `main@01224a8`. (2) Card 03 optional parallel. (3) UX-1 operator green-light (#743) still blocks card 04/UX-2 only. (4) Subagent-model key renewal (cointh.com/glm) is an operator action if further delegated lanes are needed.
+
+## 2026-11-15 - SFU26 card 09 model-intel freshness projection - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `2661ee4` -> PR #758 candidate `d1bcf9c` (feat `eec815e` + review-P2 repair; 3 files +1384/-1) -> exact-head CI 43674043693 SUCCESS -> merge `caaff3e` -> post-main CI 43675501122 SUCCESS (first try) -> [#757 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/757#issuecomment-6889145994).
+Delivered: NEW pure `model_artifact_freshness_projection.py` — first AWC reader of A-Wiki model-intel artifacts: per-artifact read-state + mtime staleness AVAILABLE/STALE/UNKNOWN (injectable thresholds 6h/24h/24h/7d/30d, future->UNKNOWN), dual timestamp formats typed (offset-ISO vs naive-local; never silently converted; comparisons like-kind only), empty-scout/empty-catalog typed-not-failed, cross-artifact drift notes (roster-newer-than-policy / scout-echo mismatch / seeds warning), sha256 fingerprint, raw paths never echoed, non_authoritative pinned, zero provider imports, structurally no write/refresh. provider_operator_view untouched (scope note c6888557550 — separate evidence domain). Review R1 CHANGES_REQUIRED 1xP2 (duck-entry exception escape) -> RED-first repair -> delta re-review PASS (13/13). Adviser: Jev merge_now 0.95; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Card 07 (context budget/EvidencePack packing) from `main@caaff3e` — the LAST prerequisite of card 10 (offline eval). (2) Then card 10 unlocks the whole evaluation/provider lineage (11/12/16). (3) Card 03 optional parallel. (4) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+
+## 2026-11-14 - SFU26 card 08 canonical skill shortlist consumer - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `721bd48` -> PR #756 candidate `5833b4f` (feat `285751a` + review-P2 repair; 5 files +1069/-43) -> exact-head CI 43637446509 SUCCESS -> merge `366c9ed` -> post-main CI 43639136433 SUCCESS (first try) -> [#755 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/755#issuecomment-6885450992).
+Delivered: shared schema-v3 loader `load_skill_registry` EXTENDED out of inspector_sources (rows API byte-compat, reviewer-proved identical across 22 differential scenarios; all failure branches wrap to SKILLS_REGISTRY_UNAVAILABLE sentinel with cause preserved) + NEW pure `skill_shortlist_projection.py` (dispositions ABSTAIN/SUGGEST_SINGLE/NEEDS_DISAMBIGUATION over canonical only; deprecated never suggested — migrated_to surfaced; alias resolution to existing canonical else unresolved_aliases; NFC+casefold parity with A-Wiki routing.py normalize; INTENTIONAL documented non-parity: presence-only, no boundary/weights/threshold/tiers/stop-list — decisive labeled tests; staleness carried never blocks; typed unavailable; non_authoritative pinned; zero provider imports structural). Matcher authority remains A-Wiki routing.py — data-derived hint, never a fork. Review R1 CHANGES_REQUIRED 1xP2 (loader ValueError-subclass leak) -> RED-first repair -> delta re-review PASS (7/7 sentinel probes). Adviser: Jev merge_now 0.98; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Card 09 (provider/model/scout freshness projection) from `main@366c9ed` — staleness evidence already proven (.tmp/model-* ~5 months old; registry exceeds 7-day Inspector bound). (2) Then card 07 (context budget) -> card 10 (offline eval; needs 07+08+09). (3) Card 03 optional parallel. (4) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+## 2026-11-13 - SFU26 card 06 route/usage telemetry baseline - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `7a1d89a` -> PR #753 candidate `4d4241d` (7 files +1312/-3) -> exact-head CI 43500970352 SUCCESS -> merge `feb3e3c` -> post-main CI 43511495868 SUCCESS (first try) -> [#752 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/752#issuecomment-6865839149).
+Delivered: NEW pure `route_telemetry_projection.py` (frozen RouteTelemetryEvidence; typed cost UNKNOWN chain USAGE_ABSENT->PRICING_ABSENT->CURRENCY_ABSENT, None never 0; dedup (execution_id, attempt_id) + duplicate_of; accepted = distinct identities w/ ACCEPTED receipt; correlation conflict fails closed; wall-vs-monotonic labeled); EXTEND provider_selection_observability.py (optional selection input fills real reasons; absent = byte-identical, reviewer-proved vs base); EXTEND semantic_admission.py (additive kw-only execution_id/attempt_id/request_id). MUST-NOT-TOUCH files all zero-diff (reviewer verified each). Review PASS 0 P1/P2 + 3 P3 no-action. Adviser: Jev merge_now 0.96; Terra usage-limit disclosed.
+
+### Exact next safe action
+
+(1) Cards 07 (context budget/EvidencePack), 08 (registry shortlist consumer), 09 (model/source freshness) all UNLOCKED by 06 — pick one per lane, own WO/claim from `main@feb3e3c`; card 10 (offline eval) needs 07+08+09. (2) Card 03 (Fleet DTO) optional parallel. (3) UX-1 operator green-light (#743) still blocks card 04/UX-2 only.
+
+## 2026-11-13 - SFU26 card 02 / #739 slice 2 live inspector wiring - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `224d727` -> PR #751 candidate `2889b3e` (10 files +783/-16) -> exact-head CI 43476458454 SUCCESS -> merge `c79222e` -> post-main CI 43480187819 SUCCESS (same run id, --failed rerun of capacity-cancelled macOS smoke; code jobs green first attempt) -> [#750 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/750#issuecomment-6861892015); claim on #739 released (slice-2 delivery c6861895283).
+Delivered: NEW `monitor_live_provider.py` (bounded shared producer composing slice-1 collectors + projection; `A_CONDUCTOR_AWIKI_ROOT` injectable env, `A_CONDUCTOR_MONITOR_PROJECTION=off` kill-switch -> byte-identical legacy placeholder; typed MONITOR_NOT_COLLECTED first frame; section-named failure children); web_api wiring on existing poller cadence, request path cache-only; client Amendment 1 (adjudicated Terra A 0.87 + Jev 0.68, claim amended #739 c6859944942): api.ts strict union validator + SnapshotView minimal UX-1-token summary (no layout/IA — card 04 owns design). Review PASS 0 P1/P2; 5 P3 follow-ups on #750 (frame-size bound edge, discarded notes, kill-switch restart-required, producer-timeout judgment, one-poll-behind). RED independently reproduced by reviewer. npm 93 / py 12-100-30-36-228-10-10-18-33 green.
+
+### Exact next safe action
+
+(1) Card 03 (Fleet/work identity read DTO) or card 06 (telemetry baseline) — own WO/claim from `main@c79222e`. (2) UX-1 operator green-light (#743) still pending — blocks card 04/UX-2 only. (3) Card-02 P3 follow-ups ride future touching lanes. (4) Mac live-monitor usage: set A_CONDUCTOR_AWIKI_ROOT to the A-Wiki checkout when serving snapshots.
+
+## 2026-11-13 - SFU26 card 01 web verification floor - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+Base `23050a4` -> PR #747 candidate `120936c` (3 files +86/-8) -> exact-head CI 43348056751 SUCCESS (incl. NEW web job: npm ci + vitest + tsc/vite build) -> merge `e96f527` -> post-main CI 43350541671 SUCCESS -> [#746 closed](https://github.com/aase7en/A-Wiki-Conductor/issues/746#issuecomment-6842109461).
+Delivered: CI `web` job (ubuntu/node20, lockfile-v3 npm ci, vitest, tsc+vite build); stale skip #1 replaced by exact 14-route method-surface completeness contract (two-way set equality; 405/404 vs real gates); stale skip #2 headless-import passed un-skipped, strengthened. Independent review PASS 0 P1/P2; 2 P3 advisories recorded as follow-ups. Adviser disclosure: Terra usage-limit; Jev template-mismatch + direct 422 — merge per pre-published lane contract.
+
+### Exact next safe action
+
+(1) SFU26 card 02 = #739 slice 2: wire live inspector collectors into the running monitor provider (injection seam on main) — own WO/claim from `main@e96f527`; Mac skill-source root must be injected (default is Windows A:\GitHub\A-Wiki). (2) Cards 06/10 offline prep disjoint-optional. (3) UX-1 operator green-light (#743) still pending — blocks card 04/UX-2 only.
+
+## 2026-11-13 - SFU26 program kickoff + card 00 roadmap publication - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+This entry supersedes older frontier instructions below where they conflict.
+Verified base: main `2191328203e2c20705868b2489d039f4421bcb16` (post-main CI 43323957137 SUCCESS).
+
+Operator directive 2026-11-12T22:07Z: goal mode on the SFU26 master roadmap; standing decision protocol = Jev (TypeSafe) + GPT-6.1 Terra advisory, human (batched grill-me) only when genuinely undecidable.
+
+Card 00 (`CAND-SFU26-00`) delivered via PR #745 (merge `2191328`, +796, 2 new files): `docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md` (22 candidate cards `CAND-SFU26-00..21`, 12 milestones, dependency DAG, gates `G-PLAN..G-RELEASE`, OFF→SHADOW→ADVISORY→CANARY→PRODUCTION ladder, rollback invariants) + [WO-P1-744](docs/work-orders/WO-P1-744-sfu26-roadmap-publication.md). Gate chain: issue #744 anchor → worktree AWC-wo744-roadmap → adversarial plan review PASS (0 P0/P1, 3 P2 folded) → identity suite 33 passed → exact-head CI 43320621944 SUCCESS on `6abd3e1` → merge expected head only → post-main CI 43323957137 SUCCESS → checkpoint on [#744](https://github.com/aase7en/A-Wiki-Conductor/issues/744).
+
+### Exact next safe action
+
+(1) Card 01 — web verification floor: add npm/Vitest+build CI step + un-skip/rewrite the 2 stale tests (`tests/test_web_api.py:94,275`); own WO/claim from `main@2191328`. (2) Cards 06/10 offline prep may run disjoint in spare capacity. (3) UX-1 operator green-light (#743) still pending — blocks card 04/UX-2 only. (4) #739 slice 2 (live collector wiring) is card 02 of SFU26 — same seam, program-ordered. (5) Legacy #738/#551/Track-B gates unchanged.
+
+## 2026-11-09 - #739 slice 1 Tool/Hook/Skill Inspector - MERGED / POST_MAIN_VERIFIED - CURRENT
+
+This entry supersedes older frontier instructions below where they conflict.
+Verified base: main `9d084b560e652dccb6d3d5dac4e70d42c8a5d835` (post-main CI 42610449527 SUCCESS).
+
+Slice 1 delivered via PR #740 (merge `9d084b5`, +2344/−2, 8 files): pure typed `inspector_projection` (InspectorState READY/UNKNOWN/STALE/DISCONNECTED/DEGRADED + ToolPhase REGISTERED/STARTED/CONNECTED/INJECTED per #343; fail-closed secret-redaction family, safe-int bounds, 128-row bounds), read-only `inspector_sources` (SundayMCP instance markers + injectable readyz probe with transport-evidence-only DISCONNECTED; hook contract surface incl. GUARD fail-closed only with policy evidence; A-Wiki skills-registry.json schema v3 with path-existence + staleness truth), Monitor projection optional seam + Monitor page Inspector section (CSP/fragment-token unchanged). Gate chain: claim 6737467325 → WO-P1-739 → RED `00d91eb` (82 RED / 2 pass) → GREEN 439 local → independent review 7 rounds final PASS (540/540 redaction family sweep, 12/12 prior attacks) → Jev merge_now p=0.94 conf 0.91 (Terra unavailable, disclosed) → exact-head CI 42607994606 SUCCESS on `a004f8c` → merge → post-main SUCCESS → checkpoint [6739429453](https://github.com/aase7en/A-Wiki-Conductor/issues/739#issuecomment-6739429453).
+
+### Exact next safe action
+
+(1) #739 slice 2 — wire live collectors into the running monitor provider (injection seam exists on main) + desktop cockpit panel; bootstrap its own WO from `main@9d084b5`. (2) slice 3 — operator actions through the accepted Command Gateway + claims (read-only boundary by design). (3) Physical reboot/login E2E for SundayMCP auto-start remains outstanding on both platforms. (4) /7 mutable refill and rename Track B remain human-gated (see #551 / #731). (5) The 2026-11-09 AGENTS.md repo-map/commands update is complete but uncommitted in the root worktree — carry it into the next docs lane.
+
+## 2026-11-08 - WO-P1-736 delivery
+
+Issue: [#736](https://github.com/aase7en/A-Wiki-Conductor/issues/736); DELIVERED / MERGED / POST_MAIN_VERIFIED via PR #737.
+Frozen candidate SHA-256: source `37ca2e8c0563f24c0afb70fee33089ff3a7001111f558e344f85a79492945527`; tests `52889772bba48249bae357944d6321e8f358a94b930b57c894a3a804e21b09bd`.
+Head `66b0d8c`; exact-head CI `42468483558` SUCCESS; merge `226aa10`; post-main CI `42469856580` SUCCESS.
+Review R1 -> R2 requested changes -> R3 PASS 0/0/0/0; Terra merge concurrence 0.85.
+NEXT: ZRA-3G continuation-loop composition needs its own new WO/bootstrap from `main@226aa10`; #736 remains the open ZRA-3G/ZRA-4 frontier tracker.
+ORCH-1 core /1-/3 acceptance was verified SATISFIED 2026-11-08 via the PR #720 chain, correcting the stale 2026-10-27 PENDING wording below.
+/7 remains HOLD per [#709 c6719134323](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6719134323); upstream `79f7937` unchanged and claim row LIVE as of last check. No dispatch or runtime activation implied.
+
+## 2026-11-06 - SRM gap-closeout #727/#728 / Serena retirement #725 - CURRENT
+
+This entry supersedes older frontier instructions below where they conflict.
+Verified docs base: `origin/main@adf997e5d2eaa3411a6d348b110daa8e11fd56b1`.
+Active program: [#727](https://github.com/aase7en/A-Wiki-Conductor/issues/727)
+policy hardening + [#728](https://github.com/aase7en/A-Wiki-Conductor/issues/728)
+read-only Python semantics, with [#725](https://github.com/aase7en/A-Wiki-Conductor/issues/725)
+Serena retirement EXECUTED. Status 2026-11-06 (late): #727 and #728 merged to
+SRM main (`173f9a2`, `2632fb2`), deployed to the SundayMCP-Windows runtime
+(tunnel 21484 / node 16300) and verified on deployed code — checkpoints on the
+issues carry the full evidence. This entry records status; issues own proof.
+
+### Decisions And Active Scope
+
+- BUILD: Python semantic support and tool-policy hardening. Multi-language means working-set-only (Python now, existing TS/JS retained), not Serena's 40+ languages.
+- SKIP: Serena memstore, REPL-UX, SSH-bridge and in-memory-exec as duplicate/no demonstrated need; these decisions do not certify unrelated exec surfaces as safe.
+- [#725 decision checkpoint](https://github.com/aase7en/A-Wiki-Conductor/issues/725#issuecomment-6678658891): full retirement of all five Serena workers approved; per the [#725 execution checkpoint](https://github.com/aase7en/A-Wiki-Conductor/issues/725#issuecomment-6678768597) and [+50s durability sweep](https://github.com/aase7en/A-Wiki-Conductor/issues/725#issuecomment-6678802932), the all-worker stop is EXECUTED (both stop rounds exit=0, supervisor app closed gracefully, no respawn; linked evidence, not independently re-verified by this docs lane). #727/#728 capability acceptance remains pending — worker retirement is not capability acceptance. Operational caveat: manually launching the legacy `A-Sunday Conductor.exe` revives the workers. SundayMCP-Windows, other MCP services and rollback tunnels preserved.
+- [WO727](docs/work-orders/WO-P1-727-srm-policy-hardening.md): CallTool exposure parity, one policy -> guard -> handler seam for every case, ALS per-request attribution. `track_ui_event` narrow exemption decision must be explicit. Adjacent node:local/history/PDF-guard findings remain out of scope.
+- [WO728](docs/work-orders/WO-P1-728-srm-python-semantic.md): posted refinement makes v1 READ-ONLY defs/refs/documentSymbol via PythonSemanticAdapter + minimal pyright LSP stdio client + extension/provider registry. NO editor seam or MCP mutation; Track B / CUTOVER-MUTATE holds. Project-wide rename is a separate future slice/gate, not accepted by v1.
+- Implementations belong in separate claimed `aase7en/SunDayRemoteMCP` lanes. Both maps were researched at `e44c48f`; re-verify anchors at actual implementation head. Exact reviewed head -> CI run ID on that head -> expected-head-only merge -> exact post-main CI ID -> checkpoint on driving #727/#728. Fresh independent reviewer PASS required, never self-review acceptance.
+
+### ORCH-1 Fold-Back And Blockers
+
+- /4 dispatcher merged via PR #722 (`93908af`); /6 outcome observation merged via PR #726 (`adf997e`); /5 external Parent admission merged via PR #735 (`09f683a`) after amendment approval on #733 (6689258402), three review/repair rounds (final head `65cca2c`: cross-queue submission check, read-only header+sidecar gates, post-read fence), exact-head CI 42276408725 green, Jev concurrence merge_now p=0.86; checkpoint [6694663460](https://github.com/aase7en/A-Wiki-Conductor/issues/733#issuecomment-6694663460) records the full chain incl. the disclosed deviation that the final delta re-review was an orchestrator line-trace + adversarial test audit (subagent quota exhausted 18:05/19:11/20:21). Post-main CI on `09f683a` recorded on #733 when complete.
+- /7 claim-authority: WO-551 delivered read-only strict claim consumption via PR #734 (merged `c70c64c`, post-main CI 42268485266 SUCCESS) pinning the A-Wiki strict claim contract (A-Wiki PR #75 merged `79f7937`, post-main CI 42263722887 SUCCESS; A-Wiki PR #73 GrillMe B merged `6987467`, post-main 42255377249 SUCCESS). WO-551 closed on #551 (6692005967). Mutable refill / durable release writer remains NOT accepted; /7 unblocking still requires integrator reconciliation of the upstream [A-Wiki #58](https://github.com/aase7en/A-Wiki/issues/58) resolution.
+
+### Lane Checkpoint And Exact Next Safe Action
+
+Gap-closeout program state (2026-11-06): WO docs merged (PR #729, main `3c3c3ef`);
+SRM PR #42 (policy hardening) merged `173f9a2` after review PASS + Codespell +
+pristine-base attribution; SRM PR #41 (Python semantic read-only v1) merged
+`2632fb2` after full review, 2×P2 repair (`3e3577d`) and independent re-review
+PASS. Windows runtime deployed and verified: 42-tool contract with
+language-aware semantic descriptions, real Python defs/refs on a_conductor
+source, and compact-mode hidden-tool direct calls refused (`Unknown tool`).
+Serena workers 1-5 retired with supervisor app closed (see #725 evidence).
+
+**Exact next safe action (ordered):** (1) record post-main CI for the #735
+merge `09f683a` on #733 when the run completes; (2) Mac-side SRM deploy of
+`2632fb2` was executed earlier this session on both Macs — reverify only if
+runtime drift is suspected; (3) /7 awaits integrator reconciliation of upstream
+A-Wiki #58 resolution (closure alone is not acceptance; WO-551 read-only
+consumption merged, mutable refill still gated); (4) project-wide rename needs
+its own Track B / CUTOVER-MUTATE gate decision before any mutation-surface
+work order. Do not infer any of these from this file; issues, WOs and actual
+repo/runtime state own truth.
+
+## 2026-10-27 — ORCH-1 core (/1–/3) merged / POST_MAIN_VERIFIED / REVIEW_DEVIATION_REMEDIATION_PENDING — CURRENT
+
+This entry supersedes older CURRENT/frontier instructions below where they
+conflict. Evidence base: `origin/main@955822715917d5489c1bc193e6dc0cf278bc5e28`.
+Umbrella #709 remains OPEN; #712 and #713 are CLOSED / completed implementation
+deliveries, not full core acceptance. No runtime activation is claimed.
+
+### Verified Core Merges
+
+| Delivery | PR | Exact candidate | Merge on main | Post-main CI (SUCCESS at exact merge) |
+|---|---|---|---|---|
+| Foundation design | #710 | `5ef2046ef6f6f7d65b8f743995a6a9ba00cbac31` | `8edb3c51dc0799507670f36f7c8c003c67f7c2a6` | [40009037251](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40009037251) |
+| /1 signal codec | #711 | `2975af8b2538f63b62a736d9d4134505a7dc9f75` | `12eddb2241659166f0ba72ec7a63444dca3503a6` | [40010896041](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40010896041) |
+| /2 receiver | #714 | `ad4876930a22a20a5832c9fb81e27fdf82e259b7` | `aabff438f6368f1ba8bd9333c6707ff35b185633` | [40012379043](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012379043) |
+| /3 guards | #715 | `7434da78434ff784447cbfc7341d8fa2394d427f` | `955822715917d5489c1bc193e6dc0cf278bc5e28` | [40012880195](https://github.com/aase7en/A-Wiki-Conductor/actions/runs/40012880195) |
+
+Merged with exact-head post-main CI green; independent exact-SHA review evidence
+was NOT recorded on PRs #711/#714/#715 (process deviation: no PR comments or
+submitted reviews). Post-merge independent review of the three merged orchestration
+modules at `main@955822715917d5489c1bc193e6dc0cf278bc5e28` is commissioned by the
+orchestrator as remediation and must complete before ORCH-1 core is treated as
+fully accepted. Green CI is not independent-review evidence or a live certificate.
+
+- Child closeouts: [#712](https://github.com/aase7en/A-Wiki-Conductor/issues/712#issuecomment-6436101703) and [#713](https://github.com/aase7en/A-Wiki-Conductor/issues/713#issuecomment-6436106444); author claims `ORCH-1-3-GUARDS-001` and `ORCH-1-2-RECEIVER-001` released.
+- Correct guard freeze is [6373185217](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6373185217); `6372970861` is its AUTHOR CLAIM, not freeze.
+- [Umbrella checkpoint / R0 docs claim ORCH-1-CORE-CLOSEOUT-001](https://github.com/aase7en/A-Wiki-Conductor/issues/709#issuecomment-6436114447): branch `docs/orch1-core-closeout`, worktree `A:\GitHub\_worktrees\AWC-orch1-core-closeout`, exact five-file scope (WO709/712/713, CURRENT-WORK, handoff). No source/test/workflow/COLLAB/DEFECT_LESSONS changes. Final PR/merge/post-main tuple is recorded on #709 after delivery; cleanup only after proven inclusion and green post-main CI.
+
+### Interim Fold-Back Since WO679
+
+Derived from `git log --oneline faa34cd6..9558227`; these are merge facts, not
+new review, production-readiness or live-activation certifications.
+
+- PR #681 (`b9fa939`): WO679 integrator closeout and old-stack supersession closures folded; the older docs-PR waiting instructions below are historical.
+- PR #678 (`eb07583`): WO677 context-economy filtering and canonical Issue identity documentation merged.
+- PR #682 (`9cd58c7`): WO581/583 serialized defect-lesson fold merged; this lane does not edit lessons.
+- PR #685 (`7cb757d`): WO679-followup launcher lessons #15/#56 folded as #58/#59; earlier queued-fold text below is historical.
+- PR #688 (`d16066d`): WO687 SF-WEB-0 contract/dependency gate merged.
+- PR #691 (`990c90b`): WO689 authenticated read-only FastAPI monitor and bounded pre-header connections merged.
+- PR #692 (`570a722`): WO690 read-only Sunday Family React shell merged.
+- PR #695 (`8780988`) and #696 (`4c09898`): WO693 installable PWA shell and service-worker non-GET early-return correction merged.
+- PR #700 (`fedda41`): WO694 SF-WEB-4 mutation endpoints with auth/rate-limit/audit plumbing merged; this is not proof of real worker lifecycle dispatch.
+- PR #701 (`8b592d7`): WO697 SF-WEB-5 systemd/launchd/Windows/Umbrel service packaging merged.
+- PR #702 (`cf64101`): WO698 SF-WEB-6 parity checklist merged, documenting P1 gaps and Tk retirement NOT ready at that snapshot.
+- PR #703 (`c8d51f8`): WO698 SF-WEB-6 P1 Worker CRUD, connector creation and parity checklist merged.
+- PR #704 (`c3189cc`): WO699 SF-WEB-7 remote operator security analysis merged; documented options/Tailscale recommendation are not remote deployment proof.
+- PR #705 (`6d7e778`): CI workaround skips FastAPI closure-affected tests; no claim here that production body-model behavior was repaired or skipped paths are verified.
+- PR #706 (`8134966`): WO580 lifecycle queue-guard consumer design packet merged; design delivery is not executable consumer wiring.
+- PR #707 (`de5e231`): B3 Tailscale IP binding support for web API merged; no network/runtime activation in this lane.
+- PR #708 (`157fbe1`): WO698 SF-WEB-6 P2 connector rename/delete and CPU/RAM metrics merged; source parity is not Tk-retirement or native worker-effect acceptance.
+
+### Remaining Slices And Exact Next Safe Action
+
+Canonical roadmap: [ORCH-1 design section 7](docs/work-orders/ORCH-1-foundation-design.md#7-bounded-implementation-roadmap).
+
+- /4 one existing worker batch is the next READY lane, in flight per orchestrator assignment: `A:\GitHub\_worktrees\AWC-orch1-dispatcher`, branch `feat/orch1-worker-dispatcher` (registered at `9558227` in this census). Read-only review task class first; actual runtime/job root plus production provider/lease/claim authority must be proven. Worktree registration is not execution-liveness or acceptance proof; recover its own claim/result before any action.
+- /5 Parent enqueue/replay remains BLOCKED until the integrator names the actual external Parent caller and queue-producer serialization owner. Canonical aliases, interrupted-turn recovery and Parent audit mapping are additional required gates; do not invent a caller/lock or infer write admission from an injected seam.
+- /6 outcome/lifecycle observation is offline-testable now; target-specific production outcomes require /4 or /5 wiring. No new receipt fields, recursive dispatch or Stop-schema changes implied.
+- /7 producer/refill depends on /4+/6; mutable refill is additionally BLOCKED by #551 accepted/post-main. Read-only work is not mutable-refill completion.
+
+**Exact next safe action:** preserve the ORCH-1/4 lane in flight (read-only review
+task class first), recover its exact task/claim/head, and complete the commissioned
+post-merge independent review remediation at `9558227` before full core acceptance.
+This docs lane neither dispatches that review nor changes source. Protected root
+`A:\GitHub\A-Wiki-Conductor` stays stale/dirty and untouched; original ORCH author
+worktrees and unrelated branches are preserved. Re-fetch/reconcile actual state
+before further work; #709 stays open through the remaining integration gates.
+
+## 2026-10-17 - WO-P1-679 integrator closeout COMPLETE / POST_MAIN_VERIFIED - CURRENT
+
+- WO679 launcher replacement is code-integration COMPLETE: PR #680 merged (squash, `--match-head-commit 4bb30be`) → main `faa34cd6c25567c08804dfd4337bce19949cbe83`; tuple preserved `8339e4c`/`f7d23c9`/`2d151da` → `4bb30be` → `faa34cd`. Candidate CI 39008397179 and post-main CI 39010300897 both SUCCESS (API-verified exact heads); Windows GUI 501P/1S incl. both parse-oracle tests green (engine/version not logged; parse-only); post-main tree/blob equality proven (tree `a9656647…`; six changed blobs identical = source + tests + desktop_control.py import hoist + 3 governance docs, per git diff-tree 46faaeb..faa34cd); local 229P+2 darwin skips + related 2F/89P = root-adjudicated pre-existing mac baseline. Reviews labeled exactly: prior working-tree round-9 review exported c6230466220 (cec841a7…/81c48ac7…) and the FINAL BINDING exact-SHA review at head 4bb30be (review-4bb30be result.md 5e19e3b9…, manifest c3dfdc63…) exported at acceptance c6230717866. Root acceptance Issue #679 c6230717866 under user permission "Commit/push แล้ว merge ตาม gate"; final export + closeout claim c6230971945.
+- Old stack closed superseded/unmerged (never claimed merged): PR266 c6230982133, PR285 c6230986237, PR293 c6230991297 (+ release of root-owned old launcher claim 6218811712 residual mutable scope only); Issue267 closed resolved-by-replacement c6230994686. All heads re-verified before each close; branches/worktrees/evidence intentionally preserved, NO deletes, no old historical record erasure. Issue215 (ZRA) untouched; PR295 stale review flagged only, outside scope. DEFECT_LESSONS not edited — old-branch #15/#56 not in main, queued behind #581/#583 serialized folds.
+- Docs-only closeout lane: branch `docs/wo679-closeout` from `faa34cd`, worktree `_worktrees/A-Wiki-Conductor-wo679-closeout`, exactly 3 docs (WO679, CURRENT-WORK, handoff). Config/LIVE readiness separate (Issue #630 c6230245217); no runtime changes.
+- NEXT_SAFE_ACTION: root watcher takes the docs PR new-head CI run ID; after green CI, root decides the conditional WO679-lineage merge of the docs PR (lane does NOT self-merge). ONCE MERGED, WO679 needs NO further source work — consult the Issue #679 final closeout as the record; do not re-watch or redo WO679 lanes. Config/LIVE preparation stays separate (Issue #630 c6230245217; no automatic migration/enrollment); retained branch/worktree cleanup and the serialized lesson folds are separate explicitly authorized tasks — none deleted here.
+
+## 2026-10-17 - WO-P1-679 Launcher Replacement Bootstrap
+
+- Issue #679 / `docs/work-orders/WO-P1-679-launcher-stack-extraction.md` is the current replacement packet; earlier parked snapshots below are historical, not current claim census.
+- Fresh lane: `/Users/aase7en/GitHub/_worktrees/A-Wiki-Conductor-wo679-launcher-replacement`, branch `chore/wo679-launcher-replacement`, base/HEAD `46faaebce16d9d86b7a14c70fa05e52906b61d9d`. R0 docs bootstrap only; future R3 CONTROL_PLANE_ONLY.
+- Owner session `ses_ebab810f2ffe7BmnQwkFK9jePy`; bootstrap delegate `ses_eb8dc9b08ffe0GyJ4pMxLVQiIY`. Exclusive three-doc claim: Issue #679 comment6227287031. Original claim freeze/source-only release: PR #293 comment6227281659; root runtime + independent host census prove old-lane quiescence/no pending original submissions and disjoint active lanes.
+- Old candidate `2d151da2aca14ca2213b21d6c68b8df08de759c1`, old branches/worktrees/evidence and OPEN PR266/285/293 preserved until replacement passes and merges. No old code/head/base/state changed. Only coordination freeze comment added.
+- Bootstrap modifies this file, handoff.md and the new WO only; immediate full source governance-gate rerun PASS / READY_FOR_GLM_IMPLEMENTATION, receipt on Issue #679. Identity suite 33 passed; 287-WO corpus explicitly includes new untracked WO, UTF-8/history/scope checks PASS; source/test/lessons unchanged. Source reservation is ONLY instance_create.py + test_instance_create.py; DEFECT_LESSONS NOT transferred, #581/#583 folds remain separate.
+- User chose eventual `~/.sunday-device`, compatibility/rollback/no automatic old-config deletion: capture only, future separately scoped config task (#659/#607/#630/#495). LIVE is scheduled operator-at-console checklist/readiness ONLY; #630 c6135839685+c6137500281 gates stand, no issuance/enrollment/runtime rollout. Do not remove protected-root HUMAN_DECISION_REQUIRED.
+- NEXT_SAFE_ACTION: coordinator binds one GLM-5.3 MAX implementation to WO679 two-file scope using WO section 7. GPT-6.1 Sol hard adjudication; Astra very-hard escalation only. Recheck startup/claim/main/dirty state and route/quota/privacy before GLM execution; none launched here. No commit/push/merge/cleanup authorized. Evidence destination `runs/WO-P1-679/`; lane retained uncommitted.
+- UPDATE 2026-10-17 (GLM lane, same claim): round-1 byte-identical extraction landed (blobs `4124b53f`/`d9e664b6`; focused 79 passed; evidence runs/WO-P1-679/ logs 01–13). Independent GPT review returned CHANGES_REQUIRED (P1 wizard-generator misclassification + 3 P2: try/finally pairing, quoted-literal false refusal with partial materialization, case/missing-marker passthrough); user authorized ongoing fixes. Round-2 repair complete in the same two-file scope: all 4 findings reproduced RED (8/8, incl. target_exists=True), 20 new tests RED→GREEN, focused 99 passed, related/floor/identity/differential unchanged from round 1 (two identical-at-base Windows-oriented residuals; macOS Tk multi-UI condition). Round-2 artifacts were: source blob `3ee2523257f9e2f7cc466768e3172cb2f3231ad0` sha256 `e133fd4853741870e71b36bf02662810ddfc6ae9cc43cab0f8e300276ce0f821`, tests blob `2a24bf99690b6806e6057929ae9934f7bbe6fbb4` sha256 `f74eb98df6d85c6b4478710b735b1b116c44ad893dcd58319e220e6e4d204128`; evidence logs 20–28. (Round-3 correction: the round-2 result doc's double-quote "fail-closed" wording was untruthful — annotated in runs/WO-P1-679/29-result-round2.md.)
+- UPDATE 2026-10-17 round 3 (GLM lane, same claim): Sol rate-limited; Astra read-only advisory framed the bounded design; user authorized round-3 repair of the three remaining P2s. Implemented in the two reserved files: lexical-provenance scan with EOF validity + expression-independent `$(` interpolation bound on expandable content (backtick parity; exact legacy `$($RuntimeProcess.ExitCode)` still TRANSFORMS; provenance-aware markers), helper FULL-BODY contracts (only validated Fail `exit 1` exempt), try/finally source-interval adjacency (whitespace/comments only between try close and sibling finally). RED 58F/21 guards → focused 178 passed; differentials byte-identical; compileall/UTF-8/diff-check/scope clean. Round-3 artifacts were: source blob `332ccabb1582e235d3db379f9132412b76d1d897` sha256 `bdfa861715b8bdabc1444a25a07782edac406cff9bf7cff883eaf36882b32f36`, tests blob `a273626de62f4ecfa6ccc323bb9e8437f77791fd` sha256 `70aec5b39badcfad33b42562e7555a60ac74cba9c2ce59230c79a4add5ed8660`. (Superseded by round 4 below; its "nested block comments" wording corrected there — see WO round-4 checkpoint.)
+- UPDATE 2026-10-17 round 4 (GLM lane, same claim): independent GLM review of round-3 (blob 332ccabb) returned CHANGES_REQUIRED (2 P1 + 1 P2 + 4 P3); bounded RED-first repair in the two reserved files: block comments no longer nest (first `#>` closes); here-string terminator accepts trailing tokens (`"@ | Out-Null` closer — closed a fail-open clone path); smart-quote codepoints refuse positive verdicts [enumeration completed round 5]; CRLF-tolerant analysis views (`\r`→same-length space, bytes untouched); P3-1 helper-optional residual, P3-3/P3-4 noted. Preserved positives incl. sha256 byte-identity of both legacy transforms vs frozen 2d151da (isolated subprocess import, read-only). RED 8F/2 → focused 186 passed; differentials byte-identical. Round-4 artifacts were: source blob `429d29bce4650fffd52aef42ce2ee9be71a8b9c1` sha256 `a7fa175af8f2cc394d59a12dd9c6c7c4bc20acac63ffd9384d4e9a9360a6c3c1`, tests blob `feb32c1fdaeedded1ab33fcab5d8c19585445b15` sha256 `60718eb57f1d8cc76ecb6ac5a40d328b128547d51c6a9bc3aa13fac875809d2d`. (Superseded by round 5 below.)
+- UPDATE 2026-10-17 round 5 (GLM lane, same claim): round-4 review found one P2 + one nit; micro-repair complete. `_SMART_QUOTE_CODEPOINTS` now seven codepoints (added U+201A/U+201B per spec single-quote-character production) — `@\u201a`-wrapped wizard text refuses and never clones (RED-first classifier + operation-level no-clone tests, both codepoints); stale `_lex_powershell` docstring corrected to non-nesting block-comment wording; round-4 five-codepoint enumerations annotated (WO/handoff/70-result-round4, history preserved). RED 4F → focused 190 passed (186+4, zero regressions); related 2F/89P, floor 34, identity 33, probes 8/8 — differentials byte-identical; compileall/UTF-8/diff-check/scope clean. Round-5 artifacts: source blob `9e593df90844743ac1dc13e0a84d3835edfcfad8` sha256 `347ff06085d96bacbfc4289a41f76599aa7fb7fd96ac990271f137af89fe779a`, tests blob `d2b9d785b4d13981354f13b0d69a1a027a0bfa29` sha256 `c5a0e11fa5553312adadcff40eaa719cc8de920f7f38593104e2144a95c92cd8`. (Frozen as commit `5e6dfc2` / PR #680; superseded by round 6 below.)
+- UPDATE 2026-10-17 round 7 (GLM lane, same claim; NO commit/push): root GPT integrator adjudication relayed — no general sanitizer/command-resolution proof required; unknown passthrough = compatibility not safety; two accepted P2 completeness gaps (launch-sequence presence; Fail-call placement/preflight guard body contracts) plus archive-block completeness and parse-only oracle tests; earlier PASS wording corrected to "prior independent bounded review PASS, residual adjudication now CHANGES_REQUIRED". Repairs landed RED-first in the two reserved files (16-marker canonical chain with launch templates, guard body contracts, archive completeness, ParseInput oracle with explicit engine-less skips). Round-7 artifacts were: source blob `199b2f7db6d8f0a5d6b30d3c1a8f202523260939`, tests blob `98e23a48f69a6fa9067bcebab4e5e010d6987de4` (full sha256 in runs/WO-P1-679/hashes-round7.sha256). (Superseded by round 8 below.)
+- UPDATE 2026-10-17 round 9 (GLM lane, same claim; NO commit/push): root integrator found two final gaps. (1) wizard launch pattern accepted `` `+ `` (2-3 backticks) on all four continuations — real regressions proven RED (8/8 noncanonical mutations classified ALREADY_HARDENED before fix); pattern now requires EXACTLY ONE backtick per continuation; single-backtick canonical stays accepted; operation-level no-target RED. (2) review-round8's "skips structurally MANDATORY on Windows" claim didn't match code (skip-on-all-platforms) — annotated in reviewer result; new `_resolve_parse_oracle_engines` FAILS on Windows when no pwsh/powershell is discovered and returns [] elsewhere (explicit skip preserved); exact monkeypatch unit tests for the three platform/engine cases. Focused 229 passed + 2 oracle skips; differentials byte-identical; compileall/UTF-8/diff-check clean. Artifacts: source blob `ea2205bbc4605acbae777ae2d25f3f90dd1e0cce` sha256 `f9b9058f8af8811fb522d5254f6801f16f5d7bb5177c61319073e364acf085f6`, tests blob `32c4ec97e6ea7dadedb08f18b9574f0d967c7b61` sha256 `c27ce2fef194c1ee5f9fe02b9708bfa27413cd3dac3c9d7bb15fc75b703964ba`. Next gate: independent re-review, then separately authorized push. Details: WO §7 round-9 checkpoint + runs/WO-P1-679/180-result-round9.md.
+- UPDATE 2026-10-17 round-9 publish (freeze delegate; same claim): user explicit permission "Commit/push แล้ว merge ตาม gate" — commit/push NOW, merge only after all gates (delegate NOT merge authority). Independent round-9 review PASS (P0=0 P1=0 P2=0 P3=0) at exact hashes source ea2205bbc4605acbae777ae2d25f3f90dd1e0cce / tests 32c4ec97e6ea7dadedb08f18b9574f0d967c7b61 (full sha256 in runs/WO-P1-679/hashes-round9.sha256; review-round9 result.md cec841a7… manifest 81c48ac7…, VERBATIM export + coordinator provenance on Issue #679; reviewer artifacts untouched, round-8 original preserved). Five-file atomic commit (source/tests + WO/CURRENT/handoff) fast-forward pushed to PR #680 branch; staged + post-commit blobs re-verified == reviewed identity. Gates NOT accepted: Windows parse-oracle PENDING (no engine on darwin host; 2 explicit off-Windows skips; win32 engine-absence now FAILS), new-head CI PENDING. Residuals bounded: no general script-sanitizer certificate; generic passthrough = compatibility; external command/alias/dot-source outside structural proof; prior missing-launch/archive/Fail bypasses fixed. No merge/close/old-PR/runtime/migration/enrollment.
+- UPDATE 2026-10-17 round 8 (GLM lane, same claim; NO commit/push): round-7 review returned CHANGES_REQUIRED P1 — Fail-call detection was case-sensitive/line-anchored; `FAIL`/`fAiL`/`Write-Log 'note'; Fail` insertions on the real wizard classified ALREADY_HARDENED and cloned before launch. Root repair: case-insensitive `\bfail\b` token scan on the control-token view (literal data masked; ONLY validated Fail-definition line + validated guard-body spans exempt); `& Fail` refused by the token scan; any code-level backtick outside the matched launch template (e.g. ``F`ail``) refuses; dynamic command resolution stays outside the certified boundary. RED 7F/1 guard → focused 216 passed + 2 oracle skips; differentials byte-identical; frozen transforms still sha256-identical. Reviewer P3 recorded: canonical hashes are the full sha256 values in runs hashes files, not historic truncated transcriptions. Round-8 artifacts were: source blob `675fa94265064bd5c309324ef1f4e4c54cec1dab`, tests blob `aa458a0f291652c1793cddb161f86e065e8cc82c` (full sha256 in runs/WO-P1-679/hashes-round8.sha256). (Superseded by round 9 above.)
+- UPDATE 2026-10-17 round 6 (GLM lane, same claim): round-5 frozen as `5e6dfc2`/PR#680; Windows `test` job failed twice deterministically (0x80000003 GC-during-worker-import crash at desktop_control.py:745 while Tk live on main — full diagnosis runs/WO-P1-679/100-ci-crash-diagnosis.md; main passed the identical suite 280P/1S run 38749754333). Accepted root cause: pre-existing worker-thread lazy FIRST import race made deterministic by candidate import growth; no candidate logic defect. Bounded scope extension recorded in WO §7 round-6 addendum BEFORE code: exactly one production change — hoist `from .provider_operator_view import build_provider_operator_rows` to desktop_control module-top imports (cycle-safe), removing the lazy import. Local verification + normal push to rerun the exact CI job; followup comment on Issue #679 with the new SHA. No merge/close/retarget/old-PR edits. RESOLVED: commit `ab38b393` pushed; CI run 38998087689 completed SUCCESS incl. the exact GUI step.
+
+## 2026-10-15 (realfs-smoke) — WO-P1-674 real-chain stdio smoke SHIPPED — CURRENT
+
+> Mains: **AWC (this fold)**, **SRM `a105986`** (PR #36 pinned-head `a84dd86`). No open claims; no open SRM PRs. The offline story is COMPLETE end-to-end with real-subprocess evidence.
+
+- **WO-P1-674 COMPLETE** (zero production changes) — the **real-chain stdio smoke**: a real MCP stdio subprocess over a temp tree through fs reader → allowlist executor (strict at USE) → LocalAgent (durable fs agent store) → the #646 adapter behind the same double gates; cross-process durable dedup proven by file MUTATION between sessions; strict env allowlist validated fail-closed before anything starts. Four-round Sol review (all real; final PASS) + a codespell catch.
+- **Offline capability summary (12 lanes, #646→#674):** enrollment (offline-verified, cnf-bound) → MCP-STDIO surface → durable at-most-once → refresh/durable-expiry/revocation → strict validator → allowlist executor → fs reader → install/doctor/first-run verdicts + bounded rollback + operator docs + REAL-CHAIN SMOKE. Everything a live wiring decision would need, verified offline.
+- **NEXT_SAFE_ACTION:** the offline surface is now genuinely exhausted — the remaining work is LIVE-phase (real ChatGPT/Desktop in-product verification, real enrollment, client compatibility) behind the standing human gates, plus the standing DECISION_REQUIRED (config-root unification). PARK with HUMAN_DECISION_REQUIRED per the goal §9.
+- Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-15 (fs-reader) — WO-P1-671 fs DirectoryReader library SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `a03bd4a`** (PR #35 pinned-head `f38387c`). No open claims; no open SRM PRs. The executor chain (strict validator → allowlist executor → fs reader) is COMPLETE offline and production-ready.
+
+- **WO-P1-671 COMPLETE** — `createFsDirectoryReader()` (unwired library): fail-closed {read, list, isFile} over node:fs — never throws; sorted listings (dangling symlinks listed by name, isFile/read stay null/false); stat-based isFile follows symlinks (documented; lexical containment stays the executor's contract; realpath hardening = live phase). Sol PASS first round at `a853271`; P3 coverage closed at `f38387c`. Claim released c6187504379.
+- **NEXT_READY (offline):** remaining offline surface is thinning — candidates: stdio-surface first-run smoke behind the existing test gates; AWC-side governance/docs polish. The substantive next steps are LIVE-phase (real ChatGPT/Desktop verification, real enrollment) behind the standing human gates. **DECISION_REQUIRED (standing): config-root unification.**
+- Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-15 (install-CLI) — WO-P1-668 install CLI first-run wiring SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `998a028`** (PR #34 pinned-head `4d05443`). No open claims; no open SRM PRs.
+
+- **WO-P1-668 COMPLETE** — the install CLI reports a post-install \`first-run:\` verdict (read-only composition; UNKNOWN vs precise gate reasons properly split incl. corrupt-pairing); **\`SUNDAY_UPSTREAM_URL\`** LOCAL_FIRST operator knob (doctor's env-config pattern); **\`docs/sunday-local-first.md\`** — the Sunday operator surface documented in one place (env knobs, the two install roots + the DECISION_REQUIRED unification note, first-run semantics). Six-round Sol review (all findings real; exit-0 contract pinned via async-spawn loopback after root-causing the spawnSync parent-freeze). Claim released c6183938348.
+- **NEXT_READY (offline):** fs-backed DirectoryReader library module (unwired); wired stdio-surface first-run smoke behind the existing test gates. **DECISION_REQUIRED (standing): config-root unification.** Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-15 — WO-P1-665 first-run planner + bounded rollback SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `2f02170`** (PR #33 pinned-head `dbff99d`). No open claims; no open SRM PRs. P4 first-run integration COMPLETE.
+
+- **WO-P1-665 COMPLETE** — `planFirstRun` (pure five-gate composition: install marker / install config / ≥1 strict-granted + installable allowlist / agent-state health / pairing PAIRED; strict signal typing) + `rollbackSundayInstall` (bounded: removes EXACTLY config.json + install.json; unreadable/corrupt refusals remove nothing; INVALID_ROOT over device prefixes, bare roots, traversal AND symlink/junction aliases via realpath equality; typed partial-failure) — library-only, no CLI wiring — + doctor `First run` row proven to a genuine READY through the real pairing API. **Sol four-round arc**: r1 six real defects (EACCES-as-missing the sharpest), r2 two root-guard gaps, r3 zero source findings, r4 reviewer-executed real suites in a writable throwaway clone ALL PASS. Claim released c6176658029.
+- **NEXT_READY (offline):** wire the first-run verdict into the install CLI flow (sunday:install → doctor → first-run) behind test gates; fs-backed DirectoryReader library module (unwired); config-root unification remains DECISION_REQUIRED. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (executor) — WO-P1-662 allowlist read executor SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `5d337d5`** (PR #32 pinned-head `8dffa57`). No open claims; no open SRM PRs.
+
+- **WO-P1-662 COMPLETE** — the WO-659 invariant as a real seam: `createAllowlistReadExecutor` — STRICT re-validation of every entry at USE time from a construction-time snapshot (legacy forms confer nothing; zero usable → typed ALLOWLIST_UNUSABLE); case-insensitive separator-bounded containment (UNC + drive forms; sibling-prefix and traversal denied); injected `DirectoryReader` ({read, list, isFile} — no fs import, no live wiring; stdio adapter untouched). Sol 2-round review (r1: TS2322 type closure + mutation widening + UNC + verdict masking — all real; lesson banked: **tsc emits despite type errors — always exit-check builds**); r2 PASS zero findings. Claim released c6172951759.
+- **NEXT_READY (offline):** first-run/install flow packaging over doctor + allowlist + fs state + executor seam (bounded rollback); optionally an fs-backed DirectoryReader as a library module still unwired. **DECISION_REQUIRED (standing):** config-root unification (installer `.desktop-commander-device` vs Sunday `.sunday-device`). Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (recon) — WO-P1-659 allowlist surface reconciliation SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `d1da117`** (PR #31 pinned-head `c3dc14b`). No open claims; no open SRM PRs.
+
+- **WO-P1-659 COMPLETE** — canonical allowlist = installer `config.json`; STRICT writes (inert-copy validation, normalize+dedupe, raw-128/unique-64 bounds; accepted-test fixture amendment adjudicated PASS); lenient legacy reads byte-identical; strict-for-display doctor truth (granted / INVALID-FOR-USE / LIST NOT INSTALLABLE incl. RAW_COUNT; agentVersion JSON-escaped after Sol caught a real row-injection; standalone NON-CANONICAL, grants never merged). Sol design-challenge (SOUND_WITH_AMENDMENTS) + 3-round review (every CHANGES_REQUIRED round found real defects).
+- **DECISION_REQUIRED (operator/architecture follow-up): config-root unification** — installer default `~/.desktop-commander-device` vs Sunday `~/.sunday-device`; now surfaced by the doctor, deliberately not changed in-lane.
+- **NEXT_READY (offline):** real-executor wiring consuming the canonical allowlist (strict at USE time per the Sol invariant); first-run/install flow packaging. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (latest) — WO-P1-656 allowlist directory configuration SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `660ad00`** (PR #30 pinned-head `eb91eba`). No open claims; no open SRM PRs. Overnight P4 second slice COMPLETE.
+
+- **WO-P1-656 COMPLETE** — explicit allowlist directory configuration (user-owned consent surface for future real read operations): `src/sunday/allowlist-config.ts` (validated absolute Windows/UNC directories; fail-closed load — missing = not-configured, corrupt/null-file = typed ALLOWLIST_CORRUPT never silently empty; atomic validated saves; case-insensitive post-normalization dedupe, cap 64 after dedupe; pure value-safe inspector) + `sunday doctor` row (ABSENT / N + preview / CORRUPT). **GPT-6 Sol three-round review** — r1 caught real P1 path-form holes + a P2 control-char doctor-spoofing vector; r2 caught two MORE real P1s (`//?/UNC/...` normalized-prefix bypass; mid-segment trailing dot); r3 PASS zero findings at `eb91eba`. Claim released c6164346276.
+- **Model lanes:** GPT-6 Sol = proven adversarial reviewer (five lanes reviewed; every CHANGES_REQUIRED round surfaced genuine defects). JEV = SPENDING_GATED (unchanged).
+- **NEXT_READY (offline):** P4 continuation — installer packaging/install experience (npm packaging, first-run flow over doctor + allowlist + fs state, bounded rollback); real-executor wiring consuming the allowlist. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 (later) — WO-P1-653 fs agent-state store + doctor diagnostics SHIPPED
+
+> Mains: **AWC (this fold)**, **SRM `86ab83c`** (PR #29 pinned-head `091e681`). No open claims; no open SRM PRs. Overnight P4 first slice COMPLETE.
+
+- **WO-P1-653 COMPLETE** — `createFsAgentStateStore` (fail-closed: missing file = fresh install; corrupt/wrong-shape/null-file = typed AGENT_STATE_CORRUPT, never silently empty; atomic tmp+rename saves; deep-copy isolation; NULL-PROTOTYPE executed maps) + pure `inspectAgentState` (record/malformed counts, refresh-token PRESENCE boolean only, credentialExpiry VALID/EXPIRED/ABSENT) + `sunday doctor` runtime rows (ABSENT/HEALTHY/CORRUPT + offline stdio gate posture). Review by **GPT-6 Sol**: r1 CHANGES_REQUIRED with REAL defects — notably the **dedup-ghost** (prototype-inherited keys let `toString`-style command ids "dedup" without executing) — all repaired at `091e681`; r2 PASS zero findings. Claim released c6162978407. Defect lesson banked: adversarial-keyed maps need null prototypes at EVERY creation site (JSON round-trips restore prototypes).
+- **Model lanes:** GPT-6 Sol reviewer now the proven default for independent R3 (2 rounds, real catches); JEV = SPENDING_GATED (route exists via #499 binding; new live calls need their own admission — no pay-as-you-go authorized).
+- **NEXT_READY (offline):** P4 continuation — installer packaging/install experience over the fs state + doctor; allowlist-directory configuration surface. Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-14 — WO-P1-650 agent-side revocation introspection SHIPPED (GPT-6 Sol reviewer)
+
+> Overnight goal continuing. Mains: **AWC (this fold)**, **SRM `4debd1b`** (PR #28 pinned-head `aae3246`). No open claims; no open SRM PRs. Overnight Priority 2 COMPLETE.
+
+- **WO-P1-650 COMPLETE** — `LocalAgentRuntime.introspect` (agent-side revocation for NEW executions; dedup-first — recorded outcomes authoritative across revocation; fail-closed false/throw/non-literal-true → typed `AGENT_REVOKED`, unrecorded, retryable; absent → unchanged). Review by **GPT-6 Sol** (`gpt-6-sol` Codex exec read-only HIGH; route preflighted): r1 CHANGES_REQUIRED (procedural only — harness files had dirtied the tree; sandbox couldn't run build/temp suites) + 1 P3 → repaired (row 12d) → r2 **PASS zero findings** at `aae3246`. Claim c6159284998 released c6159520063. Completes agent-side defense-in-depth beside router-side revocation (transport-sim) and the #646 adapter veto.
+- **Model lanes verified:** gpt-6-sol Codex exec WORKS (preflight + two full reviews); JEV route not discoverable this session (recorded unavailable; advisory-only). Reviewer-harness lesson: keep review prompt/output files OUTSIDE the candidate worktree.
+- **NEXT_READY (offline):** P4 direction — Windows install/doctor experience (installer packaging, allowlisted directories, diagnostics, bounded rollback; test-only integration validation). Live gates unchanged (#630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP verification).
+
+## 2026-10-13 (overnight) — WO #646 MCP-STDIO (Milestone C offline) + WO #647 durable credentialExp SHIPPED
+
+> Overnight autonomous goal active (GLM implements / Codex specialist / JEV advisory). Mains: **AWC `5b465f3`**, **SRM `96f0c8b`**. No open WO claims; no open SRM PRs.
+
+- **WO-P1-646 MILESTONE-C offline COMPLETE (Codex-authored lane)** — recovered TERMINAL-COMPLETE (session `01a135f3` dead, PID gone, result file terminal; sandbox had blocked `git index.lock`); supervisor verified 3/3 SHA-256 file hashes against Codex's checkpoint, re-harvested build + stdio matrix + 4 regressions, froze `2aec42c` (Codex credited), SRM PR #26 → **main `3d5a5bd`**. Independent exact-SHA review: **PASS** (7 invariant groups adversarially verified — 9-case gate matrix, 8 prototype-member command IDs → EBADARGS, path escapes, real-SDK subprocess protocol incl. EOF at 3 stages, trust boundary via shipped verifyEnrollmentToken/pairing/revocation veto, the author's 3 RED fixes, at-most-once; 3 P3 nits). Delivered: offline MCP STDIO LocalAgent integration (real MCP SDK Server + shipped FilteredStdioServerTransport; double test-only gate; synthetic fixture list/read only). Claim c6149167007 released c6150491868.
+- **WO-P1-647 durable credentialExp COMPLETE** — SRM PR #27 → **main `96f0c8b`** (pinned `ed2e76a`): `credentialExp` persisted (writers: enroll + VERIFIED refresh only); `restart()` is a TRUE cold start (baseline injected bound; persisted bound adopted only when finite ≥ baseline); review PASS at `dbd0c22` (18/18 probes) + P2 test-gap repaired pre-merge as matrix row 11d (anti-object-sharing discriminator). Claim c6150282509 released c6150922552. Resolves B-2 P3-3.
+- **Model routes verified this session:** Codex CLI **works** with `gpt-6-sol` (the #646 lane used it; CODEX_MODEL_UNAVAILABLE applied to other model ids) — supersede the old blocker note for this route. GLM-5.3 lanes + separate-session read-only review lane all healthy. JEV not consulted (no material decision needed it; per goal §4 not a blocking dependency).
+- **NEXT_READY (offline):** P2 agent-side revocation introspection (fresh lane; local-agent.ts hotspot now free); then P4 installer/doctor direction. Live gates unchanged (Phase-1 keys/issuance/consent #630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP in-product verification).
+
+## 2026-10-13 (Milestone B-2) — credential refresh loop SHIPPED
+
+> Continues the Milestone-B lineage (steer item 7: continue READY offline tasks). Mains: **AWC `a08527e`**, **SRM `3be057a`** (PR #25 pinned-head `08ec3c2`). No open WOs/claims (WO-P1-643 released c6146249340).
+
+- **WO-P1-643 MILESTONE-B2 COMPLETE** (lane #643; claim c6145874740 → released c6146249340): credential-lifetime loop closed in the LocalAgent runtime. Enrollment WRAP retains the refresh token via the issuer port (zero shipped-file changes); `LocalAgent.refresh` calls the rotation port → OFFLINE re-verifies the new access token (issuer/audience/device/scope/expiry/signature, expectedDeviceId = this agent) → requires cnf == enrolled PoP thumbprint → replaces `credentialExp` from VERIFIED `claims.exp` → persists the rotated token. Typed failures (`REFRESH_NO_TOKEN`/`REFRESH_ISSUER_REJECTED`/`REFRESH_CREDENTIAL_REJECTED`) leave prior state untouched. RED→GREEN; review PASS at `08ec3c2` (0 P0-P2; adversarial probes: wrong-cnff, cross-device, past-exp, same-token-both-roles, 8 malformed grants — all fail-closed); 5 P3 notes in the WO; post-main 4/4 green.
+- **NEXT_READY (offline):** agent-side revocation introspection; real MCP-facing stdio surface behind test-only config; durable credentialExp (P3 flag). Live gates unchanged (Phase-1 keys/issuance/consent #630 c6135839685+c6137500281; operator at console for Plus dev-mode + Desktop MCP in-product verification).
+
+## 2026-10-13 (Milestone B) — MILESTONE B SHIPPED: offline local-agent integration + Desktop/MCP discovery
+
+> REPLACE-ALL Goal Milestone B COMPLETE. Mains: **AWC `b86dd4a`**, **SRM `f5f3fdd`** (PR #24 pinned-head `9d59b7d`). No open WOs/claims (WO-P1-640 released c6144238748). Codex Sol still blocked; GLM review lane.
+
+- **Steer absorbed** (#495 c6143365204): DESKTOP_MCP_ON_FREE=UNVERIFIED — CODEX_MODEL_UNAVAILABLE is an OPTIONAL specialist/CLI blocker, NOT a Desktop-local-MCP blocker; Plus/Pro custom-MCP write stays UNVERIFIED until measured; "no tunnel hosting fee" ≠ "all API usage free".
+- **Bounded read-only Desktop discovery (this machine, DESKTOP-7IB57R4):** ChatGPT desktop app installed (MSIX `OpenAI.Codex` 26.1007.2314.0); MCP config surface REAL and in active use — `~/.codex/config.toml` holds 8 `mcp_servers` (incl. `sunday_mcp`, serena, playwright; config untouched); signed-in account `auth_mode=chatgpt`, **`chatgpt_plan_type: plus`** (id_token claim last_checked 2026-08-21, refresh active Oct 6 — recorded as observed-but-stale). Per the official plan matrix, Plus unlocks the developer-mode route; synthetic in-product smoke deferred (not needed for offline B).
+- **WO-P1-640 MILESTONE-B COMPLETE** (lane #640; claim c6143876288, released c6144238748): SRM PR #24 merged pinned-head `9d59b7d` → `f5f3fdd`. Delivered `src/sunday/local-agent.ts` + `test/test-sunday-local-agent.js`: ONE offline LocalAgent composing the shipped M3 enrollment (IssuerTwin + runEnrollmentFlow: PKCE, offline compact-JWS verification, consent affordances — enrollment PoP key IS the registration key, cnf-bound) and M4 agent contract (SimAgent PoP registration + durable generation-INDEPENDENT `command_id` at-most-once dedup over SimRouter), plus NEW allowlist read-only fixture executor (typed fail-closed denials: absolute/traversal/outside-root/missing/type-mismatch/non-read-only op; NO real FS; NO write ops), credential-expiry fail-closed for NEW executions with dedup-first recorded outcomes, store-backed restart. RED→GREEN; review PASS at `c9cdd1c` (0 P0-P2; reviewer ran own 35-probe containment matrix — 0 leaks); 2 P3 repairs at `9d59b7d`; codespell SUCCESS ×2; post-main 6/6 suites green. 4 residual P3s recorded in the WO.
+- **NEXT_READY (offline, no new operator gates):** Milestone B successor slices — e.g. credential REFRESH integration (M3 lifecycle → runtime), agent-side revocation introspection, real MCP-facing stdio surface behind test-only config. Milestones C (Windows install experience) and E (real read pilot) touch live surfaces → existing operator gates stand (Phase-1 keys/issuance/consent package #630 c6135839685 + c6137500281; in-product verification of Plus developer-mode + Desktop local MCP requires operator at the console).
+
+## 2026-10-13 (latest) — REPLACE-ALL Goal accepted; MILESTONE A (product feasibility) COMPLETE
+
+> New operator Goal (pasted 2026-10-13) replaces all priors: ONE installable, secure, LOCAL-FIRST SundayMCP product (Milestones A–I; PILOT_VERIFIED only with real end-to-end evidence + stated tested account tier). Mains: **AWC `c448d0f`**, **SRM `cb5950c`**. No open WOs/claims. Codex still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); GLM review lane.
+
+- **MILESTONE A SHIPPED** — feasibility record posted to **#495 c6139800305** (full source set archived at supervisor `.tmp/milestone-a/`): all facts fetched live from official OpenAI pages on 2026-10-13 (chatgpt.com/pricing table; help 12584461 devmode / 20001256 plugins / 9275245 free-tier / 12515353 Apps SDK; developers.openai.com custom-mcp-server + secure-mcp-tunnels + plugins export; learn.chatgpt.com/docs/extend/mcp). Old help article 10169521 is DELETED — do not cite.
+- **Verified:** custom MCP connectors need developer mode — **Free/Go No, Plus/Pro Yes** (pricing table); full-MCP write = Business/Enterprise/Edu beta, help FAQ says Pro dev-mode MCP read/fetch only, dev guide says read+write — **personal-plan custom-MCP WRITE is UNVERIFIED (source conflict): must be tested empirically with the account tier recorded**. Secure MCP Tunnel = outbound-only, works from a user-owned Windows machine, needs Platform org + runtime API key + tunnel_id, no public endpoint, no documented control-plane charge; ChatGPT web cannot reach local MCP directly. **ChatGPT desktop app + Codex CLI + IDE extension support LOCAL stdio MCP servers** via shared `~/.codex/config.toml` (Route D backbone; web never reads local config).
+- **Verdicts:** OPENAI_FREE_PLAN_VERDICT=**BLOCKED** (exact blocker = developer-mode entitlement, not tunnel/billing); PRIVATE_TUNNEL_VERDICT=**VIABLE zero-hosting** (Route A; needs Plus+; write seam unverified); LOCAL_FIRST_COST_VERDICT=**0 THB incremental hosting** on Routes A and D. Smallest route = D (desktop local stdio MCP); smallest keeping ordinary ChatGPT web = A. Route B rejected (§8 public-endpoint ban); Route C deferred Phase-2+.
+- **Parked operator decisions (true blockers):** pilot account tier (Free confirmation vs Plus dev-mode → decides Route A); Codex entitlement restoration (Route D depends); standing Phase-1 gates (keys/custody, live issuance, real Windows enrollment consent — package #630 c6135839685 + c6137500281).
+- **NEXT_SAFE_ACTION:** fresh WO for Milestone B (local agent integration, test-only credentials) at the next wake. Do not redispatch M1–M4 or re-run Milestone A.
+
+## 2026-10-13 (later) — M4 offline COMPLETE: transport design v2 + simulation SHIPPED; LOCAL-FIRST direction folded
+
+> Continuous Pilot-first Goal active. Mains: **AWC `4e55ce6`** (WO-636 docs #637), **SRM `cb5950c`** (PR #23 INSTALL-M4-SIM). Codex still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); reviews on the accepted separate-session GLM read-only lane.
+
+- **OPERATOR DIRECTION — LOCAL_FIRST_NOW / CLOUD_OPTIONAL_LATER** (#495 c6137445352; reconciled #630 c6137500281, design addendum v2.1 #636 c6137500621): Phase 1 = user-owned local compute, zero mandatory incremental cost (hosting recommendation demoted to a Phase-2 option; phase-1 gates reduce to keys + issuance + enrollment consent); architecture must stay portable across local tunnel / user gateway / hosted tier; CHATGPT_FREE_CAPABILITIES=VERIFY_NOT_ASSUME recorded.
+- **M4 transport design v2** (#636 body): independently challenged (REVISION_REQUIRED 6×P1 → all closures verified → SOUND_FOR_SUCCESSOR_WO) — PoP-signed registration (±120s freshness, single-use nonces, GENERATION_TAKEN), durable single-unit router state, atomic insert-before-execute command machine with agent-side authoritative at-most-once anchor, revocation ≤60s TTL bound, no-co-execution invariant, by-specification reuse of draft PR #335 with a merge-order condition.
+- **WO-P1-636 INSTALL-M4-SIM COMPLETE** (claim c6137476769, released c6138014267): SRM PR #23 merged pinned-head `009ed01` → `cb5950c`. Pure offline simulation + full design §4 fault matrix; review 2 rounds (r1 3×P2 → repairs → r2 PASS; chain SRM PR #23 c6138013687); codespell SUCCESS; post-main green.
+- **Pilot milestones:** M1 ✅ M2 ✅ M3-offline ✅ **M4-offline ✅**. Remaining: M3-live + M4-live behind the consolidated approval package (#630 c6135839685 + c6137500281 — Phase 1 local needs only keys/issuance/enrollment-consent), then M5 read-only Pilot, M6 mutation, M7 Mac, M8 acceptance.
+- Human gates (stated once): production keys + custody ceremony; live credential issuance; real Windows enrollment consent (operator at DESKTOP-7IB57R4); any later hosting/domain decision (Phase 2+); Codex entitlement restoration (optional accelerator).
+
+## 2026-10-13 — M2 APPROVED + INSTALL-ENROLL-B SHIPPED: enrollment contract complete through refresh/PoP/JWKS — CURRENT
+
+> Continuous Pilot-first Goal active. Mains: **AWC `8808b19`** (WO-631/#632/#634 records), **SRM `46f5a54`** (PR #22 INSTALL-ENROLL-B). Codex CLI still blocked (CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT); reviews on the accepted separate-session GLM read-only lane.
+
+- **M2 DECIDED**: operator "ต่อไปต่อไป" recorded durably (#630 c6131329187) — Option-1 architecture v2 APPROVED including the INSTALL-ENROLL-B scope (interpretation note included; supersedable by a correction comment).
+- **WO-P1-633 INSTALL-ENROLL-B COMPLETE** (issue #633; claim c6131358758; released c6132008724): SRM PR #22 merged pinned-head `ee975ab` → `46f5a54`. Delivered: `enroll-credential-lifecycle.ts` (signed-JWKS continuity — the SOLE key-addition mechanism, origin-controlled JWKS can never bootstrap trust; refresh with rotation-on-use, revocation, idle/absolute bounds, MANDATORY PoP over `derivePoPChallenge`; strict nbf + finite guards), structurally-firewalled TEST-ONLY issuer twin (static import-guard enforced across src+dist), pure `enroll-flow.ts` (PAIRED only via offline-verified + cnf-bound credentials; typed failures; UNPAIRED default). Review: 2 exact-SHA rounds (r1 PASS + hardening: unconditional cnf — cnf-less credentials never pair; r2 PASS; chain SRM PR #22 c6132007917). CI codespell SUCCESS; post-main 5 suites + agent-gate green. NO live issuance; no production keys.
+- **Pilot milestones:** M1 ✅ M2 ✅ **M3-offline ✅**. NEXT: the M3 remainder (real issuer/verifier implementation + authenticated enrollment workflow) and M4 (native transport + exact Windows routing) sit behind the deployment/hosting/domain/keys human gates — each an explicit operator decision per the Goal §4/§8. Recorded wiring-slice follow-ups: thread seenRtis on every refresh call; JWKS revision sequence/rollback; minor test/doc nits (see WO-633 checkpoint).
+- Human gates (stated once): deployment/public exposure + hosting/domain/DNS selection (proposal §2 models A–D); production key generation + custody ceremony; live credential issuance; real Windows enrollment consent (operator at DESKTOP-7IB57R4); Codex entitlement restoration (optional accelerator).
+
+## 2026-10-13 (early) — Enrollment unblocked: audit + Option 1 decision + INSTALL-ENROLL slice A SHIPPED — CURRENT
+
+> Continuous Pilot-first Goal active (operator set as session Goal). Mains: **AWC `00dfe89`** (WO-631 records PR #631 merged), **SRM `cdb669ec5294e814100e7cf8e58330b328752825`** (advanced by PR #21 slice A). Wake = Supervisor v4.
+
+- **Enrollment R3 source audit** (#607 c6122338729): NO Sunday-owned issuer exists — the DC cloud is the default credential issuer AND the entire ChatGPT transport (`MCP_SERVER_URL || https://mcp.desktopcommander.app` + Supabase realtime); `beginPairing/completePairing` are help strings only (no wiring from real device authorization; pairing code is Date.now()-derived); config root shared with foreign RDC state incl. destructive logout paths; installer probe hard-pinned to DC; no local token verification. **Operator decided OPTION 1** (Sunday-owned issuer/trust anchor; #630 c6122489537) — Option 2 transitional DC trust explicitly NOT approved; never treat nonempty token/timestamp code/HTTP 200/RDC ONLINE as enrollment.
+- **WO-P1-630 INSTALL-ENROLL slice A COMPLETE** (claim 6122373855; released 6126647821): SRM PR #21 merged pinned-head `da1d727` → `cdb669e`. Delivered (SRM-only, additive): pure enrollment-token verification CONTRACT (3-arg signature seam, hasOwn pinning, strict nbf, full typed fail-closed adversarial matrix); `~/.sunday-device` config-root isolation (both-direction containment refusal; foreign RDC state never touched); allowlisted fail-closed upstream probe (single-upstream posture documented); `sunday:enroll` (refuses until the Option-1 issuer exists — NO PAIRED path) + read-only `sunday:doctor` CLIs. Review: 2 exact-SHA rounds, separate-session GLM read-only lane — **Codex Sol UNAVAILABLE** (typed blocker CODEX_MODEL_UNAVAILABLE_ON_ACCOUNT: alpha binary rotated away; npm codex-cli 0.157.1 + ChatGPT account rejects every model; preflight per the Codex-specialist steer §1) — r1 CHANGES_REQUIRED (P1 signature seam never received the signature segment; P2 inherited-key pinning) → repaired → r2 PASS with behavioral evidence (chain: SRM PR #21 c6126638338). CI codespell SUCCESS; post-main verify 3/3 new suites + agent-gate + pairing-state green. Local full-suite baseline 89/97 — 8 failures reproduce identically on clean f4bdd57 (environment only).
+- **Pilot milestones:** M1 (slice A) ✅. NEXT_READY: **M2 — bounded read-only Option-1 issuer architecture/threat-model proposal** (authorized c6122489537 item 2; offline; issuer/verifier/transport/registry/task-admission stay separate authorities). M3+ (issuer implementation, native transport, real enrollment, read-only Pilot, mutation Pilot, Mac parity) all gated on M2 review + further operator decisions (deployment/hosting/keys are explicit human gates).
+- Human gates: deployment/public exposure; paid hosting/domain/DNS; production key generation/custody; live enrollment consent (operator at DESKTOP-7IB57R4); real read canary authorization. Codex route blocked as above (operator may need to restore entitlement).
+
+## 2026-10-12 (late night) — DEX-2dA durable admission journal + cross-restart fence shipped after 4-round review
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer. Wake = Supervisor v4 (single-flight policy; agent-side enforcement SCHEDULER_SINGLE_FLIGHT_UNSUPPORTED / SELF_UPDATE_UNSUPPORTED — CronList-only surface).
+
+- Mains: A-Wiki-Conductor `15fd2ed45b80847990bfcb3a72ac7ab1a8863fdb` (advanced by PR #628 DEX-2dA; this checkpoint advances it); **SunDayRemoteMCP `f4bdd57465e79874eb3c371b4b0602729a241467`** (unchanged; read-only substrate).
+- **WO-P1-627 / issue #627 DEX-2dA** (operator DEX-2d offline continuation authorization; claim 6115118475; released 6115604167): AWC PR #628 merged pinned-head `390267a` → main `15fd2ed`. Delivered WO-P1-625 §Limitations items 1+2: **durable admission journal** (`admission_decisions` table; every decision incl. denials journaled through the existing store before caching; restarted issuers replay frozen decisions with exact in-process semantics; exact-type corruption boundary on load AND record — tampered REAL generation is typed ADMISSION_JOURNAL_CORRUPT, never coerced) + **cross-restart at-most-once dispatch fence** (`dispatch_fences` write-ahead reservation committed BEFORE physical dispatch; abandoned RESERVED/DISPATCHED and every ambiguity/collect/evidence/receipt-persistence failure durably FENCED; restarts get typed AMBIGUOUS with zero re-dispatch; RETIRED after verified receipts, duplicate check precedes the fence; two-connection single-SQLite-file contention proves exactly one reservation winner; conflict classes preserved — WIRE_FENCE_CONFLICT). 23-row RED-first durability matrix. Review 4 exact-SHA rounds (r3 code PASS @ `b80a9d4`; r4 PASS @ `390267a` for the cockpit table-inventory companion caught by hosted CI; record: PR #628 c6115603920). CI @ `390267a` all SUCCESS; post-main 168+5 subtests; full local suite 6405 passed (two pre-existing environmental GPU-particle failures reproduced identically on clean main — documented, unrelated). Process lessons banked: FULL tests/ suite before push (per-file inventory assertions live outside DEX suites); lane issue verified BEFORE naming the WO token (WO-612 lesson applied — zero identity failures this slice).
+- **Track B: DEX-2dA COMPLETE.** Remaining DEX-2d gaps are dependency-gated operator decisions: §6 same-execution retry model; fencing beyond one SQLite database file (multi-host); §5 TERMINAL_UNHARVESTED consultation; automatic reconciliation of fenced identities. NEXT_READY: nothing autonomous at the trust boundary — enrollment (Monday) and each DEX-2d successor slice need decisions. Track C: SEM-4 COMPLETE (unchanged).
+- **PILOT_GATE:** UNCHANGED — Pilot acceptance (2)(3)(5) behind human gate ③ enrollment (Monday Windows access); ① A-Wiki PR #67 @ c1bf7ea4 + ② #285/#293 upstream; (1)(4)(6) code paths exist (now with durable control-plane state), real-machine proof pending; (7) pending real-machine results.
+- Human gates (stated once, updated): ① A-Wiki PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment (Monday Windows access) ④ DEX-2d successor slices (§6 retry / multi-host fence / TERMINAL_UNHARVESTED / auto-reconciliation) — each needs its own decision.
+
+
+## 2026-10-12 (night) — DEX-2c admission/receipt wiring shipped after 7-round review; first full AWC↔SRM execution-evidence path CLOSED
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer. Wake = Supervisor v4 (single-flight policy; agent-side enforcement SCHEDULER_SINGLE_FLIGHT_UNSUPPORTED / SELF_UPDATE_UNSUPPORTED — CronList-only surface).
+
+- Mains: A-Wiki-Conductor `03731dce967b26263d3e46aa57e7df48e3488161` (advanced by PR #624 DEX-2c; this checkpoint advances it); **SunDayRemoteMCP `f4bdd57465e79874eb3c371b4b0602729a241467`** (unchanged; read-only substrate reference for DEX-2c).
+- **WO-P1-625 / issue #625 DEX-2c** (operator authorization #526 comment 6109535861; claim 6109741355; released 6113048496): AWC PR #624 merged pinned-head `d175429` → main `03731dc`. First end-to-end closure of the admission→dispatch→collect→strict-decode→durable-receipt chain over the REAL SRM substrate: `dex_admission.py` (frozen typed admission — denials immutable across replays, binding-digest/claim-bound replay, typed identity conflicts), `dex_wire.py` (per-identity lock held from fence check through receipt persistence; permanent fencing on ambiguous/throwing dispatch, collect failure after dispatch, evidence rejection after dispatch, AND receipt-persistence failure after dispatch; full immutable-field receipt-conflict verification — disposition/evidence_ref/generation/SHA set; typed containment on every store read, never fail-open), `tests/test_dex_integration.py` (20 deterministic rows incl. 4-thread no-double-dispatch + 5 per-field conflict subtests, mutation-probed individually), `tests/fixtures/dex2c_srm_driver.mjs` (Node driver over REAL `ExecutionSupervisor` dist; Python-parity canonicalizer incl. surrogate-pair escaping; real node-binary executable hash; admission before real dispatch). Tier-2 real-substrate proof: live repo HEADs (AWC + SRM `f4bdd57`), byte-compatible canonical binding, evidence accepted by the strict AWC decoder, receipt recorded through the full wire. Review 7 exact-SHA rounds (r1 7 findings / r2 6 / r3 2 / r4 1 / r5 code PASS @ `6fd30b5` / r6–r7 identity-repair PASS @ `d175429`; record: PR #624 comment 6113046526). CI @ `d175429`: windows `test` + ubuntu/macos smoke all SUCCESS. Post-main verify: 94 passed + 5 subtests on the merged tree. **DEX-2d deferrals recorded in the WO (durable admission journal; cross-restart at-most-once fence; contract §6 same-execution retry; §2 multi-process fencing; §5 TERMINAL_UNHARVESTED) — successor slice needs its own operator decision.** Identity lesson: WO doc token must be verified against a REAL lane issue before creation (numeric 612 collided with merged PR #612; renamed to WO-P1-625 + retroactive lane issue #625).
+- **Track B: DEX-2c COMPLETE** (foundations DEX-2a SRM substrate + DEX-2b AWC store were already merged; the missing control-plane seams are now closed). NEXT_READY: none autonomous at this trust boundary — DEX-2d (durability journal + cross-restart fence) and CUTOVER-RO enrollment both require operator decisions. Track C: SEM-4 COMPLETE (unchanged from previous checkpoint).
+- **PILOT-FIRST status:** unchanged — Pilot acceptance (2)(3)(5) sit behind human gate ③ enrollment (Monday Windows access); ① PR #67 @ c1bf7ea4 + ② #285/#293 upstream; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results. DEX-2c strengthens (4)/(6) internals but adds no Pilot-acceptance surface without enrollment.
+- Human gates (stated once, updated this checkpoint): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment (Monday Windows access) ④ ~~Track B WO-259/260 ratification~~ subsumed: DEX-2c executed under authorization 6109535861; successor DEX-2d durability slice needs its own decision.
+
+
+## 2026-10-12 — SEM-4d keyed session reuse shipped after 2-round review; SEM-4 COMPLETE; wake upgraded to Supervisor v4
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer. Wake prompt upgraded in place to **Supervisor v4** (single-flight policy; recommended 4-hour cadence; agent-side enforcement remains SCHEDULER_SINGLE_FLIGHT_UNSUPPORTED / SELF_UPDATE_UNSUPPORTED — CronList-only surface).
+
+- Mains: A-Wiki-Conductor `307159c08fb345d16d48a35748c6443181d0d6ae` (this checkpoint advances it); **SunDayRemoteMCP `f4bdd57465e79874eb3c371b4b0602729a241467`** (advanced by #341 SEM-4d). Post-main codespell green on both.
+- **#341 SEM-4d** (claim on AWC #341 comment 6099674592; released 6100476814): SRM PR #20 merged expected-head `dab8dfb` → main `f4bdd57`. Keyed session reuse in the semantic MCP layer: LRU (max 8) + TTL (10 min, memory bound only), content-addressed validity — reuse ONLY while every file's current disk byte-hash equals the captured hash; deleted primaries sweep by absolute path; raced installs dispose losers; no mid-flight resurrection; no editor seam (authorized-transition path unreachable). Measured: cold symbols ~1597ms → cache-hit ~761ms (~2.1x; captured output in docs/semantic-efficiency-evidence.md). semanticSessionStats() + counter-resetting disposeAllSemanticSessions() exported. CON-DIAG-1 diagnostics conformance row. Review 2 exact-SHA rounds (r1 FAIL deleted-primary retention/raced-install leak/resurrection/weak counters; r2 PASS @ `dab8dfb`; record: SRM PR #20 comment 6100476107). 17/17 + 10/10 + full regression; tsc + codespell clean.
+- **Track C: SEM-4 COMPLETE as planned (0/1a/1b/2/3a/3b/4a/4b/4c/4d)** — provider-neutral engine + real TypeScript provider + seven read-only MCP tools + conformance + efficiency evidence + reuse amortization. Folded follow-ups (await a genuine dependency/risk boundary per the steer): merged-declaration edge completeness, cross-file merged identity, overflow-eviction counter coverage.
+- **PILOT-FIRST status:** unchanged — Pilot acceptance (2)(3)(5) sit behind human gates ③ enrollment + ④ WO-259/260 ratification; ① PR #67 @ c1bf7ea4 + ② #285/#293 upstream; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-11 (night) — SEM-4c diagnostics surfacing shipped after 2-round review; PILOT-FIRST steer re-verified — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (re-delivered 2026-10-11 at a verified idle boundary and re-absorbed; Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `d0a7a2728bc4676a04a9ee882042efe0084d2c96` (this checkpoint advances it); **SunDayRemoteMCP `8291fa03ef3df8c0b4ce769a0ff83c206d97d178`** (advanced by #341 SEM-4c). Post-main codespell green on both.
+- **#341 SEM-4c** (claim on AWC #341 comment 6098850352; released 6099041658): SRM PR #19 merged expected-head `5989e6d` → main `8291fa0`. TypeScript diagnostics on the semantic surface: additive SEM-0 `SemanticDiagnostic` contract (range, severity error/warning/suggestion, bounded code + message, fail-closed validator, count bound 1000 typed); `TypeScriptSemanticAdapter.diagnostics` (syntactic + semantic merged, whole-body typed containment, breadth-forward message-chain flattening); `sunday_semantic_diagnostics` read-only MCP tool through the routed adapter (payload cap 200 + truncated + engineCode; per-call session; engine surface untouched by design). Review 2 exact-SHA rounds (r1 FAIL chain-flattening/containment/bound-assertions; r2 PASS @ `5989e6d`; record: SRM PR #19 comment 6099040895). 16/16 + full regression; tsc + codespell clean. Provenance: public typescript API + SEM contracts only.
+- **Track C progress:** SEM-0 ✅ 1a ✅ 1b ✅ 2 ✅ 3a ✅ 3b ✅ 4a ✅ 4b ✅ **4c ✅** → NEXT_READY: **SEM-4d** — keyed session reuse (under the recorded constraints: byte-hash identity, authorized-transition snapshot contract, program/disk consistency) and/or diagnostics conformance coverage; folded: merged-declaration completeness, cross-file merged identity.
+- **PILOT-FIRST status:** steer re-delivered at the SEM-4b→4c boundary and re-verified live: PR #67 OPEN @ c1bf7ea4; #285/#293 OPEN; #526 latest comment still Phase-0 (no ratification); no enrollment evidence. Pilot acceptance (2)(3)(5) sit behind human gates ③+④; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-11 (later) — SEM-4b conformance harness + efficiency evidence shipped after 4-round review — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `3582add8f3c5f345fbf9351ae1e2e0988e38cafd` (this checkpoint advances it); **SunDayRemoteMCP `858ec990307288c02dc250c8baa25c9ca71a57ec`** (advanced by #341 SEM-4b). Post-main codespell green on both.
+- **#341 SEM-4b** (claim on AWC #341 comment 6098172078; released 6098394126): SRM PR #18 merged expected-head `63b1e84` → main `858ec99`. Test + evidence only: `test/test-sunday-semantic-conformance.js` (9 contract-family rows mapping the pure-engine expectations onto the REAL adapter — reads incl. engine-level callersOf over real cross-file data via a test-local seam router; mutations incl. insertAfterSymbol over real disk, regex-special/dollar-laden rename through the locked editor, multi-op workflow with rebinds; typed drift zero-edit; capability-missing; authorized-transition POST fence; program/hash consistency with disk-span verification) + `docs/semantic-efficiency-evidence.md` (measured cost model: inclusive cold session ~0.8s, first-call ops ~0.5-1.4s; per-call construction = accepted v1 trade-off; keyed session reuse named as follow-up with byte-hash/authorized-transition/consistency constraints; captured-output provenance). Review 4 exact-SHA rounds (r2 first attempt = reviewer-side infra failure, re-dispatched once per infra-flake protocol; r4 PASS @ `63b1e84`; record: SRM PR #18 comment 6098393479). 9/9 + full regression; tsc + codespell clean.
+- **Track C progress:** SEM-0 ✅ 1a ✅ 1b ✅ 2 ✅ 3a ✅ 3b ✅ 4a ✅ **4b ✅** → NEXT_READY: **SEM-4c** — diagnostics surfacing (typed TS diagnostics through the provider seam; own claim) and/or the efficiency follow-up (keyed session reuse under the recorded constraints); folded: merged-declaration completeness, cross-file merged identity.
+- **PILOT-FIRST status:** unchanged — Pilot acceptance (2)(3)(5) sit behind human gates ③ enrollment + ④ WO-259/260 ratification; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results. Human gates verified unchanged across the SEM-4a/4b cycles.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-11 — SEM-4a read-only semantic MCP tools shipped after 3-round review — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `f744a8abd817387041ead3d6c31fdc6f3baa457b` (this checkpoint advances it); **SunDayRemoteMCP `90ccd277cdd6907ebc84bfe9d1cfd310244dc03b`** (advanced by #341 SEM-4a). Post-main codespell green on both.
+- **#341 SEM-4a** (claim on AWC #341 comment 6096971351; released 6097686482): SRM PR #17 merged expected-head `35e39f1` → main `90ccd27`. Six READ-ONLY `sunday_semantic_*` MCP tools (symbols / find_symbol / read_symbol / references / callers / callees) over the SEM engine + real TypeScript adapter — semantic reads are now reachable from the MCP surface. `RoutedSemanticAdapter` composes per-file adapters (path-keyed routing; all-roots program seeding makes cross-file facts import-direction independent); `additionalFiles` roots (max 32, realpath PHYSICALLY validated — symlink/junction escape and target aliasing fail typed EWORKSPACE); exactly-one symbol resolution (ENOTFOUND/EAMBIGUOUS); bounded payloads with truncation flags; engine typed failures pass through with engineCode; disposal attempted-best-effort with constructor rollback. **SEM-2 mutation ops deliberately NOT wired** — gated on Track B canonical admission (CUTOVER-MUTATE); a regression row enforces the absence. Review 3 exact-SHA rounds (r1 FAIL disposal-fault-path/symlink-escape; r2 FAIL claim-overstate/skip-accounting; r3 PASS @ `35e39f1`; record: SRM PR #17 comment 6097685893). 14/14 exercised + 18/36/58 + types + engine + facade suites; tsc + codespell clean. Provenance: public typescript API + SEM contracts only — no Serena/SolidLSP (GPL) code.
+- **Track C progress:** SEM-0 ✅ 1a ✅ 1b ✅ 2 ✅ 3a ✅ 3b ✅ **4a ✅** → NEXT_READY: **SEM-4b** — conformance harness (pure-engine expectation shapes over the real TS adapter) + efficiency evidence (per-call LS construction cost; evidence-driven reuse) + diagnostics surfacing; folded follow-ups: merged-declaration completeness, cross-file merged identity.
+- **PILOT-FIRST status:** unchanged — Pilot acceptance (2)(3)(5) sit behind human gates ③ enrollment + ④ WO-259/260 ratification; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results. All four human gates verified unchanged across the SEM-3a/3b/4a cycles.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-10 (night) — SEM-3b callees shipped after 3-round review — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) + PILOT-FIRST acceleration steer (appended 2026-10-10; Track C runs as the independent autonomous lane while the Pilot critical path stays human-gated). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `10233b952768d43e5aed0e31c4321c44eb6810fd` (this checkpoint advances it); **SunDayRemoteMCP `af2941284efab4a2e7e0e9a39a749744384c7eb7`** (advanced by #341 SEM-3b). Post-main codespell green on both.
+- **#341 SEM-3b** (claim on AWC #341 comment 6096293494; released 6096504442): SRM PR #16 merged expected-head `172d622` → main `af294128`. `TypeScriptSemanticAdapter.callees` implements the optional SEM-1b outgoing-call-hierarchy capability via prepareCallHierarchy + provideCallHierarchyOutgoingCalls — engine.calleesOf now returns real edges for TS files instead of typed CAPABILITY_MISSING. Same discipline as references (consumed-count bound incl. out-of-root skips; per-callee program-text/disk-byte consistency with byte-hash bindings; typed payload gates; JSON-identity dedupe). Review 3 exact-SHA rounds: r1 caught a factually WRONG cross-minor API claim (both TS 5.3.3 and 5.9.3 use fileName+position — fallback removed), merged-declaration edge loss, and a delimiter-collision dedupe key; r2 caught a fail-open undefined-outgoing path; r3 PASS @ `172d622` (record: SRM PR #16 comment 6096503957). **Documented limitation:** the TS navigation surface merges split declarations of one symbol into a single node, so merged symbols contribute edges only from the first surfaced declaration (pinned by regression row; cross-file merges out of single-file scope; revisit at SEM-4 conformance). 18/36/58 + types + engine suites green. Provenance: public typescript API + SEM contracts only — no Serena/SolidLSP (GPL) code.
+- **Track C progress:** SEM-0 ✅ 1a ✅ 1b ✅ 2 ✅ 3a ✅ **3b ✅** → NEXT_READY: **SEM-4** — diagnostics surfacing + MCP tool wiring (expose semantic ops as SundayMCP tools) + conformance harness + efficiency evidence; folded follow-ups: merged-declaration completeness, cross-file merged identity.
+- **PILOT-FIRST status:** unchanged from the SEM-3a checkpoint — Pilot acceptance (2)(3)(5) sit behind human gates ③ enrollment + ④ WO-259/260 ratification; (1)(4)(6) code paths exist, real-machine proof pending; (7) pending real-machine results. Human gates re-verified unchanged this cycle.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-10 (evening) — SEM-3a real TypeScript provider shipped after 3-round review; PILOT-FIRST steer active — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079) **+ PILOT-FIRST acceleration steer appended 2026-10-10** (smallest usable SundayMCP Pilot, then full roadmap; Track C must not displace the Pilot critical path). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `a1d5e0a21d0f71e0d2c1800ea8e6995ad7a8326a` (this checkpoint advances it); **SunDayRemoteMCP `c5652024c35f0b75b1ed590102d74c33cf8c9822`** (advanced by #341 SEM-3a). Post-main codespell green on both.
+- **#341 SEM-3a** (claim on AWC #341 comment 6095312788; released 6095629259): SRM PR #15 merged expected-head `ce23b31` → main `c565202`. First REAL provider: `TypeScriptSemanticAdapter` implementing context/provider/reader/editor seams over the real TypeScript LanguageService — lazy `typescript` load (dev-dep only, typed PROVIDER_UNAVAILABLE when absent; depdiet-compliant), symbols from navigation tree with typed payload gates, cross-file references with per-file byte-sha bindings + program-text/disk consistency checks, atomic editor with proper-lockfile verify-then-write INSIDE the lock, TS line-terminator offset math (LF/CRLF/lone CR), service rebuilt per edit. **Operation-context snapshot contract**: the adapter presents its single most-recent engine-authorized edit ({fromSha,toSha}, raw-byte hashes) as the pre-edit binding so engine fences flag only unauthorized drift. Review 3 exact-SHA rounds (r1 FAIL byte-hash/TOCTOU/truncation/count-bypass; r2 FAIL disclosure overclaim + span-less skip + weak stale-program tests; r3 PASS @ `ce23b31`; record: SRM PR #15 comment 6095628764). Documented residuals: byte-identical restore equivalence; non-cooperating-writer lost-update window between in-lock verify and rename. 16/36/58 + types + engine suites green. Provenance: public typescript API + SEM contracts only — no Serena/SolidLSP (GPL) code.
+- **Track C progress:** SEM-0 ✅ 1a ✅ 1b ✅ 2 ✅ **3a ✅** → NEXT_READY: SEM-3b callees via TS call hierarchy (optional capability today: typed CAPABILITY_MISSING), then SEM-4 diagnostics + MCP wiring + conformance/efficiency.
+- **PILOT-FIRST status:** Pilot acceptance 1–7 mapped against live truth — (1) ChatGPT entry point, (4) file listing/reading, (6) status/recovery: code paths exist via INSTALL-1 + SRM read tools but real-machine proof pending; (2)(3)(5) sit behind human gates ③ enrollment + ④ WO-259/260 ratification (exact routing + canonical admission); (7) documentation pending real-machine results. All four human gates re-verified UNCHANGED 2026-10-10 (PR #67 OPEN @ c1bf7ea4; #285/#293 OPEN; no ratification on #526; no enrollment evidence). Pilot critical path = human-gated; Track C continues as the independent autonomous lane per the steer.
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-10 (later) — SEM-2 guarded mutation ops shipped after 7-round review — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `6495567afe3b943b2f33f028993e4a267868e30e` (this checkpoint advances it); **SunDayRemoteMCP `60c8ebf184c892b20301f66dd1ada5e4d093e3c7`** (advanced by #341 SEM-2). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **#341 SEM-2** (claim `WO-341-SEM-2-GUARDED-MUTATION-WIN-001` 6090613860; released 6093376437): SRM PR #14 merged expected-head `df22bc5` → main `60c8ebf`. Guarded mutation ops at the pure layer: `SemanticFileEditor` injected seam (absent → SEMANTIC_CAPABILITY_MISSING) + `replaceSymbol`/`insertBeforeSymbol`/`insertAfterSymbol`/`renameSymbol` sharing one guard chain — validated+owned caller identity → PRE probe → re-resolve with EXACTLY-ONE identity match (ambiguous → drift, zero edits) → owned planned range/text → MID probe → ONE edit via a once-captured capability receiving a DETACHED owned target → POST probe against an untouched baseline. Zero edits on any pre-edit drift; typed failure always; rename = whole-identifier occurrences only. Review 7 exact-SHA rounds → r7 PASS (record: PR #14 comment 6093376272); residual documented: post-edit malformed/drift reports typed failure after an applied edit — rollback is the editor adapter's contract (SEM-3). 36+58+SEM-1a+types+6 INSTALL suites green.
+- **Track C progress:** SEM-0 ✅ SEM-1a ✅ SEM-1b ✅ **SEM-2 ✅** → **NEXT_READY: SEM-3 real LSP provider** (TypeScript first; independent standard-LSP only — GPL guard: no Serena code, SolidLSP only after provenance review; injectable keeps pure layers provider-neutral). Then SEM-4 diagnostics + MCP wiring + conformance/efficiency evidence.
+- Track A: INSTALL-1 A–G merged; CUTOVER-RO gated on HUMAN enrollment (+ exact routing review → Track B). Track B: Phase-0 done (#526 c6076837022); mutation gated on WO-P1-259/260 integrator ratification (requested once).
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+
+
+## 2026-10-10 — SEM-1b call hierarchy shipped after 14-round review — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake `automation-c872bd35` active @30-min, Supervisor v3 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits).
+
+- Mains: A-Wiki-Conductor `b91ff71830ced94b1df767bc058a1229b3a96472` (this checkpoint advances it); **SunDayRemoteMCP `7afdab0c960962227fce84c8ba203c016e7c5b45`** (advanced by #341 SEM-1b). Post-main codespell green. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **#341 SEM-1b** (claim `WO-341-SEM-1B-CALL-HIERARCHY-WIN-001` 6077654298 + amendments 6080111797; released 6089923391): SRM PR #13 merged expected-head `f533516` → main `7afdab0`. `callersOf`/`calleesOf` at the pure layer + the SHARED SEM-1a engine hardened under disclosed amendments (total identity-aware once-only ownership; index-only iteration w/ integer lengths + beyond-bound probes; single-capture envelopes/capabilities/targets; contained typed validations; detached cross-file targets w/ baseline/after drift checks). Review: 14 exact-SHA rounds, r14 PASS (record: PR #13 comment 6089923024). CI incident documented: PR codespell failed 2x on Docker Hub 504 (action-container outage, no findings); local codespell rc=0; post-main codespell SUCCESS. 58+SEM-1a+types+6 INSTALL suites green locally.
+- **Track C plan (recovered, comment 6077279264):** SEM-1b ✅ → **NEXT_READY: SEM-2 guarded mutation ops** (replace/insert-before/insert-after/rename on the read core: re-resolve symbol → verify HEAD/file/symbol identity → mismatch = typed SEMANTIC_CONTEXT_DRIFT; never edit by stale range). Then SEM-3 real LSP provider (TS first; GPL guard: no Serena code, SolidLSP only after provenance review); SEM-4 diagnostics+MCP wiring+conformance.
+- Track A: INSTALL-1 A–G merged; CUTOVER-RO gated on HUMAN enrollment (+ exact routing review → Track B). Track B: Phase-0 done (#526 c6076837022); mutation gated on WO-P1-259/260 integrator ratification (requested once).
+- Human gates (all stated once, unchanged): ① PR #67 merge @ `c1bf7ea4` ② WO194→#285→#293 ③ CUTOVER-RO enrollment ④ Track B WO-259/260 ratification.
+- Residuals tracked: physical/symlink confinement; OS-lock stale-reclaim + snapshot transactionality; minor read-count assertions on two r13 rows (cosmetic).
+
+
+## 2026-10-09 (later) — INSTALL-1 slice G shipped (CUTOVER-RO procedure + real-machine evidence) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake `automation-c872bd35` active @ 30-min, Supervisor v2 persisted (SELF_UPDATE_UNSUPPORTED for agent-side edits; prompt hints STALE_MINOR — recover live truth per §3).
+
+- Mains: A-Wiki-Conductor `388975bf0f64d795d0c56758f8ce3ac73c1dc67a` (this checkpoint advances it); **SunDayRemoteMCP `4bbd682ee5faa528f1b1a7cf5486354ddcbf677a`** (advanced by INSTALL-1 slice G). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice G** (#607 claim `WO-P1-607-INSTALL1-SOURCE-G-WIN-001` 6074850454 + scope amendment 6074861771; released 6075812988): SRM PR #12 merged expected-head `21a3533` → main `4bbd682`. New `docs/cutover-ro-canary-procedure.md` (typed PASS criteria per step; enrollment HUMAN by design; evidence template; remaining gates + residuals stated precisely). Real-machine evidence (Windows 11, temp root): install `INSTALLED_PAIRING_REQUIRED` w/ upstream OK (exit 1 correct), `--no-upstream` → `DOCTOR_UNKNOWN` fail-closed, canary `READ_CANARY_PASS` exit 0 / `OUTSIDE_ALLOWLIST` exit 1. **Genuine defect found & fixed:** Windows libuv assertion crash when the CLI's undici fetch + AbortSignal.timeout raced hard `process.exit()` → `process.exitCode` + drain (both CLIs; contract re-verified). QA 2 rounds → PASS.
+- **INSTALL-1 cumulative: A–G merged.** Full Windows-first path with procedure + machine-verified evidence: install → enroll(HUMAN) → verify → gated start → read canary.
+- **CUTOVER-RO remaining:** ① steps 2–4 evidence on a real enrolled machine (**HUMAN action: enrollment browser consent + real token** — stated once, not re-asked); ② exact routing review (Track B); ③ #495 multi-device prerequisites.
+- Human gates pending (do not re-ask): ① A-Wiki PR #67 merge @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** with INSTALL-1's automatable surface complete and CUTOVER-RO gated on human enrollment, open **Track B** convergence: #526 canonical mutation admission + exact worktree binding (recover accepted ACT-1 boundary on AWC main), then #495 generation/idempotency. Follow-ups tracked: physical/symlink confinement; OS-lock stale-reclaim + snapshot transactionality; drive-case/lastSlash canary rows.
+
+
+## 2026-10-09 — INSTALL-1 slice F shipped (deterministic read canary); wake repaired (Supervisor v2 active) — CURRENT
+
+> Cross-req projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` REPAIRED via human UI action and verified live: **enabled/active, 30-minute cadence, Adaptive Roadmap Supervisor v2 prompt persisted (incl. self-update inheritance contract), no duplicate**. Session tool surface still exposes only CronList ⇒ SELF_UPDATE_UNSUPPORTED for agent-side edits (unchanged, documented).
+
+- Mains: A-Wiki-Conductor `75365ad7fc88b06c5223a5f5063851e676adaa03` (this checkpoint advances it); **SunDayRemoteMCP `bb48822cc67506b9330fbd94b11774cde68955cd`** (advanced by INSTALL-1 slice F). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice F** (#607 claim `WO-P1-607-INSTALL1-SOURCE-F-WIN-001`, comment 6073618425; released 6074110782): SRM PR #11 merged expected-head `c59157d` → main `bb48822`. New `src/sunday/read-canary.ts` + `device:sunday:smoke` CLI — the CUTOVER-RO deterministic read canary: persisted policy-validated allowlist authority, strictly-inside target gating, both probe paths gated before real probe selection (zero real probes on every denial path), payload never in results, exit 0 only on PASS. Review 3 rounds (r1 inert gate-only ping; r2 platform-independent listDir derivation + supplied-ping validation + runner-safe CLI rows) → r3 PASS; residual: lexical-not-physical containment (frozen slice-A policy, tracked).
+- **INSTALL-1 cumulative: A+B+C+D+E+F merged.** Windows-first path: `device:sunday:install` → pairing → `SUNDAY_AGENT=1 device:start` (gate + pid claim) → `device:sunday:smoke` (read canary). SRM baseline 82/89 (7 pre-existing; supervisor passed last run).
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** CUTOVER-RO prerequisites — canary procedure evidence on a real paired machine + exact routing review; then Track B convergence (#526 + #495 + ACT-1 integration → CUTOVER-MUTATE); Track C #341 after. Follow-ups tracked: physical/symlink confinement; OS-lock stale-reclaim + multi-file snapshot transactionality; drive-case/lastSlash canary rows.
+
+
+## 2026-10-08 (evening) — INSTALL-1 slice E shipped (installer entry) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` verified PAUSED (enabled=false; SELF_UPDATE_UNSUPPORTED — this session's tool surface exposes only CronList; HUMAN_ACTION_REQUIRED stated once: re-enable the SAME task at 30-min in ZCode Automations UI; adaptive inheritance contract text lives in the 2026-10-08 slice-C section below and in this file's policy record).
+
+- Mains: A-Wiki-Conductor `970aac58507d1ee3b9e26219d81dfd53615f98bd` (this checkpoint advances it); **SunDayRemoteMCP `9923635a114dada619177d8a0cc81f193cc9aa16`** (advanced by INSTALL-1 slice E). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice E** (#607 claim `WO-P1-607-INSTALL1-SOURCE-E-WIN-001`, comment 6063608081; released 6064384366): SRM PR #10 merged expected-head `b86c79e` → main `9923635`. New `src/sunday/installer.ts` (`runSundayInstaller`: idempotent validated writes → doctor/pairing over read-back policy-validated post-callback persisted evidence; typed outcomes; READY only on policy-valid config + valid install marker + upstream true + PAIRED; consent-first pairing next-actions) + `src/npm-scripts/sunday-install.ts` + `device:sunday:install` script; additive inert validators `persistedInstallValid`/`persistedInstallMarkerValid` in agent-lifecycle (pre-existing exports unchanged).
+- **Review record (Codex gpt-6.1-sol exact-SHA, 5 rounds):** r1–r4 FAIL→real fixes (inert options incl. revoked proxies + accessor fields; evidence captured AFTER the caller's upstream callback; persisted config validated against the same install policy; inert exported validators; install.json recheck — deleted/corrupt marker → INSTALL_MARKER_INVALID matching the startup gate); r5 `b86c79e` **PASS** (no remaining deterministic bypass). Residual (reviewer-noted, documented): multi-file evidence reads are snapshot-limited (concurrent replacement not transactional; OS-lock class, tracked with the slice-D residual). Full table: SRM PR #10 comment 6064365457.
+- **INSTALL-1 cumulative: A+B+C+D+E all merged.** The Windows-first path is now: `npm run device:sunday:install` (typed install/pairing/doctor) → pairing flow → `SUNDAY_AGENT=1 npm run device:start` (gate: doctor+pairing+autostart, pid-claim admission). SRM local baseline 81/88 (7 pre-existing + flake), zero new.
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge decision @ `c1bf7ea4`; ② WO194→#285→#293 disposition. Wake re-enable (Automations UI) also human — stated once above.
+- **NEXT_READY:** read-smoke integration + deterministic smoke wiring (slice F) toward CUTOVER-RO canary prerequisites; pairing-code transport UX; then Track B convergence (#526 + #495 + ACT-1 integration).
+
+
+## 2026-10-08 (latest) — INSTALL-1 slice D shipped (agent write lifecycle) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` active (15-min); STEER self-maintenance upgrade BLOCKED_AT_TOOL_SURFACE (see prior section + this file's policy record).
+
+- Mains: A-Wiki-Conductor `fc9af9e6802c68b91e07abc2bcf46766b064ba5e` (this checkpoint advances it); **SunDayRemoteMCP `aa47bb2a5d7cc1d472cc5ca63e9b66b3b650e5f9`** (advanced by INSTALL-1 slice D). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice D** (#607 claim `WO-P1-607-INSTALL1-SOURCE-D-WIN-001`, comment 6055042606; released 6058553015): SRM PR #9 merged expected-head `680765c` → main `aa47bb2`. New `src/sunday/agent-lifecycle.ts`: `initializeSundayInstall` (validated atomic config.json+install.json writes; allowlist clean-by-construction), `acquireAgentPid`/`releaseAgentPid`(+Sync) single-ownership pid claim (wx-exclusive create for MISSING; EEXIST loser typed-refused; verify-after-publish; own-only release), `createSundayAgentGateFactory` (admission ⇔ pid claim verifiably held) wired into `--sunday-agent`/`SUNDAY_AGENT=1` with `releaseSync` on exit. `MCPDevice` class unchanged.
+- **Review record (Codex gpt-6.1-sol exact-SHA, 4 rounds):** r1–r3 FAIL→real fixes (inert-input discipline incl. revoked proxies; wx-exclusive acquisition; tmp self-cleanup; header accuracy); r4 `680765c` **PASS** within the stated cooperating-process threat model; 3 residuals ACCEPTED-AND-DOCUMENTED in the module header (simultaneous stale-dead-owner reclaim window; interrupted-create junk→typed manual recovery; rogue in-process writers out of model). Caveat: reviewer ran as static GitHub-source review (alpha Codex local sandbox/file tools broken); local suites at exact head are the execution evidence. Full table: SRM PR #9 comment 6058542211.
+- **Codex binary moved again:** current `C:\Users\aase7en\AppData\Local\OpenAI\Codex\bin\9691020b546a15b2\codex.exe` (0.162.0-alpha.2; the previous 5ea220ae823df3d7 dir no longer exists). When its local tools fail, GitHub-source static review mode works.
+- **INSTALL-1 cumulative:** slices A (doctor/read-smoke) + B (pairing/autostart) + C (startup gate) + D (write lifecycle) all merged. SRM local full-suite baseline 79/87 (7 pre-existing local failures reproduce on clean main + 1 known ESRCH flake); zero new failures introduced.
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge decision @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** INSTALL-1 slice E — installer-entry UX surface (npm script/CLI wrapping `initializeSundayInstall` + pairing flow + first-run doctor), then read-smoke wiring toward CUTOVER-RO canary prerequisites; follow-up: OS-lock-based stale-reclaim exclusivity decision. Track B (#526 + #495 + ACT-1 integration) when a lane frees.
+
+
+## 2026-10-08 (latest) — INSTALL-1 slice C shipped (agent-startup gate wired) — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079). Wake task `automation-c872bd35` active (15-min); STEER self-maintenance upgrade recorded below.
+
+- Mains: A-Wiki-Conductor `a68887e8a04c91aa6013f38b8098d0d189cdb03d`; **SunDayRemoteMCP `29ff81609d9f0c5f923400c136cd937aea853277`** (advanced by INSTALL-1 slice C). Codespell green on main post-merge. PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice C** (#607 claim `WO-P1-607-INSTALL1-SOURCE-C-WIN-001`, comment 6050124177; released 6054006578): SRM PR #8 merged expected-head `733ae5b` → main `29ff816`. New `src/sunday/agent-gate.ts` (pure admission: pairing PAIRED + coherent-HEALTHY doctor + autostart START|ALREADY_RUNNING-HEALTHY-self only; typed fail-closed denies) + `src/sunday/agent-entry.ts` (read-only fs adapters: pairing store/config/install/agent.pid evidence, deadline-bounded upstream, fail-closed PID classification) + opt-in `MCPDeviceOptions.agentGate` in `device.ts` evaluated BEFORE spawn/network/auth (`--sunday-agent`/`SUNDAY_AGENT=1`). Legacy path unchanged.
+- **Review record (Codex gpt-6.1-sol exact-SHA, 7 rounds):** r1–r6 FAIL→real defects fixed (getter split-brain, inherited fields, garbage-admit, invalid-PID-as-live, unbounded waits, forged aggregates, hiding iterators, transparent proxies, mid-loop truncation, accessor mutation family, mutating envelope); r7 `733ae5b` = **no source defect** (77 probes/0 caller-code invocations; 96-case matrix correct; producer outputs admit; sole FAIL row = reviewer sandbox EPERM on mkdtemp, environmental). Convergent invariant: gate validates only inert data-property evidence via `Object.getOwnPropertyDescriptor`. Full table: SRM PR #8 comment 6053954409.
+- **Local test baseline (SRM):** 78/86; 7 failures reproduce identically on clean base `c9b161a` (pre-existing local, hosted CI is codespell-only); supervisor ESRCH flake passes on rerun. Slice-C suites (3 files, incl. all review regression rows) green at merge head.
+- **STEER — adaptive self-maintaining wake (durable record):** `WAKE_POLICY: SELF_MAINTAINING=TRUE, SAME_SESSION_ONLY=TRUE, UPDATE_IN_PLACE=TRUE, CREATE_DUPLICATE=FALSE, MIN_INTERVAL_MINUTES=30, ROADMAP_DRIVEN=TRUE, SAFETY_INVARIANTS_IMMUTABLE=TRUE, SELF_UPDATE_INHERITS=TRUE` for task `automation-c872bd35` / session `sess_b82dd681-c3b1-49c6-990e-b1918b764209`. Hereditary clause (must appear in every future wake-prompt revision): "This Scheduled Task may update its own existing task/payload/cadence for this same session when stale against accepted roadmap truth, subject to the self-update safety/inheritance contract." Application status: **BLOCKED_AT_TOOL_SURFACE** — `CronUpdate` is not exposed in the current session tool surface (only `CronList`); the existing task remains active at 15-min cadence (safe, pre-existing), no duplicate created, no delete+recreate. Apply in place (30-min cadence + refreshed payload carrying this policy) as soon as the tool is available in a future session.
+- Human gates pending (do not re-ask; packets posted): ① A-Wiki PR #67 merge decision @ `c1bf7ea4`; ② WO194→#285→#293 disposition.
+- **NEXT_READY:** INSTALL-1 slice D — installer-entry write lifecycle (`config.json` agentVersion/allowlist write, `install.json` marker, `agent.pid` acquire/release on the wired path), then mutation smoke + Mac parity; Track B (#526 + #495 + ACT-1 integration) proceeds when a lane frees.
+
+
+## 2026-10-08 (later) — INSTALL-1 slices A+B shipped — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; 15-min wake active. Primary Goal = ONE SUNDAYMCP success path (operator reorder #495/6035553079).
+
+- Mains: A-Wiki-Conductor `9dd3e4c729a965d6fcaa7e216946b0e6f29a55d4` (+ push CI green); **SunDayRemoteMCP `c9b161a71f7ed6cdc5ceb67b726424c6c2791717`** (advanced by slice B). A-Wiki main `16897b2d`; PR #67 human gate unchanged @ `c1bf7ea4`.
+- **INSTALL-1 slice A** (#607): doctor + read-smoke — merged @ SRM `dc5e311`.
+- **INSTALL-1 slice B** (#607; PR #7 head `17e28c9` -> `c9b161a`; post-main all suites green): `pairing-state.ts` (consent-gated UNPAIRED->PENDING->PAIRED; token REQUIRED — no fallback credential; digest-committed code; typed UNKNOWN never PAIRED) + `autostart.ts` (exactly-once planner; double-boot yields; UNKNOWN->recovery; pairing fail-closed). GLM 2-round review r2 PASS (4 info-P3 ledger on #607). Claim released.
+- **NEXT_READY — slice C (wiring)**: integrate doctor probes + pairing store + autostart planner into the Device Agent entry/install path (`npm-scripts/setup.ts` / remote-device surfaces); pin {AWC@`9dd3e4c`+, SRM@`c9b161a`+}; fresh claim `WO-P1-607-INSTALL1-SOURCE-C-WIN-001` under WO-P1-607. Then installer-entry UX, mutation smoke, Mac parity.
+- Human gates unchanged: (1) A-Wiki PR #67 merge; (2) WO194->#285->#293 stack disposition.
+- Env notes: SRM supervisor fault-suite has intermittent `kill ESRCH` timing flake in the long-lived reference worktree (same-SHA differential = flake); Codex binary 5ea220ae823df3d7/codex.exe 0.160.1.
+
+**Exact next safe action:** claim INSTALL-1 slice C per WO-P1-607 -> wire doctor/pairing/autostart into the setup/device-agent entry (RED-first against the frozen modules) -> review/CI/merge/post-main.
+
+## 2026-10-08 — roadmap reorder active; INSTALL-1 slice A shipped — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; 15-min wake automation active.
+
+- Current mains: A-Wiki-Conductor `0c2ff17fb7ca586fbdbdeb1e6596f1e6efb96255` (push CI 37640116990 SUCCESS); SunDayRemoteMCP `dc5e311d2cf6542d68d4d440aa5f8f5774ceba75`. A-Wiki main `16897b2d` (PR #67 human gate unchanged @ c1bf7ea4).
+- **Roadmap priority**: operator reorder #495/6035553079 — G0 (truth+drain, no removals) || TRACK A INSTALL-1 (highest) || TRACK B #526+#495+ACT-1 -> CUTOVER-RO -> CUTOVER-MUTATE || TRACK C #341 parity -> retirements || TRACK D UX only after core.
+- **Shipped this lineage**: P8 ACT-1 slice A (admission authority, #603 closed, main 64e2f05 era; Sol 6-round review to PASS) — Track B consumable. **INSTALL-1 slice A** (#607; AWC bootstrap PR #608; SRM PR #6 @ dc5e311): pure doctor (UNKNOWN-never-HEALTHY) + read-smoke (deny-by-default component-boundary allowlist, dot-reject policy) — GLM 2-round review, claim released; P3 ledger on #607 (doctor dot-entry alignment, target-corrupt reason label, probes-object hardening).
+- **NEXT_READY**: INSTALL-1 slice B = pairing/enrollment wiring (consume existing `DeviceAuthenticator`/remote-device surfaces) + autostart/restart skeleton + installer entry in SRM; re-pin compat set {AWC@0c2ff17-or-later, SRM@dc5e311-or-later}; WO-P1-607 governs; fresh claim per slice.
+- Human gates unchanged: (1) A-Wiki PR #67 merge (unblocks #551 -> WO-P1-561 -> JEV chain); (2) WO194->#285->#293 stack disposition (folds #581/#583).
+- Codex binary: 5ea220ae823df3d7/codex.exe (0.160.1). Known env note: SRM supervisor fault-suite has an intermittent `kill ESRCH` child-race flake in the long-lived reference worktree (same-SHA differential proved timing, not code).
+
+**Exact next safe action:** fresh session/wake -> claim INSTALL-1 slice B per WO-P1-607 (SRM-side worktree, cross-repo pin) -> RED-first pairing-state + autostart modules.
+
+
+## 2026-10-07 (later) — P8 ACT-1 slice A COMPLETE — CURRENT
+
+> Cross-repo projection; live evidence overrides. Windows ZCode GLM-5.3 MAX primary; watchdog automation active (30-min, WATCHDOG_ONLY).
+
+- Current main: `64e2f0552a659d6d8e39f1f26965f8d742fb1954` (post-main CI 37604652509 SUCCESS). A-Wiki main 16897b2d (PR #67 human gate unchanged).
+- **P8 ACT-1 slice A COMPLETE/POST_MAIN_VERIFIED** (Issue #603 closed): bootstrap PR #604 (WO-P1-603) + source PR #605 (head `965f5a6` -> merge `64e2f05`): pure admission authority `command_gateway.py` — action-derived intent (no label escalation), universal scope coverage with component-boundary/traversal rejection, observed 4-field identity truth, exact-bool lease, UNKNOWN-dedupe never relaunch, fence-held-here for MUTATE, fully-validated collision-free evidence digest (22 enumerated inputs), contained authority errors (AUTHORITY_ERROR vs typed absent-evidence codes), zero side effects. **Codex Sol 6-round review to PASS 0/0/0/0** (each round found real gaps; final closure reviewer-enumerated); 51 focused + 117 related green.
+- **Roadmap next**: ACT-1 slice B = dispatch wiring consuming admissions (separate claim; existing adapters); then #498B PRE_MUTATION / #498D PRE_MUTATION guard wiring against the admission digest; P9+ per live roadmap. P7 remainder (extension/desktop) optional.
+- Human gates unchanged: (1) A-Wiki PR #67 merge (c1bf7ea4; unblocks #551/PR #552 -> WO-P1-561 -> JEV); (2) WO194->#285->#293 stack disposition (folds #581/#583).
+- Codex binary: `C:\\Users\\aase7en\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe` (0.160.1).
+
+**Exact next safe action:** fresh session -> recover live roadmap -> claim ACT-1 slice B (dispatch wiring) or #498B/D guard wiring per dependency truth; fold PR #67 merge instantly when decided.
+
+
+## 2026-10-07 — overnight marathon: P6 MON-1 + P7 UI-1 COMPLETE — CURRENT
+
+> **Cross-repo projection.** Actual Git/GitHub evidence overrides this section. Windows ZCode GLM-5.3 MAX primary; overnight goal 2026-10-06.
+
+- Current A-Wiki-Conductor `origin/main`: `a4614b404052ac7f678566a5652573b531d7c53f` (post-main CI 37554312927 SUCCESS). A-Wiki main `16897b2d` (PR #67 human merge gate unchanged; packet PR #67 comment 6008933648).
+- **P6 MON-1 COMPLETE/POST_MAIN_VERIFIED** (Issue #596 closed): contract WO-P1-596 (PR #597) + source PR #598 (head `d0d65e7` -> merge `08f4fa6`): loopback stdlib read-only monitor API (`monitor_api.py` + `monitor_projection.py`, 30 rows) — fail-closed token/Origin/Host authn (duplicate-header rejection, DNS-rebinding guard), per-subscriber bounded stream backpressure, generation-fenced poller lifecycle (STOP_INCOMPLETE/POLLER_TERMINATING), typed 503 boundaries. Codex Sol 3-round review (final PASS 0/0/0 after 2 repair cycles); two runtime-dependent duplicate-Host CI flakes root-caused + fixed.
+- **P7 UI-1 slice A COMPLETE/POST_MAIN_VERIFIED** (Issue #599 closed): bootstrap PR #600 (WO-P1-599) + source PR #601 (head `d1aaa5a` -> merge `a4614b4`): constant self-contained read-only monitor page (`monitor_page.py`) + one authn-gated `GET /monitor` route — CSP, memory-only fragment token, UNKNOWN/STALE/DEGRADED truthful badges, fatal-403 halt + 503 backoff. GLM 3-round review (final PASS "acceptable to integrate"); 40 focused + 715 reviewer-side green.
+- **Next roadmap node: P8 ACT-1 Command Gateway** — AUTHORITY SEAM, higher scrutiny (goal section 5): needs fresh dependency/readiness recovery + reuse audit + governance bootstrap before any implementation; R3 RED-first mandatory. P7 remainder (extension UI/desktop adapter) = optional later slices.
+- Human gates unchanged: (1) A-Wiki PR #67 merge (c1bf7ea4, review PASS + CI PASS; unblocks #551/PR #552 -> WO-P1-561 -> JEV chain); (2) WO194->#285->#293 stack disposition (blocks #581/#583 DEFECT_LESSONS folds).
+- Codex binary moved: use `C:\\Users\\aase7en\\AppData\\Local\\OpenAI\\Codex\\bin\\5ea220ae823df3d7\\codex.exe` (0.160.1). Reviews this cycle used separate GLM read-only lanes per quota policy.
+
+**Exact next safe action:** fresh session -> recover P8 ACT-1 roadmap/WO state (does an accepted ACT-1 contract exist? roadmap P8 + #498B/C/D dependencies) -> bootstrap/claim under normal gates; fold PR #67 merge instantly if the human decision arrives.
+
+
+## 2026-10-06 — authorized 3-lane cycle complete — CURRENT
+
+> **Cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts. Windows ZCode GLM-5.3 MAX primary session; user authorizations: A-Wiki PR #67 comment 5997302206, #547 comment 5997303506, PR #293 comment 5997304803.
+
+- Current A-Wiki-Conductor `origin/main`: `2e770f3f00670a7bd3ea1135bfec932aa445c15d`. A-Wiki `origin/main`: `16897b2d34f3ff0de0938f7f651cf19bbce106b43` (PR #67 unmerged).
+- **LANE A — A-Wiki PR #67 bounded repair: REVIEW_AND_CI_COMPLETE_MERGE_AUTHORITY_REQUIRED (halted at authorized gate; NOT merged).** Candidate `c1bf7ea41648fcd16e2b753e75847c86a7d86648` on `fix/issue-58-claim-convergence` (worktree `A:\GitHub\_worktrees\A-Wiki-pr67-claim-repair`): P1 fail-closed durable COLLAB parse (`DurableClaimsUnavailable` → `DURABLE_CLAIMS_UNREADABLE` exit 2; absent-COLLAB isolation preserved) + P2 comma-scope writer rejection with writer/reader/hook parity. Targeted 97×2 + related 183 green; `conductor verify` + pre-commit AWiki gates pass. Independent review (separate GLM read-only lane; Codex quota-blocked → fallback): **PASS P0/P1/P2=0** with two recorded P3 hardening notes (override-missing semantics; tolerant-reader rows). Hosted CI on `c1bf7ea4`: Core verification + loop-contract + py38-smoke ALL PASS. Evidence: PR #67 comments 6000295930 / 6000436550. Windows TTL claim `79c57dbe9ffc` (zcode-glm-pr67) expires naturally ≤2h; durable COLLAB row (chatgpt-sol) governs. **Merge decision = user/integrator.**
+- **LANE B — #285/#293 supersession audit: COMPLETE (READ_ONLY).** `PR285_DISPOSITION = PR293_DISPOSITION = HUMAN_DECISION_REQUIRED` with 9-question evidence: marker/classification logic NEVER on main (main still has the broad-substring guard at `instance_create.py:83-84` — defect family live); the stack sits on the UNMERGED WO194 base `8339e4c` (main@46f90b3 Sep-11 → WO194 → #285 → #293); DEFECT_LESSONS numbering collision (#15). DEFECT_LESSONS.md path lock therefore cannot be released by closing the drafts — #581/#583 folds stay queued behind the stack decision. Evidence: PR #293 comment 6000531474, PR #285 comment 6000531941.
+- **LANE C — STM-1B: COMPLETE / POST_MAIN_VERIFIED / claim released.** WO-P1-592 / Issue #592 (closed) / bootstrap PR #593 / source PR #594 (exact reviewed head `7853755`, merge `2e770f3`, post-main run `37363409584` SUCCESS after one documented infra-flake rerun with zero failed steps). New `hook_producer_wiring.py` + 26-row focused suite; review round 1 CHANGES_REQUIRED → repair cycle 1 → round 2 **PASS 0/0/0** (separate GLM lanes). Deferred P3: unpaired-surrogate session_id typed-rejection wrap. Composition-root hookup = separate future scope.
+- Codex 0.160 quota exhausted during this cycle (reset ~2:54 AM local); both independent reviews used the accepted separate-GLM-read-only-lane fallback. Working Codex review recipe: `codex exec -s read-only --ephemeral -o <file> -` (default model gpt-6.1-sol).
+- Next SAFE_READY candidates: user/integrator merge decision on A-Wiki PR #67 (unblocks #551/PR #552 → WO-P1-561 → JEV chain); WO194→207→215 stack disposition; #580 lifecycle vNext hook implementation; #541 SRM compact receipts.
+
+**Exact next safe action:** obtain the A-Wiki PR #67 merge decision (or merge it under integrator authority), then harvest #551/PR #552 claim-reader acceptance and resume the WO-P1-561 JEV SHADOW chain.
+
+
+## 2026-10-05 — Windows ZCode primary topology / WO-P1-583 COMPLETE — CURRENT
+
+> **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts. Written by the Windows ZCode GLM-5.3 MAX primary marathon session (user topology recorded in Issue #580 comment, 2026-10-05).
+
+- Current `origin/main`: `ece314530a05f12bd1f7bc4517dd6e287197fb4d`. Supervisor workspace `A:\GitHub\_worktrees\A-Wiki-Conductor-zcode-supervisor` was clean at `6ad9fdd` at session start.
+- **WO-P1-583 queue-submission dedupe guard: COMPLETE / POST_MAIN_VERIFIED / claim `WO-P1-583-QUEUE-DEDUPE-GUARD-WIN-001` released** (Issue #583 closeout comment `5993506599`). Bootstrap PR #589 (WO contract v2) + source PR #590 (exact head `a08844f`, two new files: `codex_queue_submission_guard.py` + focused tests). Independent Codex GPT-6.1 Sol review round 1 CHANGES_REQUIRED (P1 partial-pagination PROCEED, P2 unbounded evidence) → contract v2 repair → round 2 PASS 0/0/0 → expected-head merge → post-main runs `37298845083`/`37300729945` both SUCCESS. Assurance: `runs/WO-P1-583/assurance/` in worktree `A:\GitHub\_worktrees\A-Wiki-Conductor-wo583-queue-guard` (ignored).
+- **#576 Phase C harvested**: post-main CI `37260168794` SUCCESS; claim `WO-P1-576C-APP-SERVER-0160-SOURCE-MAC-001` released (Issue #576 comment `5992112857`).
+- **JEV production rollout (goal Phase 0) = BLOCKED_UPSTREAM, not forgotten**: JEV-2/3/4/5 core all merged/post-main; production OFF. Remaining live-SHADOW lane WO-P1-561 (Issue #508) is blocked by claim-reader #551/PR #552 ← A-Wiki PR #67 (two open review findings: P1 fail-closed COLLAB.md parse, P2 comma-glob mismatch) ← **A-Wiki mutation requires explicit user authority** (repo AGENTS.md; AUTHORIZATION_REQUIRED surfaced in marathon receipts). Mac-side WO-P1-561 claim stale since 2026-09-27; Windows may recover/transfer it only after the claim-reader prerequisite lands.
+- **DEFECT_LESSONS fold queue**: #581 and #583 folds both `BLOCKED:DEFECT_LESSONS_PATH_COLLISION` by stale draft PR #293 (WO-215 launcher lane, unmerged, base not main; sibling stale draft #285). One user/integrator reconciliation decision unblocks both folds + the path.
+- **Next SAFE_READY mutable lane candidates** (no active mutable lanes at this checkpoint): #547 STM-1B producer wiring on the merged Hook Bus (separate claim per WO-547 successor boundary); #580 lifecycle vNext hook implementation (candidate scope `.codex/hooks/a_sunday_lifecycle.py`); #541 SRM compact receipts (EXECUTION_SUBSTRATE); #555 PWA. GLM/ZCode preferred executor per capability matrix + 2026-10-05 topology.
+- Codex escalation route proven this session: Desktop binary `...\OpenAI\Codexin\8aaf1547b825b104\codex.exe` 0.160.0; `codex exec -s read-only --ephemeral -o <file> -` works for bounded read-only reviews; default model = `gpt-6.1-sol`; `codex review --base` cannot combine with a custom prompt; review round-trip ≈ minutes and is quota-cheap for bounded diffs.
+
+**Exact next safe action:** pick the next SAFE_READY lane from the candidates above through the normal entry/claim gate (STM-1B recommended if no newer live evidence changes it), or resolve the A-Wiki PR #67 authority gate to unblock the JEV chain.
+
+
+
+## 2026-09-22 — WO473 DEPDIET-1 first removal slice COMPLETE / POST_MAIN_VERIFIED — CURRENT
+
+> **Current cross-repo projection.** Actual Git/GitHub/runtime/durable evidence overrides this section if it drifts.
+
+- Authority: Issue #473 / `docs/work-orders/WO-P1-473-srm-dependency-diet.md`; topology `EXECUTION_SUBSTRATE_ONLY`; risk R2.
+- Canonical execution repo: local `A:\GitHub\SunDayRemoteMCP` with no configured Git remote.
+- Accepted base: `2e6aeabd09a321232098187dba4c522e37e4b1de`.
+- Accepted candidate and canonical SRM main after ff-only integration: `e3ec2e06baf464e68c4166faae65f51c60fd5477`.
+- Exact mutation: `package.json` + `package-lock.json` only; removed direct roots `@tiptap/pm`, `remark`, `remark-gfm`, `remark-parse`, `unified`.
+- Lock graph: 67 unreachable entries removed, 0 added, survivor semantics unchanged, and `@tiptap/pm` remains transitively reachable through retained Tiptap packages.
+- Deterministic acceptance: build PASS; compact facade PASS; full-toolset facade PASS; focused supervisor PASS; atomic-write alternating BASE/CANDIDATE replay 3/3 each; UTF-8/diff/scope checks PASS.
+- Full-run differential was base-compared: base 70/78 PASS vs candidate 69/78 PASS; no deterministic candidate-specific regression remained after targeted replays.
+- Accepted independent GLM-5.3 MAX static/adjudicative R2 review: run `run:WO-P1-473:r2-static-review:a5:f05646ef0027`, PASS, P0/P1/P2/P3 = 0/0/0/3, exit 0, 2,620 security samples, no MCP descendant/scope violation.
+- Earlier attempts 0001/0003 security-invalid, 0002 provenance-collision-invalid, 0004 prelaunch-invalid; none are acceptance authority.
+- Post-main proof: canonical SRM HEAD matches the accepted SHA; protected `.serena` state hashes are unchanged; live Node runtime was not restarted.
+- Claim `WO-P1-473-DEPDIET1-WINDOWS-001` is released by the #473 closeout. Parent #472 remains open for broader DEPDIET-1 feature-pack/audit scope.
+- FRONTDOOR-1 remains gated on measured launch/setup friction. Issue #457 remains `HUMAN_DECISION_REQUIRED` and is not advanced by this closeout.
+
+**Exact next safe action:** complete the A-Wiki closeout merge/Issue #473 closure, then keep #472 read-only until a new bounded dependency/feature-pack candidate is proven or launch-friction evidence makes FRONTDOOR-1 READY.
+
+
+## 2026-09-21 — WO438 COMPLETE; WO205 §14 released — CURRENT
+
+> **Current authoritative projection.** Actual Git/GitHub/runtime/durable evidence overrides this file if it drifts.
+
+- Topology: `CONTROL_PLANE_ONLY`. Canonical authority: Issue #438 / WO-P1-438. Historical predecessor only: Issue #330 / WO-P1-246.
+- WO438 merge SHA: `75d9e96e46e15cc8ef647d12194d677657689bde`; current remote `main` is `894c64d32ca63dd0bfaf9f23d97a3e1180ce09d7` after disjoint PR #440 continuity drift.
+- PR #336 merged at 2026-09-21 06:20:49 +07 from exact candidate `f93e16377f500d16cbed66763058c2f4a2237790`.
+- Independent GLM-5.3 MAX exact-SHA R3 review finished before merge: `PASS`, P0/P1/P2=0, P3=3 non-blocking. Durable result: `A:\GitHub\_worktrees\A-Wiki-Conductor-review-wo438-f93e163\runs\WO-P1-438\r3-review\attempt-0001\result.md`.
+- Exact-head hosted CI #1102 / run `35529389831` finished before merge: `SUCCESS`; Windows, Ubuntu and macOS jobs all green.
+- Detached post-main verification worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-post438-75d9e96`.
+- Post-main local proof: all 11 WO438 blobs are byte-identical to the reviewed candidate; focused set 177 PASS; work-order identity 33 PASS; `git diff --check` PASS; `py_compile` PASS.
+- The post-main wrapper returned exit 1 only after all gates because the PowerShell harness used unsupported three-argument `[Math]::Max`; this is harness-only, not a test/repo failure.
+- Hosted post-main push CI run `35544371466` on exact `75d9e96...` is **SUCCESS** on Windows + Ubuntu + macOS, including core suites, Portable/Setup build, archive verification, Portable smoke, and Setup install/uninstall E2E.
+- Issue #438 is **CLOSED / COMPLETE / POST_MAIN_VERIFIED**; claim released. Issue #214 comment `5753611455` releases WO205 §14 source-gate work only.
+- Protected root `A:\GitHub\A-Wiki-Conductor` is stale at `1a5ea1b...`, 16 commits behind current main, with pre-existing untracked `$null`, `0`, and `docs/prompts/GLM-WO230-ZRA2-REVIEW-TASK-CONTRACT-AUTHORITY.md`; do not reset/clean/stash or use it for mutation.
+- Session rollover checkpoint branch: `docs/wo-p1-438-session-handoff`; worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo438-session-handoff`.
+
+**Exact next safe action:** in the new session re-pin actual main / Issue #214 / WO205, recover global WIP/collisions, create a fresh isolated Phase-D source worktree, execute WO205 §14 steps 1–7, freeze exact source/test scope, then RED-first implementation. `SAFE_TO_MUTATE_PHASE_D_SOURCE=NO` until that checklist completes.
+
+## 2026-09-21 — WO433 RUNTIME-ACT-1 session rollover — CURRENT FRONTIER
+
+> Projection only. Actual Git/GitHub/runtime/durable evidence overrides this section if it differs.
+
+- Critical path: **#433 RUNTIME-ACT-1 -> #429 COCKPIT-1B -> LOCAL-USABLE-1**.
+- Topology: `CONTROL_PLANE_ONLY`; source implementation has **not** started in this rollover session.
+- Checkpoint remote main: `75d9e96e46e15cc8ef647d12194d677657689bde`.
+- #215↔#433 bilateral split is durable: #433 owns explicit/manual activation; #215 exclusively retains automatic accepted-completion -> NEXT_READY continuation/provenance.
+- Rollover claim/checkpoint: Issue #433 comment `5753493574`.
+- Prior GLM-5.3-Flash source-scope assist was recovered as TERMINAL exit 0 on detached `d2ad5bd...`; it is advisory evidence only.
+- Earlier source claim comment `5751797434` was based on `d2ad5bd...`; its old SAFE_TO_MUTATE verdict is stale and must be re-pinned before source mutation.
+- Relevance diff `d2ad5bd... -> 75d9e96...` changes none of the frozen #433 source/test paths; related drift is only WO246 author-provenance wiring in `zcode_production_assembly.py`.
+- Current main still has no `ZCodeJobBackend`; Claude durable job backend exists but the Claude harness rejects `PROJECT_MUTATION` with `HARNESS_MUTATION_NOT_READY`.
+- First LOCAL-USABLE activation slice is therefore frozen as **explicit/manual READ_ONLY production activation** through the accepted supervised Claude durable backend.
+- Mutation-capable harness support is successor scope; do not expand #433 implicitly.
+- Frozen implementation scope: NEW `runtime_activation.py`; MODIFY `desktop_control.py`, `desktop_app.py`; `lifecycle_coordinator.py` only if a read-only observation seam is strictly required; NEW `test_runtime_activation.py`; MODIFY `test_desktop_control.py`; NEW `test_desktop_app.py` only if isolated CLI coverage is required.
+- Hard forbidden: automatic NEXT_READY/successor selection, elastic provisioning, writable Graph Monitor/UI authority, new store/schema/task/request/retry/review/completion authority, Zero-Relay source, SunDayRemoteMCP, live installed DB mutation.
+- A-Faster census found no matching live A-Wiki Kilo/Claude delegated process for #433. Windows and Mac RDC devices are online; chat-visible SunDay-Worker developer MCP remains unavailable in this harness.
+- Legacy/stale execution pointers exist in old review worktrees; do not infer WIP occupancy from PID numbers. Reconstruct global WIP from exact pointer/process/Git/Issue evidence in the next session before dispatch.
+- Next safe action: fresh-session ENTRY/recovery -> fetch/re-pin current main -> recover delegated runs/global WIP -> collision pulse -> create a clean isolated **R3 source implementation** worktree/claim -> RED-first manual READ_ONLY activation implementation -> deterministic verification -> frozen SHA -> independent MAX review/CI -> merge/post-main -> unblock #429.
+
+## 2026-09-15 — R5 repair verified for freeze, R3 acceptance pending
+
+Existing Kilo/cointh-glm/glm-5.3 MAX writer completed the packet at
+`runs/WO-P1-223-RE2A/r5-task.md` from base
+`779fcf5975e21d6891f63b94ad79893745776675`; result is in `r5-result.md`.
+The R3 P1/P2 from Issue214 comment5683969698 drove four RED/GREEN cases:
+true cross-dispatch loser/third contender, terminal-unusable cleanup,
+legacy released-admission attribution, and prior-dispatch/successor cleanup.
+Only execution source and its tests changed within the four-file source scope.
+Integrator independently ran both focused suites: 109 passed; diff check passed.
+Worker reports broader 222 focused +218 related tests; those counts are worker
+claims pending acceptance evidence review, not independent reruns.
+
+Freeze is for independent R3 review, not acceptance. Reviewer must challenge
+whether ACTIVE admission actually proves the identity of the current owner-key
+lease under release/recovery/expiry/reacquisition, and the newly retained lease
+after partially completed cleanup. Do not dismiss those as out of scope merely
+because the worker calls them theoretical. Existing authorities remain owners.
+WO242/PR324 separately repairs the pre-existing SQLite initialization CI race.
+
+`SAFE_TO_MUTATE_RE2A_SOURCE=NO` while frozen.
+`SAFE_TO_MERGE_PR319=NO` pending fresh exact-SHA R3 and hosted CI.
+Next: independently review the replacement commit; record exact SHA in the
+ignored status packet and Issue214. Preserve root dirty work and other lanes.
+
+
+Last updated: 2026-09-15 (GPT-5.6 Sol — WO223 RE2-A durable replay repair)
+
+## WO223 RE2-A lost-handoff replay repair — authoritative
+
+> **Single-authority rule:** this section is the ONLY current authoritative state in this file. Actual runtime/Git/GitHub and durable Issue state override this file if they differ. Historical evidence below the separator is evidence only.
+
+- Driving durable authority: GitHub Issue #214. Active claim: `WO-P1-223-RE2A-LOST-HANDOFF-REPLAY-001`.
+- Current critical-path task: `docs/work-orders/WO-P1-223-re2a-lost-handoff-replay.md`.
+- Exact implementation base: `082705889e26023079e73deacb7f642eb122713b`; `origin/main` at claim = `67744e98e538b000579bff4a45616d3a178a824b`.
+- Fresh isolated worktree: `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay`; branch `fix/wo-p1-223-re2a-lost-handoff-replay`.
+- PR #319 remains OPEN/DRAFT at old head `42221020c02c507decfb396ac8c3b9da54d523bc`; DO NOT MERGE until replacement exact-SHA R3 review/CI/acceptance succeeds.
+- RE2-A repairs only post-promotion lost-handoff replay: persist strict versioned exact resource identity in the existing execution promotion event, reconstruct exact historical lease/admission truth through existing APIs, keep zero second model effect, and preserve C1/legacy fail-closed semantics.
+- Source/test scope is only `zero_relay_review_verification.py`, `zero_relay_review_execution.py`, and their two focused tests. No execution/job/provider/lease store/schema/state-machine/C1/Phase-D/WO227/A-Wiki/live-provider mutation.
+- Pre-promotion `EXECUTING + VERIFICATION_REQUIRED` hard-crash liveness is separate RE2-B adjudication; RE2-A may not invent job lifecycle transitions.
+- GLM-5.3 MAX is preferred bounded implementation engine after the continuity bootstrap commit; GPT-5.6 Sol retains trust/authority, fan-in, acceptance, PR/merge/post-main authority.
+- File-first continuity is mandatory: tracked WO + this file + `handoff.md`; lane detail in ignored `runs/WO-P1-223-RE2A/{task.md,status.json,result.md}`; major boundaries mirrored to Issue #214.
+
+One next safe action: commit the tracked continuity bootstrap, re-gate the clean exact worktree, then transfer the four-file RED-first RE2-A implementation to GLM-5.3 MAX while GPT runs independent read-only architecture/fault/integration lanes.
 <!-- ================================================================== -->
 <!-- HISTORICAL EVIDENCE — superseded by WO162 (2026-09-07).            -->
 <!-- Nothing below this separator is a current instruction.              -->
@@ -376,3 +1127,17 @@ Exact repaired snapshot: focused `17 passed`; related `224 passed`; full local `
 ### WO-P1-114 independent review accepted
 
 GLM-5.3 MAX task `wo114-glm-review-002` returned `PASS` at exact HEAD `75c8e21da3d47ffb2fff6f8e37f6240b537f2522`. GPT independently validated task/provider/model/HEAD/task SHA and all four source/test hashes. P0/P1/P2 findings: 0. Four P3 hardening notes are deferred without source mutation. Next gate: final branch audit, Draft PR, exact-head CI, re-audit, merge, post-main proof.
+
+## WO223 RE2-A R3 repair override — 2026-09-15
+
+Actual Git/GitHub/Issue truth supersedes the older authoritative section above where it differs.
+
+- Frozen candidate `1d755b6d5de5ebf5e357c5348f2e1b2544641b09` is REJECTED for acceptance after independent exact-SHA R3.
+- Issue #214 checkpoint `5675288481` reopens the same bounded four-file RE2-A repair scope.
+- Confirmed blockers: typed deep-JSON failure, truncation-safe admission recovery, and EXISTING-lease launch/cleanup ownership.
+- `SAFE_TO_MUTATE_RE2A_SOURCE=YES` only in `A:\GitHub\_worktrees\A-Wiki-Conductor-wo223-re2a-replay` under the existing claim.
+- `SAFE_TO_MERGE_PR319=NO`; PR #319 remains on old head until a replacement SHA passes fresh independent R3 and hosted CI.
+- Fuzz cross-dispatch duplicate model effect is expected to close by refusing `EXISTING` lease as launch authority; verify with a RED/green concurrent test rather than assumption.
+- RE2-B job-lifecycle recovery and other P3 hardening remain separate and must not widen this repair silently.
+
+One next safe action: continuity commit -> GLM-5.3 MAX RED-first bounded writer -> GPT verification -> replacement freeze -> fresh exact-SHA R3 rereview.

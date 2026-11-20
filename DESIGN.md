@@ -1,7 +1,9 @@
 # A-Sunday Conductor — Product UI / Interaction Design SSoT
 
 Last updated: 2026-08-25
-Status: APPROVED DIRECTION — implementation authority for WO-P1-063
+Status: APPROVED DIRECTION — implementation authority for WO-P1-063 (legacy A-Sunday Conductor Tk desktop scope)
+
+> **SUNDAYFAMILY WEB/PWA OPERATOR VISUAL DECISION — 2026-11-17:** The operator selected **muted Color E-Ink + manga pen/ink illustrations** for the SundayFamily unified Web/PWA management UI across all modules. Read [`docs/design/sunday-family-design-system.md`](docs/design/sunday-family-design-system.md) for this target visual language and [Issue #743](https://github.com/aase7en/A-Wiki-Conductor/issues/743) / [WO-P1-769](docs/work-orders/WO-P1-769-sundayfamily-color-eink-design-alignment.md) for approval context. The dark command-center rules below remain binding **for the existing Tk/Ttk desktop**, not as the new SundayFamily Web visual target. No automatic Tk retirement, browser control-plane authority, runtime/security boundary changes, UX-2 implementation approval or app-wide production restyle follows from this documentation decision. Existing runtime boundary and per-card WO/CI/review gates still apply.
 
 ## 1. Design intent
 

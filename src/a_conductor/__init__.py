@@ -21,7 +21,6 @@ from .control_center import (
     WorkerScreenRow,
 )
 from .desktop_control import DesktopControlService, LifecycleCommandService
-from .desktop_ui import AConductorDesktopApp, DesktopTheme
 from .domain import (
     Agent,
     Assignment,
@@ -321,6 +320,17 @@ from .worker_status import (
     WorkerStatusObservation,
     evaluate_worker_status,
 )
+
+def __getattr__(name):
+    # Preserve public desktop exports without importing Tk for headless consumers.
+    if name in {"AConductorDesktopApp", "DesktopTheme"}:
+        from . import desktop_ui
+
+        value = getattr(desktop_ui, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ControlEvent",
