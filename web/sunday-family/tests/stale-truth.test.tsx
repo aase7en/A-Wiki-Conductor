@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
-import { API_VERSION } from '../src/api';
+import { API_VERSION, parseSnapshot } from '../src/api';
 import { LanesTable } from '../src/LanesTable';
 import { SnapshotView } from '../src/SnapshotView';
 import { liveSnapshot, snapshot, streamResponse } from './fixtures';
@@ -30,6 +30,24 @@ describe('stale projection fail-closed (WO-P1-774 GPT P1 repair)', () => {
     }} />);
     expect(container.querySelector('#monitor .status')?.textContent?.trim()).toBe('STALE');
     expect(container.querySelector('#monitor .status')?.className).toContain('warning');
+  });
+  it('qualifies stale inspector counts at the point of display', () => {
+    const { container } = render(<SnapshotView snapshot={{
+      ...liveSnapshot, stale: true, stale_reason: 'SOURCE_STALE',
+    }} />);
+    const monitorText = container.querySelector('#monitor')?.textContent ?? '';
+    expect(monitorText).toContain('Last reported (unverified): READY 1');
+    expect(monitorText).toContain('Last reported (unverified): AVAILABLE 2');
+  });
+  it('rejects mixed inspector union instead of crashing a renderer', () => {
+    const mixed = {
+      ...liveSnapshot,
+      monitor: { ...liveSnapshot.monitor, inspector: {
+        state: 'DEGRADED', reason: 'INSPECTOR_PROJECTION_INVALID',
+        summary: {},
+      } },
+    };
+    expect(() => parseSnapshot(mixed)).toThrow(/invalid/i);
   });
 });
 describe('snapshot refresh failure', () => {
@@ -75,7 +93,7 @@ describe('snapshot refresh failure', () => {
 });
 
 describe('HTTP and SSE source ordering (WO-P1-774 advisory P1/P2)', () => {
-  it('does not let a late HTTP refresh overwrite a newer authenticated SSE snapshot', async () => {
+  it('ignores the previous SSE generation during HTTP recovery and accepts the new stream', async () => {
     sessionStorage.setItem('sunday-family.monitor-token', 'test-token');
     let reads = 0;
     let releaseHttp: ((response: Response) => void) | undefined;
@@ -113,19 +131,78 @@ describe('HTTP and SSE source ordering (WO-P1-774 advisory P1/P2)', () => {
     await waitFor(() => expect(reads).toBe(2));
     await act(async () => {
       if (!channel) throw new Error('missing SSE');
-      channel.enqueue(new TextEncoder().encode(
-        'data: ' + JSON.stringify({
-          ...snapshot, generated_at: '2026-11-19T09:00:00Z',
-          cockpit: { lanes: [{ ...snapshot.cockpit.lanes[0], state: 'WAITING' }] },
+      try {
+        channel.enqueue(new TextEncoder().encode('data: ' + JSON.stringify({
+          ...snapshot, cockpit: { lanes: [{ ...snapshot.cockpit.lanes[0], state: 'WAITING' }] },
         }) + '\n\n'));
+      } catch { /* previous SSE generation was cancelled */ }
     });
-    expect(container.querySelector('tr .sf-badge[data-state="WAITING"]')).not.toBeNull();
+    expect(container.querySelector('tr .sf-badge[data-state="WAITING"]')).toBeNull();
     await act(async () => {
       if (!releaseHttp) throw new Error('missing pending refresh');
       releaseHttp(Response.json(snapshot));
     });
+    expect(container.querySelector('tr .sf-badge[data-state="STALE"]')).not.toBeNull();
+    expect(screen.getByText(/Last reported: RUNNING \(unverified\)/)).toBeInTheDocument();
+    await waitFor(() => expect(fetch.mock.calls.filter(([url]) => url.endsWith('/stream'))).toHaveLength(2));
+    await act(async () => {
+      if (!channel) throw new Error('missing new SSE');
+      channel.enqueue(new TextEncoder().encode('data: ' + JSON.stringify({
+        ...snapshot, cockpit: { lanes: [{ ...snapshot.cockpit.lanes[0], state: 'WAITING' }] },
+      }) + '\n\n'));
+    });
     expect(container.querySelector('tr .sf-badge[data-state="WAITING"]')).not.toBeNull();
-    expect(container.querySelector('tr .sf-badge[data-state="RUNNING"]')).toBeNull();
+    unmount();
+  });
+
+  it('never accepts an older queued SSE frame after a newer HTTP recovery result', async () => {
+    sessionStorage.setItem('sunday-family.monitor-token', 'test-token');
+    let reads = 0;
+    let releaseHttp: ((response: Response) => void) | undefined;
+    const channels: ReadableStreamDefaultController<Uint8Array>[] = [];
+    const fetch = vi.fn((path: string, init?: RequestInit) => {
+      if (path.endsWith('/snapshot')) {
+        reads += 1;
+        return reads === 1 ? Promise.resolve(Response.json(snapshot))
+          : new Promise<Response>(resolve => { releaseHttp = resolve; });
+      }
+      if (path.endsWith('/health')) return Promise.resolve(Response.json({
+        api_version: API_VERSION, status: 'ok', degraded: false,
+        profile: 'headless-read-only', version: '1', conditions: [],
+      }));
+      if (path.endsWith('/connectors')) return Promise.resolve(Response.json({ scope: 'app-session', connectors: [] }));
+      if (path.endsWith('/stream')) return Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          channels.push(controller);
+          init?.signal?.addEventListener('abort', () => {
+            try { controller.close(); } catch { /* already closed */ }
+          }, { once: true });
+        },
+      }), { headers: { 'Content-Type': 'text/event-stream; charset=utf-8' } }));
+      return Promise.resolve(streamResponse([]));
+    });
+    vi.stubGlobal('fetch', fetch);
+    const { container, unmount } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: /งานและเลน/ }));
+    expect(await screen.findByText('Current at source')).toBeInTheDocument();
+    await waitFor(() => expect(channels).toHaveLength(1));
+    const oldChannel = channels[0];
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh snapshot' }));
+    await waitFor(() => expect(reads).toBe(2));
+    const newer = { ...snapshot, cockpit: { lanes: [{ ...snapshot.cockpit.lanes[0], state: 'WAITING_CI' }] } };
+    await act(async () => { if (!releaseHttp) throw new Error('missing HTTP'); releaseHttp(Response.json(newer)); });
+    expect(container.querySelector('tr .sf-badge[data-state="STALE"]')).not.toBeNull();
+    expect(screen.getByText(/Last reported: WAITING_CI \(unverified\)/)).toBeInTheDocument();
+    await act(async () => {
+      try { oldChannel.enqueue(new TextEncoder().encode('data: ' + JSON.stringify(snapshot) + '\n\n')); }
+      catch { /* old stream already aborted: correct */ }
+    });
+    expect(screen.getByText(/Last reported: WAITING_CI \(unverified\)/)).toBeInTheDocument();
+    await waitFor(() => expect(channels).toHaveLength(2));
+    await act(async () => {
+      channels[1].enqueue(new TextEncoder().encode('data: ' + JSON.stringify(newer) + '\n\n'));
+    });
+    expect(container.querySelector('tr .sf-badge[data-state="WAITING_CI"]')).not.toBeNull();
     unmount();
   });
 

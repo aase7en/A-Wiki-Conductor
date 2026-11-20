@@ -20,17 +20,28 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
   const [streamDisconnected, setStreamDisconnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [section, setSection] = useState<SectionId>(DEFAULT_SECTION);
-  // A late HTTP response (including failure) cannot supersede a newer SSE event.
-  const streamRevision = useRef(0);
+  const [streamGeneration, setStreamGeneration] = useState(0);
+  const [recovering, setRecovering] = useState(false);
+  // A fresh HTTP read is the recovery boundary; abandon old SSE FIFO/callbacks synchronously.
+  const streamGenerationRef = useRef(0);
+  const refresh = useCallback(() => {
+    streamGenerationRef.current += 1;
+    setStreamGeneration(streamGenerationRef.current);
+    setStreamDisconnected(true);
+    setRecovering(true);
+    setAttempt(value => value + 1);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
-    const requestRevision = streamRevision.current;
+    const requestGeneration = streamGeneration;
     setError('');
     void getSnapshot(token, controller.signal).then(view => {
-      if (!controller.signal.aborted && streamRevision.current === requestRevision) { setSnapshot(view); setReady(true); }
+      if (!controller.signal.aborted && streamGenerationRef.current === requestGeneration) {
+        setSnapshot(view); setReady(true); setRecovering(false);
+      }
     }).catch(cause => {
-      if (!controller.signal.aborted && streamRevision.current === requestRevision) {
-        setError(errorMessage(cause));
+      if (!controller.signal.aborted && streamGenerationRef.current === requestGeneration) {
+        setError(errorMessage(cause)); setRecovering(false);
         // The last successful projection is no longer safe to present as current.
         setSnapshot(previous => previous ? {
           ...previous, stale: true,
@@ -39,27 +50,28 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
       }
     });
     return () => controller.abort();
-  }, [token, attempt]);
+  }, [token, attempt, streamGeneration]);
 
   const onStreamSnapshot = useCallback((view: Snapshot) => {
-    streamRevision.current += 1;
+    if (streamGenerationRef.current !== streamGeneration) return;
     setSnapshot(view);
     setStreamDisconnected(false);
     // An authenticated, validated stream snapshot can restore freshness.
     setError('');
-  }, []);
+  }, [streamGeneration]);
   const onStreamDisconnect = useCallback(() => {
-    setStreamDisconnected(true);
-  }, []);
+    if (streamGenerationRef.current === streamGeneration) setStreamDisconnected(true);
+  }, [streamGeneration]);
 
   const meta = sectionMeta(section);
   // Do not claim stale data is current when SSE drops or a refresh fails.
   // The stream loss remains visible even if a later HTTP refresh succeeds.
-  const displayedSnapshot = snapshot && (error || streamDisconnected)
+  const displayedSnapshot = snapshot && (error || streamDisconnected || recovering)
     ? {
         ...snapshot, stale: true,
         stale_reason: error
           ? (snapshot.stale ? snapshot.stale_reason : 'SNAPSHOT_REFRESH_FAILED')
+          : recovering ? (snapshot.stale ? snapshot.stale_reason : 'SNAPSHOT_REFRESH_IN_PROGRESS')
           : snapshot.stale ? snapshot.stale_reason ?? 'STREAM_DISCONNECTED' : 'STREAM_DISCONNECTED',
         monitor_stream_degraded: snapshot.monitor_stream_degraded || streamDisconnected,
       }
@@ -81,18 +93,19 @@ function Monitor({ token, disconnect }: { token: string; disconnect: () => void 
     </aside>
     <main id="main" className="workspace">
       <header className="workspace-header"><div><p className="eyebrow">CONTROL PLANE / LOCAL MONITOR</p><h1>{meta.thai} / {meta.english}</h1>
-        <button type="button" onClick={() => setAttempt(value => value + 1)}>Refresh snapshot</button>
+        <button type="button" onClick={refresh}>Refresh snapshot</button>
       </div><HealthIndicator token={token} /></header>
       {error && <section className="notice" role="alert">
         <p>อ่าน Snapshot ใหม่ไม่สำเร็จ — SNAPSHOT_REFRESH_FAILED. ข้อมูลที่ค้างอยู่เป็น STALE (ข้อมูลเก่า). {error}</p>
-        <button onClick={() => setAttempt(value => value + 1)}>Retry snapshot</button>
+        <button onClick={refresh}>Retry snapshot</button>
       </section>}
       {displayedSnapshot?.stale && !error && <p role="status" className="notice">Snapshot is STALE — {displayedSnapshot.stale_reason ?? 'freshness not verified'}.</p>}
-      {ready && <LiveStream token={token} onSnapshot={onStreamSnapshot} onDisconnect={onStreamDisconnect} />}
+      {ready && !recovering && <LiveStream key={streamGeneration} token={token}
+        onSnapshot={onStreamSnapshot} onDisconnect={onStreamDisconnect} />}
       {section === 'overview' ? <>
         <MetricsPanel token={token} />
         {displayedSnapshot ? <SnapshotView snapshot={displayedSnapshot} token={token} /> : !error && <p role="status" className="empty">Loading monitor snapshot...</p>}
-      </> : section === 'work' ? <WorkView snapshot={displayedSnapshot} error={error} onRetry={() => setAttempt(value => value + 1)} />
+      </> : section === 'work' ? <WorkView snapshot={displayedSnapshot} error={error} onRetry={refresh} />
         : section === 'fleet' ? <FleetView token={token} />
         : section === 'tools' ? <ToolsView snapshot={displayedSnapshot} />
         : section === 'settings' ? <SettingsView token={token} />

@@ -22,8 +22,10 @@ export function ActivityView({ snapshot }: { snapshot: Snapshot | null }) {
     <p className="sf-boundary">{meta.boundary}</p>
   </section>;
   const live = 'error' in snapshot.monitor ? null : snapshot.monitor;
+  // No observed-empty proof exists in the current producer. Zero rows are unavailable, not zero activity.
+  const timelineProven = live !== null && live.timeline.length > 0;
   return <>
-    {live ? <section className="panel" aria-labelledby="activity-timeline-title">
+    {timelineProven && live ? <section className="panel" aria-labelledby="activity-timeline-title">
       <div className="panel-heading"><h2 id="activity-timeline-title">{meta.thai} / Monitor events</h2>
         <span>{live.timeline.length} events</span></div>
       <p className="muted">timeline นี้เป็นเหตุการณ์ของ monitor เท่านั้น — SSE connected ไม่ใช่ความคืบหน้าหรือผลลัพธ์ที่ยอมรับแล้ว</p>
@@ -42,8 +44,8 @@ export function ActivityView({ snapshot }: { snapshot: Snapshot | null }) {
     </section> : <section className="panel" aria-labelledby="activity-timeline-unavailable-title">
       <div className="panel-heading"><h2 id="activity-timeline-unavailable-title">{meta.thai} / Monitor events</h2>
         <span className="status">SECTION_UNAVAILABLE</span></div>
-      <EmptyState reason="monitor projection ไม่พร้อมใช้งาน — ไม่มี timeline ให้แสดง" source="monitor-views timeline" />
-      <ReasonLine reason="TIMELINE_NOT_PROVIDED" source="monitor-views" observedAt={null} />
+      <EmptyState reason="ยังไม่มีหลักฐานยืนยัน timeline หรือแหล่งข้อมูลไม่ได้เชื่อมต่อ — ไม่ตีความเป็น 0 events" source="monitor-views timeline" />
+      <ReasonLine reason={live ? 'MONITOR_TIMELINE_SOURCE_UNAVAILABLE' : 'TIMELINE_NOT_PROVIDED'} source="monitor-views" observedAt={null} />
       <ReasonLine reason={meta.reasonCode} source="monitor-views timeline" observedAt={null} />
     </section>}
     <section className="panel" aria-labelledby="activity-worklog-title">

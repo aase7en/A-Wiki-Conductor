@@ -98,6 +98,21 @@ describe('Activity & Logs section (WO-P1-774 slice D)', () => {
     expect(screen.getAllByText(/^ไม่มีหลักฐาน/).length).toBeGreaterThan(0);
   });
 
+  it('does not claim observed zero when the timeline producer is absent', () => {
+    const monitor = liveSnapshot.monitor;
+    if ('error' in monitor) throw new Error('expected live fixture');
+    const unavailable = {
+      ...liveSnapshot,
+      monitor: { ...monitor, timeline: [], health: {
+        ...monitor.health, conditions: ['MONITOR_BUS_ABSENT'],
+      } },
+    };
+    render(<ActivityView snapshot={unavailable} />);
+    expect(screen.getByText('MONITOR_TIMELINE_SOURCE_UNAVAILABLE')).toBeInTheDocument();
+    expect(screen.queryByText('0 events')).toBeNull();
+    expect(screen.queryByText(/ไม่มีเหตุการณ์ใน timeline นี้/)).toBeNull();
+  });
+
   it('renders timeline unavailable when the monitor projection is absent', () => {
     render(<ActivityView snapshot={snapshot} />);
     expect(screen.getByText('TIMELINE_NOT_PROVIDED')).toBeInTheDocument();

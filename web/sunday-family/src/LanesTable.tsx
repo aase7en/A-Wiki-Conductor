@@ -28,7 +28,12 @@ export function LanesTable({ lanes, generatedAt, stale, staleReason, streamDegra
           <td><StateBadge state={stale ? 'STALE' : lane.state}
             note={stale ? `Last reported: ${lane.state} (unverified)` : undefined} />
             <div>{lane.state_markers.join(' / ')}</div>
-            <small>Progress: {lane.last_meaningful_progress ?? 'unknown'}</small></td>
+            <small>Progress: {lane.last_meaningful_progress ?? 'unknown'}</small>
+            {lane.wait_reason && <div className="muted">Wait reason: {lane.wait_reason}</div>}
+            {lane.next_recheck_at && <div className="muted">Next recheck: {lane.next_recheck_at}</div>}
+            {typeof lane.countdown_seconds === 'number'
+              && <div className="muted">Countdown: {lane.countdown_seconds} seconds</div>}
+            {lane.capacity_class && <div className="muted">Capacity: {lane.capacity_class}</div>}</td>
           <td>{lane.blocker_code ?? 'No blocker reported'}<div className="muted">{lane.next_safe_action ?? 'Next action unavailable'}</div></td>
           <td>{Object.entries(lane.gates).filter(([name]) => name !== 'provenance').map(([name, value]) => <div key={name}>{name}: {value ?? 'UNKNOWN'}</div>)}</td>
         </tr>)}</tbody>

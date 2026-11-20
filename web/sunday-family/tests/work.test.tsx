@@ -82,6 +82,26 @@ describe('Work & Lanes section (WO-P1-774 slice B)', () => {
     expect(screen.getByText(/รหัสสถานะไม่รู้จัก/)).toBeInTheDocument();
   });
 
+  it('shows canonical cockpit states and MC-1 wait details without calling them UNKNOWN', () => {
+    const waiting = {
+      ...snapshot.cockpit.lanes[0], state: 'WAITING_CI',
+      wait_reason: 'CI_QUEUE', next_recheck_at: '2026-11-20T12:00:00Z',
+      countdown_seconds: 42, capacity_class: 'PARKED',
+    };
+    const cooldown = { ...snapshot.cockpit.lanes[0], state: 'COOLDOWN' };
+    const verified = { ...snapshot.cockpit.lanes[0], state: 'COMPLETED_VERIFIED' };
+    const { container } = render(<WorkView
+      snapshot={{ ...snapshot, cockpit: { lanes: [waiting, cooldown, verified] } }}
+      error="" onRetry={() => {}} />);
+    for (const state of ['WAITING_CI', 'COOLDOWN', 'COMPLETED_VERIFIED']) {
+      expect(container.querySelector(`.sf-badge[data-state="${state}"]`)).not.toBeNull();
+    }
+    expect(screen.getByText(/CI_QUEUE/)).toBeInTheDocument();
+    expect(screen.getByText(/2026-11-20T12:00:00Z/)).toBeInTheDocument();
+    expect(screen.getByText(/42 seconds/)).toBeInTheDocument();
+    expect(screen.getByText(/PARKED/)).toBeInTheDocument();
+  });
+
   it('shows an honest unavailable panel when no snapshot has loaded', () => {
     render(<WorkView snapshot={null} error="Snapshot unavailable" onRetry={() => {}} />);
     expect(screen.getByText(/^ไม่มีหลักฐาน/)).toBeInTheDocument();

@@ -5,10 +5,11 @@ import { LanesTable } from './LanesTable';
 // WO-P1-750: accepted UX-1 state tokens, coarse per-section counts only.
 const STATE_TOKENS = ['READY', 'AVAILABLE', 'STALE', 'DEGRADED', 'DISCONNECTED', 'UNKNOWN'] as const;
 
-function SectionCounts({ counts }: { counts: Record<string, number> }) {
+function SectionCounts({ counts, stale }: { counts: Record<string, number>; stale: boolean }) {
   const visible = STATE_TOKENS.filter(token => (counts[token] ?? 0) > 0);
-  if (visible.length === 0) return <span className="status">UNKNOWN 0</span>;
-  return <>{visible.map(token => <span key={token} className="status">{token} {counts[token]}</span>)}</>;
+  const qualifier = stale ? 'Last reported (unverified): ' : '';
+  if (visible.length === 0) return <span className="status">{qualifier}UNKNOWN 0</span>;
+  return <>{visible.map(token => <span key={token} className="status">{qualifier}{token} {counts[token]}</span>)}</>;
 }
 
 export function SnapshotView({ snapshot, token }: { snapshot: Snapshot; token?: string }) {
@@ -29,7 +30,7 @@ export function SnapshotView({ snapshot, token }: { snapshot: Snapshot; token?: 
             {snapshot.stale ? 'STALE' : live.health.degraded ? 'DEGRADED' : 'READY'}</span></div>
         <div className="snapshot-meta">{sections.map(section => <p key={section.name}>
           <strong>{section.name[0].toUpperCase() + section.name.slice(1)}</strong>{' '}
-          <SectionCounts counts={section.counts} />
+          <SectionCounts counts={section.counts} stale={snapshot.stale} />
         </p>)}</div>
       </section>}
       {token ? <ConnectorsPanel token={token} /> : <section id="connectors" className="panel" aria-labelledby="connectors-title">
