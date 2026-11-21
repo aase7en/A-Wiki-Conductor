@@ -22,7 +22,7 @@ The compact ChatGPT Project Instruction should explicitly preserve these as the 
 
 | Surface | Primary use | Authority limit |
 |---|---|---|
-| `SundayMCP` (macOS) | PRIMARY verified macOS local filesystem, semantic navigation where supported, Git, shell, process, runtime/log inspection, tests and bounded execution | require exact device, actual tool-call proof and normal repo/task/claim/scope gates; substrate is not authority |
+| `SundayMCP Mac` (macOS; also referenced as `SundayMCP` in the project bootstrap) | PRIMARY verified macOS local filesystem, semantic navigation where supported, Git, shell, process, runtime/log inspection, tests and bounded execution | require exact device, actual tool-call proof and normal repo/task/claim/scope gates; substrate is not authority |
 | `SundayMCP Windows` | PRIMARY verified Windows local filesystem, semantic navigation where supported, Git, shell, process, runtime/log inspection, tests and bounded execution | require exact device, actual tool-call proof and normal repo/task/claim/scope gates; substrate is not authority |
 | `Remote Desktop Commander` | SECONDARY verified-device fallback/recovery only when the OS-matched SundayMCP is unavailable, disconnected, degraded or lacks the needed capability | RDC online does not imply safe repo/Worker/runtime mutation; no RDC-first startup |
 | `GitHub` | remote repository truth, branches, PRs, diffs, issues, exact SHAs, Actions/CI, post-merge evidence | GitHub evidence does not override safety, claims, or local dirty-state protection |
@@ -31,7 +31,7 @@ These OS-matched SundayMCP interfaces plus GitHub are CORE; RDC is a conditional
 
 ### Substantial-session bootstrap rules
 
-- SundayMCP: select `SundayMCP` for macOS or `SundayMCP Windows` for Windows; verify actual device identity, supported capability and real harmless call before relying on it. Registration alone is not readiness.
+- SundayMCP: select the registered `SundayMCP Mac` connector (project alias `SundayMCP`) for macOS or `SundayMCP Windows` for Windows; verify actual device identity, supported capability and real harmless call before relying on it. Registration alone is not readiness.
 - RDC: use only as verified-device fallback if the OS-matched SundayMCP fails or lacks a required supported operation. `RDC ONLINE != SAFE_TO_MUTATE`.
 - GitHub: refresh the target repo/default branch, relevant Issue/PR, exact remote SHA and CI/review/post-main evidence when material.
 - Execution lanes: bind each selected active executor to repo/worktree/branch/HEAD/task/claim/scope. Historical Worker/Serena lane binding is retained as compatibility context, not permission to probe, restart or activate retired workers. `CONTEXT_DRIFT` blocks only the affected lane.
@@ -241,7 +241,7 @@ Use for R0/R1/R2 work that does not touch secrets, durable authority, concurrenc
 ```text
 1. Recover only the entry files selected by PROJECT-GRAPH.
 2. Verify repo/branch/HEAD/dirty/claim/scope.
-3. Assign one executor: GPT, Worker, ZCode/GLM, or native tools.
+3. Assign one eligible executor: GPT, GLM through an admitted Kilo/Claude Code CLI route, verified OS-matched SundayMCP capabilities, or native tools. Retired Worker/Serena surfaces are not default executors.
 4. Let the executor continue through safe micro-steps without asking the user for "continue".
 5. Run targeted + directly related verification.
 6. Run the risk-tier adversarial batch before freeze when required; for R2 this is mandatory.
@@ -294,7 +294,7 @@ Stop repeating slow loops.
 - Do not poll CI forever; inspect once, classify, then checkpoint if external.
 - Do not retry transport/tool failure as if it were product failure.
 - Do not retry the same repair twice without new evidence; switch to root-cause mode.
-- Do not maximize Worker count merely because Workers exist.
+- Do not maximize executor/lane count merely because tooling is available; retired Worker/Serena surfaces are not standing capacity.
 - Do not update `CURRENT-WORK.md`, `handoff.md`, or `COLLAB.md` after every tiny step; checkpoint them at material boundaries.
 
 ## 8. Tool failure classification

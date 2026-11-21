@@ -1,5 +1,5 @@
 # WO-P1-748: SundayMCP-first active routing docs
-Status: IN_PROGRESS (docs-only, R2 binding routing change)
+Status: REVIEW_REPAIR (docs-only, R2 binding routing change; pending new exact-SHA CI and independent focused rereview)
 Issue: #748
 Issue URL: https://github.com/aase7en/A-Wiki-Conductor/issues/748
 Authority repo: aase7en/A-Wiki-Conductor
