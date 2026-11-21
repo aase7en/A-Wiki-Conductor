@@ -15,15 +15,24 @@
 
 **A local autonomous control plane for coordinating AI agents, coding agents, MCP servers, and memory.**
 
-Pure desktop application — no server, no cloud required. Ships as a native Windows app; only a handful of small Python dependencies (Pillow, plus ModernGL/pyopengltk on Windows for the optional GPU logo).
+Local-first control plane — no cloud account required for the control plane itself. The released Tk desktop app ships as a native Windows app; current development additionally serves an optional local web monitor surface (SundayFamily, read-only). Small Python dependency set (Pillow, FastAPI/Uvicorn, tkinterweb, plus ModernGL/pyopengltk on Windows for the optional GPU logo).
 
 ---
 
 ## Overview
 
-A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. Each connector is a tunnel between ChatGPT and a local Serena instance bound to a specific project. One OpenAI API key supports multiple tunnels, enabling parallel chat sessions across different codebases.
+**Current-state snapshot (2026-11-21, cited):**
+
+- **A-Sunday Conductor (this repo)** owns the local autonomous control plane — work orders, claims, dispatch, deterministic verification. [A-Wiki](https://github.com/aase7en/A-Wiki) owns knowledge/policies; **SunDayRemoteMCP** is the execution substrate, reached through OS-matched **SundayMCP** connectors as the verified primary machine interface ([SundayMCP-first decision #725](https://github.com/aase7en/A-Wiki-Conductor/issues/725#issuecomment-6733984277)); Remote Desktop Commander remains a verified fallback only.
+- The **Tk desktop app** (v0.6.0 lineage) remains supported.
+- **SundayFamily Web** is a separate, read-only monitor surface for the control plane; its seven-section UX-2 rebuild is currently [PR #776](https://github.com/aase7en/A-Wiki-Conductor/pull/776) — **open, not merged, not released, not installed anywhere**.
+- Routing/executor policy for agents lives in [`docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`](docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md) and the root [`AGENTS.md`](AGENTS.md); do not infer readiness from this README alone.
+
+*Historical (v0.6.0 era, still the released Tk app): A-Sunday Conductor managed AI coding agents through Serena MCP connectors. Each connector was a tunnel between ChatGPT and a local Serena instance bound to a specific project; one OpenAI API key supported multiple tunnels, enabling parallel chat sessions across different codebases.*
 
 ## Key Features
+
+*The table below describes the released Tk desktop application (v0.6.0 lineage, legacy-supported).*
 
 | Feature | Description |
 |---------|-------------|
@@ -49,11 +58,11 @@ A-Sunday Conductor manages your AI coding agents through Serena MCP connectors. 
 
 **Current development version:** `0.7.0` - not released yet; stable publication remains gated by WO-P1-096 live connector TTL evidence.
 
-**Current program state:** Sunday Family Multi-Model Agent Harness - **WO126 read-only `MODELS & AGENTS` Settings display is released. WO127 Edit/Disable/Test is the active GPT product slice while GLM-5.3/ZCode runs the disjoint WO128 admissions-evidence core as a bounded long-horizon lane; final WO128 UI still follows WO127.**
+**Current program (as of 2026-11-21):** SFU26 *SundayFamily Unified Dashboard* — 10/22 cards delivered and merged (00–03, 05–10); card 04, the UX-2 seven-section read-only web rebuild, is [PR #776](https://github.com/aase7en/A-Wiki-Conductor/pull/776) (OPEN; visual/identity acceptance gates pending — **not released**). Governance and delivery policy run under the [Zero-Relay Accelerator roadmap](docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md) and `docs/agent-collab/` protocols.
 
 > Direction: one A-Sunday Conductor entry point recovers SSoT, routes only eligible worker/model/harness capacity, preserves durable claims/evidence, reviews and repairs results, and continues without human result copy/paste. `CONFIGURED != READY`, `READY != AUTHORIZED`, and agent `PASS` is evidence rather than merge authority.
 
-### Delivery checklist
+### Delivery checklist — Agent Harness Accelerator era (historical snapshot, Aug 2026; check issues/roadmaps for current state)
 
 - [x] **v0.6.0 released** - terminal command center, real monitor, worker/connector management, Second Brain, installer/portable builds.
 - [x] **AHA-0 / AHA-1 / AHA-2 / AHA-3** - capability vocabulary, provider/harness/trust/quota contracts, secure provider configuration, and bounded Claude Code harness.
@@ -115,6 +124,8 @@ a-conductor
 
 ## Quick Start
 
+*The flows below are the legacy Serena/tunnel onboarding of the released Tk app (v0.6.0 era) — still documented for existing setups. For current machine-interface routing (SundayMCP-first), see [`docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md`](docs/agent-collab/TOOL_AND_FAST_PATH_ROUTING.md).*
+
 ```
 1. Add Project        -> select a folder
 2. Assign to Worker   -> click project (left) + worker (right) + Assign
@@ -134,6 +145,8 @@ See the in-app Guide button for the full walkthrough (Thai or English).
 
 ## Architecture
 
+*Legacy connector architecture (v0.6.0 era — still what the released Tk app runs):*
+
 ```
 +---------------------------------------------------+
 |  A-Sunday Conductor (desktop app, Tk)              |
@@ -148,6 +161,8 @@ See the in-app Guide button for the full walkthrough (Thai or English).
 |    tunnel_XXXX -> ChatGPT connector/plugin        |
 +---------------------------------------------------+
 ```
+
+*Current control-plane shape (development, 2026-11):* A-Sunday Conductor (this repo; work orders / claims / dispatch / verification) + A-Wiki (knowledge/policy) + SunDayRemoteMCP execution substrate reached via OS-matched SundayMCP connectors + an optional local read-only SundayFamily web monitor (candidate, PR #776).
 
 - Dependencies: `Pillow`, `moderngl` + `pyopengltk` (Windows GPU logo; optional at runtime with automatic Canvas fallback)
 - Full test suite runs on every push — see the CI badge above
@@ -188,7 +203,7 @@ python scripts/build_installer.py
 
 ## Credits
 
-A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License) as its internal semantic code engine. The management interface, installer, and control plane are A-Sunday Conductor's own.
+A-Sunday Conductor uses [Serena](https://github.com/oraios/serena) (MIT License) as the internal semantic code engine of its legacy Serena-connector path. The management interface, installer, and control plane are A-Sunday Conductor's own.
 
 ## Support This Project
 

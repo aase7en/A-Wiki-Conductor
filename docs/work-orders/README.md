@@ -13,7 +13,12 @@ Checkpoint (commit hash + เหลืออะไร + กับดัก) → 
 ```
 อ่าน COLLAB.md + docs/work-orders/<id>.md ของ repo นี้
 ทำต่อจาก Checkpoint ล่าสุด เฉพาะใน Lane/files ที่ระบุ
-เริ่มจาก branch ที่ work order ระบุ; เสร็จแล้ว merge เข้า main + set done
+เริ่มจาก branch ที่ work order ระบุ และทำงานให้จบใน branch นั้น:
+1) deterministic verify ตาม Verify commands + freeze exact candidate SHA
+2) R2/R3 ตาม risk: nonauthoring review + hosted exact-head CI ที่ SHA นั้น
+3) GPT/integrator เท่านั้น merge expected head นี้เข้า main
+4) post-main verify ผ่าน จึง set done + release claim
+ห้าม self-merge หรือข้าม review/CI — เจอ blocker ให้ checkpoint แล้วหยุด
 ```
 
 **Model tier ต่อ WO (ประหยัด credit):** `cheap-ok` (GLM/Sonnet-tier — mechanical
