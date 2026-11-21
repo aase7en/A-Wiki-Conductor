@@ -57,6 +57,13 @@ workflow_nodes:
       - docs/design/sunday-family-design-system.md
       - docs/design/2026-11-10-sunday-family-ux1-design.md
       - docs/contracts/sunday-family-web-runtime-boundary-v1.md
+  sdlc_virtual_flow:
+    when: SundayFamily SDLC Virtual Flow UI graph, flowchart or mind-map interactions, node/edge/status/evidence drilldown, pencil-style motion, or SDLC roadmap implementation planning
+    read:
+      - docs/design/sunday-family-design-system.md
+      - docs/plans/2026-11-21-sundayfamily-sdlc-virtual-flow-roadmap.md
+      - docs/plans/2026-11-13-sunday-family-unified-dashboard-routing-roadmap.md
+      - docs/contracts/sunday-family-web-runtime-boundary-v1.md
   source_mutation:
     when: any src/a_conductor mutation
     read:

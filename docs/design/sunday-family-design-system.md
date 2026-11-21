@@ -71,3 +71,15 @@
 - **SUPERSEDED FOR WEB VISUALS ONLY:** monochrome-only exploration (#769 older wording), dark command-center as the target *web visual style*. Historical dark Tk requirements stay for Tk until its own accepted migration.
 
 **Durable anchors:** [UX-1 / visual operator decision #743](https://github.com/aase7en/A-Wiki-Conductor/issues/743), [Design alignment WO #769](https://github.com/aase7en/A-Wiki-Conductor/issues/769), `docs/work-orders/WO-P1-769-sundayfamily-color-eink-design-alignment.md`.
+
+## 8. Proposed SDLC Virtual Flow extension (2026-11-21 / Issue #782)
+
+**Status: PROPOSED / NON-BINDING / NOT IMPLEMENTED.** For SundayFamily UI work specifically involving SDLC visualization, see [SDLC Virtual Flow — UI/UX Integration & Delivery Roadmap](../plans/2026-11-21-sundayfamily-sdlc-virtual-flow-roadmap.md) and [Issue #782](https://github.com/aase7en/A-Wiki-Conductor/issues/782). This is an additive design proposal under the existing SFU26 master program; it does **not** grant UI/source changes or supersede UX-2 Work Order #774 / PR #776.
+
+- Preserve the seven-domain Thai-first IA. Place the proposed read-only Graph/Mind-Map view **inside Work & Lanes**, not as a new primary navigation domain.
+- Use pencil-drawn **SVG connectors** with distinct dependency, evidence, feedback and association edge semantics, plus Color E-Ink node cards; reserve manga/landscape art for framing, margins and empty states, never over operational text.
+- Prefer normal readable Thai/English typography for task labels, and hand-ink effect on noncritical paths/icons. Do not turn screenshots into runtime/metric proof.
+- Animate only brief, evidence-consistent transitions; keep `prefers-reduced-motion`, keyboard accessible list fallback, true 200% zoom and source/freshness/reason visibility.
+- Keep SDLC phase, functional lane, runtime status, risk and gate separate. Unknown remains UNKNOWN; no browser-created task, claim, evidence, completion or execution authority.
+
+**Implementation dependency:** reconcile/accept the current UX-2 frontend owner/PR and re-run an independent Work Order + claim + R2 review/CI gate before editing `web/sunday-family/`.

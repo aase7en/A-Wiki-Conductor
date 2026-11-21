@@ -747,3 +747,15 @@ Checks for final plan: added-file diff (not only ordinary `git diff`), strict UT
 NOT RUN / not claimed: product pytest/Vitest/build/benchmark, visual browser acceptance, actual provider readiness/quota/billing, Windows/macOS deployment/control, login/reboot E2E, hosted CI trigger, independent production-code acceptance, merge/deploy/release. Current CI references are existing read-only GitHub evidence only
 
 Pending before implementation: formal docs publication lane and live claim ownership census; UX-1 acceptance before UX-2/UI implementation; action/fabric-specific gates before controls or autonomous promises. Offline non-UI preparation can be separately admitted without waiting for mockup approval. This roadmap is a plan for satisfying gates, not a certificate that they are already satisfied
+
+## 2026-11-21 Proposed SDLC Virtual Flow addendum (Issue #782)
+
+**Candidate addendum only — not a new SFU26 program card, accepted Work Order for implementation, or released UI.** Operator requested a detailed Pencil/Manga SDLC Virtual Flow that extends the existing SundayFamily Work & Lanes UI. The canonical planning proposal is [SundayFamily SDLC Virtual Flow Roadmap](2026-11-21-sundayfamily-sdlc-virtual-flow-roadmap.md), coordinated by [Issue #782](https://github.com/aase7en/A-Wiki-Conductor/issues/782) / `WO-P1-782` (docs-only publication).
+
+- **Placement:** Work & Lanes secondary read-only tab; existing seven-domain IA remains.
+- **Experience:** bounded 2D Hybrid Directed Graph (flowchart + mind map) with differentiated dependency/evidence/feedback edges, progressive disclosure Project → Work Order → Task/Evidence, Thai-first accessible Color E-Ink pencil treatment and short reduced-motion-compatible animation.
+- **Truth path:** existing A-Wiki knowledge/skills → A-Conductor authoritative Work Order/task/evidence/Monitor read model/API/SSE → SundayFamily presentation. No parallel scheduler, task/claim/review store, direct SRM mutation or invented runtime status.
+- **Incremental candidate sequence:** P0 reconcile #774/#776 ownership → P1 UX spec → P2 evidence mapping → P3 bounded SVG/DOM read-only canvas → P4 evidence drilldown → P5 motion/accessibility → P6 exact-SHA review/CI/closeout → optional P7 advanced graph. These are **proposal labels, not admitted tasks**.
+- **Hard gate:** do not edit `web/sunday-family/` until the existing UX-2 frontend claim and its latest PR/CI/review/merge status are reconciled and a new non-overlapping implementation WO is accepted. Any new cross-repo execution interface requires a separate CROSS_REPO authority and SHA-set verification.
+
+Keep existing SFU26 roadmap cards, their dependency graph and approval boundaries unchanged. The proposal becomes binding only through independently accepted scoped implementation Work Orders.
