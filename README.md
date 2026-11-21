@@ -58,7 +58,7 @@ Local-first control plane — no cloud account required for the control plane it
 
 **Current development version:** `0.7.0` - not released yet; stable publication remains gated by WO-P1-096 live connector TTL evidence.
 
-**Current program (as of 2026-11-21):** SFU26 *SundayFamily Unified Dashboard* — cards 00–10 accepted/merged on main; the UX-2 seven-section read-only web rebuild is [PR #776](https://github.com/aase7en/A-Wiki-Conductor/pull/776) (OPEN; visual/identity acceptance gates pending — **not released**). Governance and delivery policy run under the [Zero-Relay Accelerator roadmap](docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md) and `docs/agent-collab/` protocols.
+**Current program (as of 2026-11-21):** SFU26 *SundayFamily Unified Dashboard* — 10/22 cards delivered and merged (00–03, 05–10); card 04, the UX-2 seven-section read-only web rebuild, is [PR #776](https://github.com/aase7en/A-Wiki-Conductor/pull/776) (OPEN; visual/identity acceptance gates pending — **not released**). Governance and delivery policy run under the [Zero-Relay Accelerator roadmap](docs/plans/2026-09-04-zero-relay-accelerator-roadmap.md) and `docs/agent-collab/` protocols.
 
 > Direction: one A-Sunday Conductor entry point recovers SSoT, routes only eligible worker/model/harness capacity, preserves durable claims/evidence, reviews and repairs results, and continues without human result copy/paste. `CONFIGURED != READY`, `READY != AUTHORIZED`, and agent `PASS` is evidence rather than merge authority.
 
