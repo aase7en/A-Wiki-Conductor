@@ -2,7 +2,7 @@
 
 Identity schema: GITHUB_ISSUE_V1
 Issue: #784
-Status: claimed(kilo-glm-5.3) / candidate / review required / not merged
+Status: MERGED / POST_MAIN_VERIFIED / CLAIM_RELEASED (PR #785 cdc5b25 -> main@7f52cb5; CI 44961189948 SUCCESS 4/4; #784 c7071041487)
 Lane/files: `docs/work-orders/README.md`, `README.md`, `docs/work-orders/WO-P1-784-docs-hygiene.md` (ไฟล์นี้) — ห้ามแตะอย่างอื่น
 Branch: `docs/wo-p1-784-docs-hygiene` (isolated worktree `A:\GitHub\_worktrees\AWC-wo784-docs-hygiene`)
 Model tier: primary-only (GLM-5.3 MAX, Kilo Code CLI)
