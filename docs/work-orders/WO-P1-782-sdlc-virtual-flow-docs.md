@@ -2,7 +2,7 @@
 
 Identity schema: GITHUB_ISSUE_V1  
 Issue: #782  
-Status: DOCS-ONLY CANDIDATE / REVIEW REQUIRED / NOT MERGED  
+Status: MERGED / POST_MAIN_VERIFIED / INTEGRATOR_CLOSEOUT (PR #783 e24b166 -> main@be162763; CI 44921208957 SUCCESS 4/4; SDLC roadmap remains PROPOSED / NON-BINDING)  
 Topology: CONTROL_PLANE_ONLY  
 Risk: R2 (shared design/agent-routing docs, no source/runtime authority)  
 Authority repo: `aase7en/A-Wiki-Conductor`  
