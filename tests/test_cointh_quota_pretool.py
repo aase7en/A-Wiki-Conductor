@@ -1,20 +1,31 @@
-"""WO-P1-564 / Issue #564 (scope addendum 5865895184) focused offline tests.
+"""WO-P1-564 / Issue #564 focused offline tests + WO-P1-787 / Issue #787 G2.
 
-These tests cover only the GLM-command detection repaired in
+The WO-P1-564 layers cover the GLM-command detection repaired in
 ``scripts/codex_hooks/cointh_quota_pretool.py``: newline-separated explicit
 GLM commands, quoted multiline prompt non-matches, recognized here-document
 body non-matches, and preserved separator / env-wrapped selector behavior.
 
-The tests exercise the hook's pure parsing helpers directly. They never read
-credentials, open sockets, spawn subprocesses, or enter the quota path.
+The WO-P1-787 G2 layers pin the offline quota classification seam
+(``_quota_state``) to its current truth: AVAILABLE/EXHAUSTED vs the exact
+UNKNOWN reason-code vocabulary, HTTP 401/403 mapping, ``window_source``
+pass-through, and credential stripping from the child curl environment.
+
+The tests exercise pure helpers directly and the quota seam only through a
+recorded ``subprocess.run`` stand-in with DUMMY tokens. They never read real
+credentials, open sockets, spawn processes, or touch the network.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "codex_hooks" / "cointh_quota_pretool.py"
@@ -196,3 +207,302 @@ def test_sunday_dispatch_argv_env_wrapped_selector_is_detected() -> None:
         "tool_input": {"args": ["claude", "-p", "hi"]},
     }
     assert not HOOK._explicit_glm_request(unmatched)
+
+
+# --- WO-P1-787 G2: offline quota classification fixtures (current-code truth) ---
+
+_DUMMY_TOKEN = "wo787-dummy-token-not-a-real-credential"
+
+
+def _quota_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "remaining_5h": 40,
+        "used_5h": 10,
+        "limit_5h": 50,
+        "window_reset_at": 1795767600,
+        "window_reset_in_sec": 600,
+        "is_expired": False,
+        "window_source": "quota_window_fresh",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _quota_output(payload: Any, *, status: int = 200) -> bytes:
+    if isinstance(payload, bytes):
+        body = payload
+    elif isinstance(payload, str):
+        body = payload.encode("utf-8")
+    else:
+        body = json.dumps(payload).encode("utf-8")
+    return body + f"\nCOINTH_HTTP_STATUS:{status}".encode("ascii")
+
+
+class _FakeCurl:
+    """Recording ``subprocess.run`` stand-in; never spawns a process."""
+
+    def __init__(
+        self,
+        *,
+        stdout: bytes = b"",
+        returncode: int = 0,
+        error: Exception | None = None,
+    ) -> None:
+        self.stdout = stdout
+        self.returncode = returncode
+        self.error = error
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, args: Any, **kwargs: Any) -> SimpleNamespace:
+        self.calls.append({"args": list(args), **kwargs})
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(stdout=self.stdout, returncode=self.returncode)
+
+
+def _run_quota_state(
+    monkeypatch: pytest.MonkeyPatch, fake: _FakeCurl
+) -> tuple[str, dict[str, Any]]:
+    monkeypatch.setenv(HOOK._CREDENTIAL_ENV, _DUMMY_TOKEN)
+    monkeypatch.setattr(subprocess, "run", fake)
+    return HOOK._quota_state()
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_state"),
+    [
+        pytest.param({"remaining_5h": 40, "used_5h": 10}, "AVAILABLE", id="positive-remaining"),
+        pytest.param({"remaining_5h": 0, "used_5h": 50}, "EXHAUSTED", id="valid-zero"),
+    ],
+)
+def test_quota_state_consistent_tuple_classifies_available_or_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, Any],
+    expected_state: str,
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(**overrides)))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == expected_state
+    assert state != "UNKNOWN"
+    assert evidence["remaining_5h"] == overrides["remaining_5h"]
+    assert evidence["used_5h"] == overrides["used_5h"]
+    assert evidence["limit_5h"] == 50
+    assert evidence["window_reset_in_sec"] == 600
+    assert evidence["http_status"] == 200
+    assert evidence["is_expired"] is False
+    assert "reason" not in evidence
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"remaining_5h": 10, "used_5h": 10}, id="sum-mismatch"),
+        pytest.param({"remaining_5h": -1, "used_5h": 51}, id="negative-remaining"),
+    ],
+)
+def test_quota_state_inconsistent_tuple_is_unknown_without_false_exhaustion(
+    monkeypatch: pytest.MonkeyPatch, overrides: dict[str, Any]
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(**overrides)))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_inconsistent_tuple", "http_status": 200}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param('{"remaining_5h": 40,', id="invalid-json"),
+        pytest.param("[40, 10, 50]", id="json-array-not-object"),
+    ],
+)
+def test_quota_state_malformed_body_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, body: str
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(body))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_malformed_json", "http_status": 200}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        pytest.param("remaining_5h", "40", id="string-remaining"),
+        pytest.param("used_5h", 10.0, id="float-used"),
+        pytest.param("limit_5h", True, id="boolean-limit"),
+        pytest.param("window_reset_in_sec", None, id="null-reset-in"),
+    ],
+)
+def test_quota_state_non_integer_counter_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, field: str, value: Any
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(**{field: value})))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_invalid_counter_type", "http_status": 200}
+
+
+@pytest.mark.parametrize(
+    ("flag", "expected_reason"),
+    [
+        pytest.param(True, "quota_expired", id="expired-true"),
+        pytest.param("false", "quota_invalid_expiry_flag", id="non-bool-flag"),
+    ],
+)
+def test_quota_state_expiry_flag_gate_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, flag: Any, expected_reason: str
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(is_expired=flag)))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": expected_reason, "http_status": 200}
+
+
+@pytest.mark.parametrize(
+    ("stdout", "returncode"),
+    [
+        pytest.param(b"", 6, id="curl-nonzero-exit"),
+        pytest.param(b'{"remaining_5h": 40}', 0, id="missing-status-marker"),
+        pytest.param(
+            b'{"remaining_5h": 40}\nCOINTH_HTTP_STATUS:2OO',
+            0,
+            id="non-digit-status",
+        ),
+    ],
+)
+def test_quota_state_transport_failure_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, stdout: bytes, returncode: int
+) -> None:
+    fake = _FakeCurl(stdout=stdout, returncode=returncode)
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_transport_error"}
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(subprocess.TimeoutExpired(cmd="/usr/bin/curl", timeout=10), id="timeout"),
+        pytest.param(OSError("curl binary unavailable"), id="os-error"),
+    ],
+)
+def test_quota_state_request_failure_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    fake = _FakeCurl(error=error)
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_request_failed"}
+
+
+@pytest.mark.parametrize("http_status", [401, 403])
+def test_quota_state_http_error_is_unknown_with_quota_http_error_reason(
+    monkeypatch: pytest.MonkeyPatch, http_status: int
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(), status=http_status))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    # current seam has no separate AUTH state/reason: HTTP errors stay UNKNOWN
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_http_error", "http_status": http_status}
+
+
+def test_quota_state_missing_credential_is_unknown_without_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(HOOK._CREDENTIAL_ENV, raising=False)
+    fake = _FakeCurl()
+    monkeypatch.setattr(subprocess, "run", fake)
+    state, evidence = HOOK._quota_state()
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "missing_credential"}
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize(
+    "window_source",
+    ["quota_window_fresh", "quota_window_stale", "stale-cache-2026", None],
+)
+def test_quota_state_window_source_passes_through_verbatim(
+    monkeypatch: pytest.MonkeyPatch, window_source: Any
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(window_source=window_source)))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "AVAILABLE"
+    assert evidence["window_source"] == window_source
+
+
+def test_quota_state_stale_window_source_is_never_promoted_to_fresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeCurl(
+        stdout=_quota_output(_quota_payload(window_source="quota_window_stale"))
+    )
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "AVAILABLE"
+    assert evidence["window_source"] == "quota_window_stale"
+    assert evidence["window_source"] != "quota_window_fresh"
+
+
+def test_quota_state_child_process_keeps_credential_out_of_env_and_argv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload()))
+    state, _evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "AVAILABLE"
+    assert len(fake.calls) == 1
+    call = fake.calls[0]
+    child_env = call["env"]
+    assert isinstance(child_env, dict)
+    assert HOOK._CREDENTIAL_ENV not in child_env
+    assert not any(_DUMMY_TOKEN in str(value) for value in child_env.values())
+    assert not any(_DUMMY_TOKEN in str(arg) for arg in call["args"])
+    assert _DUMMY_TOKEN.encode("utf-8") in call["input"]
+
+
+def test_quota_state_oversized_response_is_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bloated = _quota_output(_quota_payload()) + b"#" * (HOOK._MAX_QUOTA_BYTES + 65)
+    fake = _FakeCurl(stdout=bloated)
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_response_too_large"}
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    ["remaining_5h", "used_5h", "limit_5h", "window_reset_at", "window_reset_in_sec"],
+)
+def test_quota_state_incomplete_tuple_is_unknown(
+    monkeypatch: pytest.MonkeyPatch, missing_field: str
+) -> None:
+    payload = _quota_payload()
+    del payload[missing_field]
+    fake = _FakeCurl(stdout=_quota_output(payload))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    assert state == "UNKNOWN"
+    assert evidence == {"reason": "quota_incomplete_tuple", "http_status": 200}
+
+
+@pytest.mark.parametrize(
+    ("reset_at", "expected_state"),
+    [
+        pytest.param(1795767600, "AVAILABLE", id="epoch-int"),
+        pytest.param(1795767600.0, "AVAILABLE", id="finite-float"),
+        pytest.param("2026-11-23T10:00:00+00:00", "AVAILABLE", id="tz-aware-iso"),
+        pytest.param("2026-11-23T10:00:00", "UNKNOWN", id="naive-iso"),
+        pytest.param("1795767600", "UNKNOWN", id="numeric-string"),
+    ],
+)
+def test_quota_state_window_reset_at_validity_as_presently_defined(
+    monkeypatch: pytest.MonkeyPatch, reset_at: Any, expected_state: str
+) -> None:
+    fake = _FakeCurl(stdout=_quota_output(_quota_payload(window_reset_at=reset_at)))
+    state, evidence = _run_quota_state(monkeypatch, fake)
+    if expected_state == "AVAILABLE":
+        assert state == "AVAILABLE"
+        assert evidence["window_reset_in_sec"] == 600
+    else:
+        assert state == "UNKNOWN"
+        assert evidence == {"reason": "quota_inconsistent_tuple", "http_status": 200}
