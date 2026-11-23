@@ -7,6 +7,16 @@ is never fabricated into zero.
 
 from __future__ import annotations
 
+import ast
+import builtins
+import copy
+import json
+import socket
+import subprocess
+import sys
+import urllib.request
+from pathlib import Path
+
 import pytest
 
 from a_conductor.provider_fallback_policy import (
@@ -501,3 +511,194 @@ def test_wo752_invalid_inputs_fail_closed() -> None:
         project_route_telemetry(attempts=("not-a-row",))
     with pytest.raises(ValueError):
         project_route_telemetry(attempts=None)
+
+
+# --- WO-P1-787 G1: route telemetry purity trio ---
+
+MODULE_SOURCE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "a_conductor"
+    / "route_telemetry_projection.py"
+)
+
+# Provider/network/subprocess I/O surfaces the projection must never import
+# (WO-P1-787 G1.1). ``a_conductor.provider`` prefixes every provider admission
+# module; plain provider-agnostic stdlib imports stay out of scope on purpose.
+_FORBIDDEN_IMPORT_ROOTS = (
+    "urllib",
+    "http",
+    "requests",
+    "socket",
+    "subprocess",
+    "ssl",
+    "ftplib",
+    "smtplib",
+    "telnetlib",
+    "httpx",
+    "aiohttp",
+    "urllib3",
+    "a_conductor.provider",
+)
+
+# Executed in a fresh interpreter (WO-P1-787 G1.2): loads the projection file
+# via importlib file-location isolation (no ``a_conductor`` package __init__),
+# proves it still composes evidence, and reports any forbidden module that
+# entered ``sys.modules`` as a side effect of the import.
+_PURITY_PROBE_SCRIPT = """\
+import importlib.util
+import json
+import sys
+
+path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("wo787_purity_probe", path)
+probe = importlib.util.module_from_spec(spec)
+# dataclass() reads sys.modules[cls.__module__]; the probe module must be
+# registered before exec_module (importlib documented loading pattern).
+sys.modules["wo787_purity_probe"] = probe
+spec.loader.exec_module(probe)
+evidence = probe.project_route_telemetry(attempts=())
+forbidden = (
+    "urllib", "http", "requests", "socket", "subprocess", "ssl",
+    "ftplib", "smtplib", "telnetlib", "httpx", "aiohttp", "urllib3",
+)
+loaded = sorted(
+    name
+    for name in sys.modules
+    if name.split(".")[0] in forbidden or "a_conductor.provider" in name
+)
+print(json.dumps({
+    "attempted_attempt_count": evidence.attempted_attempt_count,
+    "accepted_attempt_count": evidence.accepted_attempt_count,
+    "loaded_forbidden_modules": loaded,
+}))
+"""
+
+
+def _collect_import_names(source_text: str) -> list[str]:
+    tree = ast.parse(source_text)
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.append(node.module)
+    return names
+
+
+def test_module_source_imports_are_pure_allowlist() -> None:
+    source = MODULE_SOURCE_PATH.read_text(encoding="utf-8")
+    violations = [
+        name
+        for name in _collect_import_names(source)
+        if name.startswith(_FORBIDDEN_IMPORT_ROOTS)
+    ]
+    assert violations == [], (
+        "route telemetry projection must not import provider/network/"
+        f"subprocess I/O modules; found: {violations}"
+    )
+
+
+def test_runtime_import_graph_has_no_provider_modules() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-c", _PURITY_PROBE_SCRIPT, str(MODULE_SOURCE_PATH)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    report = json.loads(completed.stdout)
+    assert report["attempted_attempt_count"] == 0
+    assert report["accepted_attempt_count"] == 0
+    assert report["loaded_forbidden_modules"] == []
+
+
+class _MutableDuckSemantic:
+    """Shape-conforming semantic row that CAN be mutated in place.
+
+    Frozen typed fixtures cannot observe in-place mutation; this duck row can,
+    so fixture preservation is actually verified rather than assumed.
+    """
+
+    def __init__(self) -> None:
+        self.input_usage = 12
+        self.output_usage = 5
+        self.latency_ms = 42.5
+        self.fallback_reason = "PROVIDER_RATE_LIMIT"
+        self.disposition = "ESCALATE"
+        self.execution_id = "exec-io"
+        self.attempt_id = "att-io"
+        self.request_id = None
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _MutableDuckSemantic):
+            return NotImplemented
+        return vars(self) == vars(other)
+
+
+def _io_sentinel(what: str):
+    def _forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError(f"projection attempted real {what}")
+
+    return _forbidden
+
+
+def test_projection_performs_no_io_and_does_not_mutate_fixtures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selection = make_selection(
+        make_evaluation(),
+        make_evaluation(
+            provider_id="provider-b",
+            model_id="model-b",
+            eligible=False,
+            reason_code=REASON_QUOTA_EXHAUSTED,
+        ),
+    )
+    duck_semantic = _MutableDuckSemantic()
+    pricing = RouteUnitPricing(
+        input_cost_per_thousand_tokens=0.5,
+        output_cost_per_thousand_tokens=1.5,
+    )
+    attempts = (
+        RouteAttemptInput(
+            execution_id="exec-io",
+            attempt_id="att-1",
+            request_id="req-io",
+            selection=selection,
+            semantic=make_semantic(
+                input_usage=10,
+                output_usage=4,
+                latency_ms=12.0,
+                execution_id="exec-io",
+                attempt_id="att-1",
+            ),
+            started_at_wall="2026-11-23T10:00:00Z",
+            finished_at_wall="2026-11-23T10:00:02Z",
+            receipt_status=RECEIPT_STATUS_ACCEPTED,
+            pricing=pricing,
+            currency="USD",
+        ),
+        RouteAttemptInput(
+            execution_id="exec-io",
+            attempt_id="att-io",
+            selection=selection,
+            semantic=duck_semantic,
+            receipt_status=RECEIPT_STATUS_QUARANTINED,
+        ),
+    )
+    fixture_snapshot = copy.deepcopy(attempts)
+
+    monkeypatch.setattr(socket, "socket", _io_sentinel("socket"))
+    monkeypatch.setattr(urllib.request, "urlopen", _io_sentinel("urlopen"))
+    monkeypatch.setattr(builtins, "open", _io_sentinel("builtins.open"))
+    monkeypatch.setattr(subprocess, "run", _io_sentinel("subprocess.run"))
+    monkeypatch.setattr(subprocess, "Popen", _io_sentinel("subprocess.Popen"))
+
+    first = project_route_telemetry(attempts=attempts)
+    second = project_route_telemetry(attempts=attempts)
+
+    assert first == second
+    assert attempts == fixture_snapshot
