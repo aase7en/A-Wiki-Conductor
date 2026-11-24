@@ -15,6 +15,11 @@ export interface Lane {
   next_safe_action: string | null;
   last_activity: string | null;
   last_meaningful_progress: string | null;
+  // Optional in legacy fixtures; accepted public_snapshot exposes these MC-1 fields.
+  wait_reason?: string | null;
+  next_recheck_at?: string | null;
+  countdown_seconds?: number | null;
+  capacity_class?: string | null;
   gates: Record<string, string | null>;
 }
 
@@ -147,9 +152,11 @@ const isLiveMonitor = (value: Record<string, unknown>): boolean => {
   const inspector = value.inspector;
   if (!isRecord(inspector)) return false;
   if ('state' in inspector) {
-    return typeof inspector.state === 'string' && inspector.state.length <= 32
+    return Object.keys(inspector).every(key => key === 'state' || key === 'reason')
+      && typeof inspector.state === 'string' && inspector.state.length <= 32
       && typeof inspector.reason === 'string' && inspector.reason.length <= 64;
   }
+  if ('reason' in inspector) return false;
   const summary = inspector.summary;
   if (!isRecord(summary) || typeof summary.generated_at !== 'string'
     || summary.generated_at.length > 64) return false;
@@ -195,6 +202,15 @@ export function parseSnapshot(value: unknown): Snapshot {
           return value === null || typeof value === 'string';
         })
       && lane.state_markers.every(item => typeof item === 'string')
+      && ['wait_reason', 'next_recheck_at', 'capacity_class'].every(field => {
+        const value = lane[field as 'wait_reason' | 'next_recheck_at' | 'capacity_class'];
+        return value === undefined || value === null
+          || (typeof value === 'string' && value.length <= 200);
+      })
+      && (lane.countdown_seconds === undefined || lane.countdown_seconds === null
+        || (typeof lane.countdown_seconds === 'number'
+          && Number.isInteger(lane.countdown_seconds)
+          && lane.countdown_seconds >= 0 && lane.countdown_seconds <= 2 ** 31))
       && lane.gates && typeof lane.gates === 'object'
       && Object.values(lane.gates).every(item => item === null || typeof item === 'string'))) {
     throw new Error('Unsupported or invalid monitor snapshot.');
